@@ -1,0 +1,161 @@
+CERINA PROTOCOL FOUNDRY - ARCHITECTURE DIAGRAM
+===============================================
+
+┌─────────────────────────────────────────────────────────────────┐
+│                      USER INTERFACE LAYER                        │
+├──────────────────────┬──────────────────────────────────────────┤
+│   React Dashboard   │         MCP Client                        │
+│  (Human-in-Loop)    │    (Machine-to-Machine)                  │
+│                     │                                          │
+│  - Real-time        │  - Claude Desktop                         │
+│    visualization    │  - Programmatic API                       │
+│  - Agent activity   │  - Tool-based interface                  │
+│  - Edit/Approve UI  │                                          │
+└──────────┬──────────┴──────────────┬───────────────────────────┘
+           │                          │
+           │ HTTP/SSE                 │ MCP Protocol
+           │                          │
+┌──────────▼──────────────────────────▼───────────────────────────┐
+│                    FASTAPI BACKEND                               │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │              REST API ENDPOINTS                            │  │
+│  │  POST /api/protocols/create                               │  │
+│  │  GET  /api/protocols/{id}/stream (SSE)                    │  │
+│  │  GET  /api/protocols/{id}/state                           │  │
+│  │  POST /api/protocols/{id}/approve                         │  │
+│  │  POST /api/protocols/{id}/halt                            │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└───────────────────────────┬───────────────────────────────────────┘
+                            │
+                ┌───────────▼───────────┐
+                │   LANGGRAPH WORKFLOW   │
+                │  (Multi-Agent System)  │
+                │                        │
+                │  Entry: "draft"        │
+                │  Nodes: 4 agents       │
+                │  Routing: Autonomous   │
+                └───────────┬───────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        │                   │                   │
+┌───────▼────────┐  ┌───────▼────────┐  ┌──────▼────────┐
+│  DRAFTER       │  │ SAFETY         │  │ CLINICAL      │
+│  AGENT         │  │ GUARDIAN       │  │ CRITIC        │
+│                │  │ AGENT          │  │ AGENT         │
+│  - Creates     │  │                │  │               │
+│    drafts      │  │ - Validates    │  │ - Evaluates   │
+│  - Revises     │  │   safety       │  │   quality     │
+│  - Incorporates│  │ - Checks for   │  │ - Assesses     │
+│    feedback    │  │   self-harm   │  │   empathy     │
+│                │  │ - Flags medical│  │ - Reviews      │
+│                │  │   advice       │  │   structure   │
+└───────┬────────┘  └───────┬────────┘  └──────┬─────────┘
+        │                   │                   │
+        │                   │                   │
+        └───────────────────┼───────────────────┘
+                            │
+                    ┌───────▼────────┐
+                    │  SUPERVISOR    │
+                    │  AGENT         │
+                    │                │
+                    │  - Orchestrates│
+                    │  - Evaluates   │
+                    │    quality     │
+                    │  - Routes      │
+                    │    workflow    │
+                    │  - Manages     │
+                    │    iterations  │
+                    │  - Triggers    │
+                    │    human halt  │
+                    └───────┬────────┘
+                            │
+                ┌───────────▼───────────┐
+                │   SHARED STATE         │
+                │   (BLACKBOARD)          │
+                │                        │
+                │  - current_draft       │
+                │  - draft_history       │
+                │  - agent_notes         │
+                │  - safety_score        │
+                │  - empathy_score       │
+                │  - clinical_score      │
+                │  - iteration_count     │
+                │  - halted (bool)       │
+                │  - human_approved      │
+                └───────────┬───────────┘
+                            │
+                ┌───────────▼───────────┐
+                │   SQLITE CHECKPOINTER  │
+                │   (PERSISTENCE)        │
+                │                        │
+                │  - State snapshots     │
+                │  - Resume on crash    │
+                │  - Session history    │
+                └────────────────────────┘
+
+WORKFLOW EXECUTION FLOW:
+========================
+
+1. User submits intent
+   ↓
+2. Initial state created → Entry: "draft"
+   ↓
+3. DRAFTER creates initial draft
+   ↓
+4. SAFETY GUARDIAN reviews (safety_score)
+   ↓
+5. CLINICAL CRITIC evaluates (empathy_score, clinical_score)
+   ↓
+6. SUPERVISOR decides:
+   ├─ Quality OK? → HALT (await human approval)
+   ├─ Needs revision? → Route back to DRAFTER
+   └─ Max iterations? → Finalize
+   ↓
+7. Human reviews in UI
+   ├─ Edit draft (optional)
+   └─ Approve
+   ↓
+8. Workflow resumes → Finalize protocol
+
+AGENT COMMUNICATION (BLACKBOARD):
+=================================
+
+Agents communicate through shared state:
+- agent_notes: List of notes with priority levels
+- Targeted notes: target_agent specified
+- Broadcast notes: target_agent=None
+- Priority: "info", "warning", "critical"
+
+Example:
+- SafetyGuardian → Drafter: "SAFETY ISSUE: Line 3 mentions medication"
+- ClinicalCritic → Drafter: "IMPROVEMENT NEEDED: Tone too clinical"
+- Supervisor → All: "Draft meets quality thresholds"
+
+QUALITY THRESHOLDS:
+===================
+
+- Safety Score: ≥ 0.8 (required)
+- Empathy Score: ≥ 0.7 (required)
+- Clinical Score: ≥ 0.7 (required)
+- Max Iterations: 5 (safety limit)
+
+HUMAN-IN-THE-LOOP:
+==================
+
+1. Workflow pauses at checkpoint (halted=true)
+2. State persisted to database
+3. UI fetches state via /api/protocols/{id}/state
+4. Human reviews draft
+5. Human can edit or approve
+6. On approval: human_approved=true, workflow resumes
+
+MCP INTEGRATION:
+================
+
+MCP Server exposes workflow as tools:
+- create_cbt_protocol: Start generation
+- get_protocol_status: Check progress
+- approve_protocol: Human approval
+
+Allows external MCP clients to trigger workflows programmatically.
+

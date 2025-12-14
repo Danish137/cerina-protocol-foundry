@@ -1,0 +1,10 @@
+
+
+# Database
+DATABASE_URL=sqlite:///./cerina_foundry.db
+   # In backend/.env
+OPENAI_API_KEY=your-key-here
+OPENAI_BASE_URL=https://api.chatanywhere.tech/v1
+# Server Configuration
+HOST=0.0.0.0
+PORT=8000
