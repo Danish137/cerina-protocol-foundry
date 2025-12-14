@@ -2,6 +2,10 @@
 
 An intelligent multi-agent system that autonomously designs, critiques, and refines CBT (Cognitive Behavioral Therapy) exercises.
 
+## Architecture Diagram
+
+![Cerina Protocol Foundry Architecture](ARCHITECTURE_DIAGRAM.jpg)
+
 ## Architecture
 
 The system uses a **Supervisor-Worker** pattern with specialized agents:
