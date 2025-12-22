@@ -79,39 +79,11 @@ A complete multi-agent system for autonomously designing, critiquing, and refini
 
 ## Getting Started
 
-See `QUICKSTART.md` for 5-minute setup guide.
+See `QUICKSTART.md` for setup guide.
 
-## Documentation
 
-- `QUICKSTART.md`: Fast setup guide
-- `docs/SETUP.md`: Detailed setup instructions
-- `docs/ARCHITECTURE.md`: System design and architecture
-- `docs/USAGE.md`: Usage guide and examples
-- `ARCHITECTURE_DIAGRAM.txt`: Visual architecture representation
 
-## Next Steps for Demo
 
-1. **Record Loom Video** (Max 5 mins):
-   - Show React UI with agents working
-   - Demonstrate human-in-the-loop approval
-   - Show MCP integration with Claude Desktop
-   - Explain state management and checkpointing
 
-2. **Test All Features**:
-   - Create multiple protocols
-   - Test halt/approve flow
-   - Verify MCP tools work
-   - Test crash recovery
 
-3. **Prepare Architecture Diagram**:
-   - Visual representation of agent topology
-   - Workflow execution flow
-   - State management structure
-
-## Notes
-
-- System is production-ready but may need API key configuration
-- All components are modular and well-documented
-- Error handling and logging are comprehensive
-- Database schema supports history tracking
 
