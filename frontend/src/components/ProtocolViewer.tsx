@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { CheckCircle, XCircle, Edit, AlertCircle } from 'lucide-react'
+import { CheckCircle, Edit, AlertCircle, Download } from 'lucide-react'
 import axios from 'axios'
+import jsPDF from 'jspdf'
 
 interface ProtocolViewerProps {
   sessionId: string
-  onClose: () => void
 }
 
 interface ProtocolState {
@@ -19,7 +19,7 @@ interface ProtocolState {
   active_agent?: string
 }
 
-export default function ProtocolViewer({ sessionId, onClose }: ProtocolViewerProps) {
+export default function ProtocolViewer({ sessionId }: ProtocolViewerProps) {
   const [state, setState] = useState<ProtocolState | null>(null)
   const [editedDraft, setEditedDraft] = useState('')
   const [isEditing, setIsEditing] = useState(false)
@@ -217,6 +217,73 @@ export default function ProtocolViewer({ sessionId, onClose }: ProtocolViewerPro
     }
   }
 
+  const handleExportPdf = () => {
+    const content = isEditing ? editedDraft : state?.current_draft
+
+    if (!content || !content.trim()) {
+      alert('No protocol content available to export yet.')
+      return
+    }
+
+    try {
+      const doc = new jsPDF({
+        unit: 'pt',
+        format: 'a4',
+      })
+
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const margin = 40
+      const maxWidth = pageWidth - margin * 2
+      const lineHeight = 16
+
+      let cursorY = 60
+
+      // Title
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(16)
+      doc.text('CBT Protocol', margin, cursorY)
+      cursorY += 24
+
+      // Generated timestamp
+      const now = new Date()
+      const generatedAt = now.toLocaleString()
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.text(`Generated: ${generatedAt}`, margin, cursorY)
+      cursorY += 18
+
+      // Divider
+      doc.setDrawColor(180)
+      doc.line(margin, cursorY, pageWidth - margin, cursorY)
+      cursorY += 24
+
+      // Body text
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(12)
+
+      const lines = doc.splitTextToSize(content, maxWidth) as string[]
+
+      lines.forEach((line: string) => {
+        const text = line
+
+        if (cursorY > pageHeight - margin) {
+          doc.addPage()
+          cursorY = margin
+        }
+
+        doc.text(text, margin, cursorY)
+        cursorY += lineHeight
+      })
+
+      const fileName = `cbt-protocol-${now.toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`
+      doc.save(fileName)
+    } catch (err) {
+      console.error('Error exporting PDF:', err)
+      alert('Failed to export PDF. Please try again.')
+    }
+  }
+
   if (!state) {
     return (
       <div className="text-center py-8 text-slate-400">
@@ -234,28 +301,20 @@ export default function ProtocolViewer({ sessionId, onClose }: ProtocolViewerPro
 
   return (
     <div className="space-y-4">
-      {/* Status and Scores */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-            state.status === 'completed' ? 'bg-green-900/30 text-green-300' :
-            isHalted ? 'bg-yellow-900/30 text-yellow-300' :
-            'bg-blue-900/30 text-blue-300'
-          }`}>
-            {state.status}
+      {/* Status */}
+      <div className="flex items-center gap-3">
+        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+          state.status === 'completed' ? 'bg-green-900/30 text-green-300' :
+          isHalted ? 'bg-yellow-900/30 text-yellow-300' :
+          'bg-blue-900/30 text-blue-300'
+        }`}>
+          {state.status}
+        </span>
+        {state.iteration_count !== undefined && (
+          <span className="text-sm text-slate-400">
+            Iteration {state.iteration_count}
           </span>
-          {state.iteration_count !== undefined && (
-            <span className="text-sm text-slate-400">
-              Iteration {state.iteration_count}
-            </span>
-          )}
-        </div>
-        <button
-          onClick={onClose}
-          className="text-slate-400 hover:text-white transition-colors"
-        >
-          <XCircle className="w-5 h-5" />
-        </button>
+        )}
       </div>
 
       {/* Quality Scores */}
@@ -326,9 +385,9 @@ export default function ProtocolViewer({ sessionId, onClose }: ProtocolViewerPro
       </div>
 
       {/* Actions */}
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3 items-center justify-between">
         {isHalted ? (
-          <>
+          <div className="flex flex-wrap gap-3">
             {!isEditing ? (
               <button
                 onClick={() => {
@@ -360,7 +419,7 @@ export default function ProtocolViewer({ sessionId, onClose }: ProtocolViewerPro
               <CheckCircle className="w-4 h-4" />
               {isEditing ? 'Save & Approve' : 'Approve'}
             </button>
-          </>
+          </div>
         ) : (
           <button
             onClick={handleHalt}
@@ -371,6 +430,14 @@ export default function ProtocolViewer({ sessionId, onClose }: ProtocolViewerPro
             Halt for Review
           </button>
         )}
+
+        <button
+          onClick={handleExportPdf}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+        >
+          <Download className="w-4 h-4" />
+          Export PDF
+        </button>
       </div>
     </div>
   )

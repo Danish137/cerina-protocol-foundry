@@ -2,7 +2,7 @@ import { useState } from 'react'
 import ProtocolCreator from './components/ProtocolCreator'
 import ProtocolViewer from './components/ProtocolViewer'
 import AgentActivityFeed from './components/AgentActivityFeed'
-import { Activity, FileText, Sparkles } from 'lucide-react'
+import { Activity, FileText, Sparkles, ExternalLink } from 'lucide-react'
 
 interface ProtocolSession {
   sessionId: string
@@ -25,6 +25,16 @@ function App() {
           <div className="flex items-center gap-3 mb-2">
             <Sparkles className="w-8 h-8 text-primary-500" />
             <h1 className="text-4xl font-bold text-white">Cerina Protocol Foundry</h1>
+            <a
+              href="https://github.com/Danish137/cerina-protocol-foundry/blob/main/mcp_server/TEST_MCP.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white border border-purple-400/50 hover:from-purple-500 hover:to-blue-500 transition-all hover:scale-105"
+              title="Model Context Protocol integration - Click for setup instructions"
+            >
+              <span>MCP</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
           <p className="text-slate-300 text-lg">
             Autonomous multi-agent system for designing CBT exercises
@@ -51,10 +61,7 @@ function App() {
             {/* Protocol Viewer */}
             {showViewer && activeSession && (
               <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-6 border border-slate-700">
-                <ProtocolViewer 
-                  sessionId={activeSession.sessionId}
-                  onClose={() => setShowViewer(false)}
-                />
+                <ProtocolViewer sessionId={activeSession.sessionId} />
               </div>
             )}
           </div>

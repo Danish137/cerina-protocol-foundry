@@ -2,60 +2,34 @@
 
 ## Prerequisites
 
-1. **Backend must be running**: The MCP server connects to the backend API at `http://localhost:8000`
-2. **Python environment**: Make sure you have the MCP dependencies installed
+Before testing the MCP server, ensure you have:
 
-## Quick Test (Without Claude Desktop)
+1. **Backend running**: The MCP server connects to the backend API at `http://localhost:8000`
+2. **MCP Server setup**: Follow the [Quick Start Guide](../QUICKSTART.md) for initial setup
 
-You can test the MCP server directly using a simple Python script:
+> 💡 **Quick Setup**: If you haven't set up the project yet, see [QUICKSTART.md](../QUICKSTART.md) for complete setup instructions.
 
-### 1. Start the Backend
+## MCP Server Setup
+
+The MCP server (`server.py`) is already created. To set it up:
+
 ```bash
-cd backend
-uvicorn main:app --reload
+cd mcp_server
+python -m venv venv
+
+# Windows
+venv\Scripts\activate
+
+# macOS/Linux
+source venv/bin/activate
+
+pip install -r requirements.txt
+
+# Set backend URL (optional, defaults to http://localhost:8000)
+export BACKEND_URL=http://localhost:8000  # Windows: set BACKEND_URL=http://localhost:8000
 ```
 
-### 2. Test MCP Server Directly
-
-Create a test script `test_mcp.py` in the `mcp_server` directory:
-
-```python
-import asyncio
-import json
-import sys
-from mcp.server.stdio import stdio_server
-from mcp.server import Server
-from mcp.types import Tool, TextContent
-import httpx
-
-# This simulates what an MCP client would do
-async def test_mcp_server():
-    # Test the tools
-    server = Server("cerina-protocol-foundry")
-    
-    # List tools
-    tools = await server.list_tools()
-    print("Available tools:", [t.name for t in tools])
-    
-    # Test create_cbt_protocol
-    result = await server.call_tool("create_cbt_protocol", {
-        "intent": "Create a sleep hygiene protocol"
-    })
-    print("Create result:", result[0].text)
-    
-    # Extract session_id from result
-    # (In real usage, you'd parse this properly)
-    session_id = "session_123"  # Replace with actual session_id
-    
-    # Test get_protocol_status
-    result = await server.call_tool("get_protocol_status", {
-        "session_id": session_id
-    })
-    print("Status result:", result[0].text)
-
-if __name__ == "__main__":
-    asyncio.run(test_mcp_server())
-```
+> 📝 **Note**: The MCP server uses stdio (standard input/output) to communicate with MCP clients. You don't need to run it manually - it will be started by your MCP client (e.g., Claude Desktop) when needed.
 
 ## Testing with Claude Desktop
 
@@ -76,7 +50,7 @@ Add this configuration:
     "cerina-foundry": {
       "command": "python",
       "args": [
-        "C:/Users/msi-laptop/Desktop/Cerina-Protocol-Foundary/mcp_server/server.py"
+        "/absolute/path/to/Cerina-Protocol-Foundary/mcp_server/server.py"
       ],
       "env": {
         "BACKEND_URL": "http://localhost:8000"
@@ -86,7 +60,11 @@ Add this configuration:
 }
 ```
 
-**Important**: Replace the path with your actual path to `server.py`
+**Important**: 
+- Replace `/absolute/path/to/Cerina-Protocol-Foundary` with your actual project path
+- Use forward slashes `/` in the path, even on Windows
+- Use the full absolute path to `server.py`
+- If Python is not in your PATH, use the full path to Python: `"C:/Python/python.exe"` instead of `"python"`
 
 ### 3. Restart Claude Desktop
 
@@ -169,12 +147,18 @@ Approve the protocol for session_id_here with approved_content "edited content h
 - Verify the MCP server starts without errors when run directly
 
 ### Import Errors
-- Make sure you've installed MCP dependencies: `pip install -r requirements.txt`
+- Make sure you've installed MCP dependencies: `pip install -r requirements.txt` in the `mcp_server` directory
 - Check Python version: `python --version` (should be 3.10+)
+- Ensure virtual environment is activated before installing dependencies
+
+### MCP Server Not Starting
+- Verify the path to `server.py` is correct in Claude Desktop config
+- Test the server manually: `python mcp_server/server.py` (should not error, but will wait for stdio input)
+- Check that all dependencies are installed correctly
 
 ## Manual Testing (Without MCP Client)
 
-You can test the backend API directly to verify it works:
+You can test the backend API directly to verify it works. This is useful for debugging:
 
 ```bash
 # Create a protocol
@@ -182,7 +166,7 @@ curl -X POST http://localhost:8000/api/protocols/create \
   -H "Content-Type: application/json" \
   -d '{"intent": "Create a sleep hygiene protocol"}'
 
-# Get status (replace SESSION_ID)
+# Get status (replace SESSION_ID with the session_id from the create response)
 curl http://localhost:8000/api/protocols/SESSION_ID/state
 
 # Approve (replace SESSION_ID)
@@ -190,6 +174,8 @@ curl -X POST http://localhost:8000/api/protocols/SESSION_ID/approve \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
+
+> 💡 **Tip**: You can also use the web UI at `http://localhost:3000` (see [QUICKSTART.md](../QUICKSTART.md)) to test the system without MCP.
 
 ## Expected Workflow
 
