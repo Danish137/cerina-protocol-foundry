@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Bot, MessageSquare, AlertTriangle, CheckCircle } from 'lucide-react'
+import API_BASE_URL from '../config'
 
 interface AgentActivity {
   agent: string
@@ -104,7 +105,7 @@ export default function AgentActivityFeed({ sessionId }: AgentActivityFeedProps)
     const fetchCurrentState = async () => {
       try {
         console.log('AgentActivityFeed: Fetching current state for session:', sessionId)
-        const response = await fetch(`/api/protocols/${sessionId}/state`)
+        const response = await fetch(`${API_BASE_URL}/api/protocols/${sessionId}/state`)
         const data = await response.json()
         console.log('AgentActivityFeed: Received state data:', data)
         const state = data.state || {}
@@ -161,7 +162,7 @@ export default function AgentActivityFeed({ sessionId }: AgentActivityFeedProps)
     // Set up SSE stream
     console.log('AgentActivityFeed: Setting up SSE for session:', sessionId)
     const es = new EventSource(
-      `/api/protocols/${sessionId}/stream`
+      `${API_BASE_URL}/api/protocols/${sessionId}/stream`
     )
     
     es.onopen = () => {

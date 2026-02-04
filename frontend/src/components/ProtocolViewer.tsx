@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { CheckCircle, Edit, AlertCircle, Download } from 'lucide-react'
 import axios from 'axios'
 import jsPDF from 'jspdf'
+import API_BASE_URL from '../config'
 
 interface ProtocolViewerProps {
   sessionId: string
@@ -37,7 +38,7 @@ export default function ProtocolViewer({ sessionId }: ProtocolViewerProps) {
       fetchState().then(() => {
         // Set up SSE stream for real-time updates after initial state is loaded
         console.log('Setting up SSE stream for session:', sessionId)
-        const streamUrl = `/api/protocols/${sessionId}/stream`
+        const streamUrl = `${API_BASE_URL}/api/protocols/${sessionId}/stream`
         console.log('SSE URL:', streamUrl)
         eventSource = new EventSource(streamUrl)
 
@@ -118,7 +119,7 @@ export default function ProtocolViewer({ sessionId }: ProtocolViewerProps) {
   const fetchState = async () => {
     try {
       const response = await axios.get(
-        `/api/protocols/${sessionId}/state`
+        `${API_BASE_URL}/api/protocols/${sessionId}/state`
       )
       const stateData = response.data.state
       if (stateData) {
@@ -155,7 +156,7 @@ export default function ProtocolViewer({ sessionId }: ProtocolViewerProps) {
       })
       
       const response = await axios.post(
-        `/api/protocols/${sessionId}/approve`,
+        `${API_BASE_URL}/api/protocols/${sessionId}/approve`,
         requestBody,
         { headers: { 'Content-Type': 'application/json' } }
       )
@@ -176,7 +177,7 @@ export default function ProtocolViewer({ sessionId }: ProtocolViewerProps) {
       // Small delay then reconnect stream to see finalization
       setTimeout(() => {
         const newEventSource = new EventSource(
-          `/api/protocols/${sessionId}/stream`
+          `${API_BASE_URL}/api/protocols/${sessionId}/stream`
         )
         newEventSource.onopen = () => {
           console.log('SSE reconnected after approval')
@@ -207,7 +208,7 @@ export default function ProtocolViewer({ sessionId }: ProtocolViewerProps) {
   const handleHalt = async () => {
     setLoading(true)
     try {
-      await axios.post(`/api/protocols/${sessionId}/halt`)
+      await axios.post(`${API_BASE_URL}/api/protocols/${sessionId}/halt`)
       await fetchState()
     } catch (err: any) {
       console.error('Error halting:', err)

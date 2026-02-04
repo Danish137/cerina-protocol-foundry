@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Send, Loader2 } from 'lucide-react'
 import axios from 'axios'
+import API_BASE_URL from '../config'
 
 interface ProtocolCreatorProps {
   onSessionStart: (session: { sessionId: string; status: string }) => void
@@ -22,11 +23,11 @@ export default function ProtocolCreator({ onSessionStart }: ProtocolCreatorProps
 
     setLoading(true)
     setError(null)
-    console.log('Making API request to /api/protocols/create...')
+    console.log('Making API request to backend /api/protocols/create...')
 
     try {
-      console.log('Axios POST request starting...')
-      const response = await axios.post('/api/protocols/create', {
+      console.log('Axios POST request starting to:', `${API_BASE_URL}/api/protocols/create`)
+      const response = await axios.post(`${API_BASE_URL}/api/protocols/create`, {
         intent: intent.trim(),
       })
       console.log('API response received:', response.data)
@@ -59,7 +60,7 @@ export default function ProtocolCreator({ onSessionStart }: ProtocolCreatorProps
         errorMessage = err.response.data?.detail || err.response.data?.message || `Server error: ${err.response.status}`
       } else if (err.request) {
         // Request was made but no response received
-        errorMessage = 'No response from server. Is the backend running on http://localhost:8000?'
+        errorMessage = `No response from server. Is the backend running on ${API_BASE_URL}?`
       } else {
         // Error setting up request
         errorMessage = `Request error: ${err.message}`
@@ -114,4 +115,3 @@ export default function ProtocolCreator({ onSessionStart }: ProtocolCreatorProps
     </form>
   )
 }
-

@@ -17,18 +17,17 @@ from utils import log_agent_activity
 # Load environment variables from .env file
 load_dotenv()
 
-# Initialize LLM using proxy OpenAI (ChatAnywhere)
+# Initialize LLM using (I am using a proxy OpenAI API key from ChatAnywhere)
 def get_llm():
     """Get the LLM instance using proxy OpenAI API"""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OPENAI_API_KEY not found. Set your proxy OpenAI API key in .env file")
     
-    # Proxy base URL - use domestic host for lower latency
+    
     base_url = os.getenv("OPENAI_BASE_URL", "https://api.chatanywhere.tech/v1")
     
-    # Using gpt-4o-mini - 200 requests/day on free tier
-    # Alternatives: "gpt-3.5-turbo" (200/day), "gpt-4o" (5/day), "gpt-5" (5/day)
+
     return ChatOpenAI(
         api_key=api_key,
         base_url=base_url,
