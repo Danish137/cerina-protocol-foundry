@@ -67,7 +67,7 @@ A complete multi-agent system for autonomously designing, critiquing, and refini
 - **Frontend**: React 18, TypeScript, Vite, TailwindCSS
 - **MCP**: mcp-python SDK (works with any MCP client, not just Anthropic)
 - **Database**: SQLite with LangGraph checkpointers
-- **LLM**: Groq (free inference - Llama 3.1 70B, no payment required)
+- **LLM**: OpenAI-compatible API (`gpt-4o-mini` via ChatAnywhere proxy — see `backend/env.template`)
 
 ## Evaluation Criteria Met
 

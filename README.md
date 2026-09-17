@@ -7,7 +7,7 @@ Demo: https://www.loom.com/share/68516d1760b64d8a9d7f4563413a0e52
 
 ## Architecture Diagram
 
-![Cerina Protocol Foundry Architecture](ARCHITECTURE_DIAGRAM.jpg)
+See [`ARCHITECTURE_DIAGRAM.txt`](ARCHITECTURE_DIAGRAM.txt) or the full technical reference in [`tech_info.md`](tech_info.md).
 
 ## Architecture
 
@@ -24,7 +24,7 @@ The system uses a **Supervisor-Worker** pattern with specialized agents:
 - **Frontend**: React + TypeScript
 - **MCP**: Model Context Protocol server (works with any MCP client, not just Anthropic)
 - **Database**: SQLite with LangGraph checkpointers
-- **LLM**: Groq (free inference - no payment required)
+- **LLM**: OpenAI-compatible API (`gpt-4o-mini` via ChatAnywhere proxy — see `backend/env.template`)
 
 ## Project Structure
 
@@ -76,6 +76,7 @@ The system uses a **Supervisor-Worker** pattern with specialized agents:
 │   ├── USAGE.md                  # Usage guide and examples
 │   └── MCP_CLARIFICATION.md     # MCP integration details
 │
+├── tech_info.md                  # Complete technical reference (architecture → deployment)
 ├── README.md                     # Project overview and quick start
 ├── QUICKSTART.md                 # 5-minute setup guide
 ├── PROJECT_SUMMARY.md            # Comprehensive project summary
@@ -93,6 +94,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+cp env.template .env   # set OPENAI_API_KEY
 uvicorn main:app --reload
 ```
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Bot, MessageSquare, AlertTriangle, CheckCircle } from 'lucide-react'
+import { Activity, Clock, PauseCircle } from 'lucide-react'
 import API_BASE_URL from '../config'
 
 interface AgentActivity {
@@ -11,86 +11,37 @@ interface AgentActivity {
 
 interface AgentActivityFeedProps {
   sessionId?: string
+  isAwaitingApproval?: boolean
 }
 
-export default function AgentActivityFeed({ sessionId }: AgentActivityFeedProps) {
+export default function AgentActivityFeed({ sessionId, isAwaitingApproval }: AgentActivityFeedProps) {
   const [activities, setActivities] = useState<AgentActivity[]>([])
 
-  // Helper function to extract and add notes to activities
   const addNotesToActivities = (agentNotes: any[], timestamp?: string) => {
-    if (!agentNotes || !Array.isArray(agentNotes)) {
-      console.log('AgentActivityFeed: No agent notes or not an array:', agentNotes)
-      return
-    }
-    
-    console.log('AgentActivityFeed: Processing agent notes:', agentNotes.length, agentNotes)
-    
-    const humanNotes = agentNotes.filter((note: any) => {
-      const isHuman = note?.agent_name === 'Human'
-      if (isHuman) {
-        console.log('AgentActivityFeed: Found Human note:', note)
-      }
-      return isHuman
-    })
-    const systemNotes = agentNotes.filter((note: any) => {
-      const isSystem = note?.agent_name === 'System'
-      if (isSystem) {
-        console.log('AgentActivityFeed: Found System note:', note)
-      }
-      return isSystem
-    })
-    
-    console.log('AgentActivityFeed: Human notes count:', humanNotes.length, 'System notes count:', systemNotes.length)
-    
-    // Add Human notes to activities
-    humanNotes.forEach((note: any) => {
-      const noteText = note?.note || note?.action || 'Protocol approved and finalized'
+    if (!agentNotes || !Array.isArray(agentNotes)) return
+
+    agentNotes.forEach((note: any) => {
+      const agent = note?.agent_name || 'System'
+      const noteText = note?.note || note?.action || ''
+      if (!noteText) return
+
       setActivities((prev: AgentActivity[]) => {
+        // Strict deduplication check: match agent and normalized noteText
         const exists = prev.some(
-          a => a.agent === 'Human' && a.action === noteText
+          (a) => a.agent === agent && a.action.trim().toLowerCase() === noteText.trim().toLowerCase()
         )
-        if (exists) {
-          console.log('AgentActivityFeed: Human note already exists:', noteText)
-          return prev
-        }
-        
-        console.log('AgentActivityFeed: Adding Human note to activities:', noteText)
+        if (exists) return prev
+
         const noteTimestamp = note?.timestamp || timestamp || new Date().toISOString()
         return [
+          ...prev,
           {
-            agent: 'Human',
+            agent,
             action: noteText,
             timestamp: typeof noteTimestamp === 'string' ? noteTimestamp : new Date(noteTimestamp).toISOString(),
             priority: note?.priority || 'info',
           },
-          ...prev.slice(0, 49),
-        ]
-      })
-    })
-    
-    // Add System notes to activities
-    systemNotes.forEach((note: any) => {
-      const noteText = note?.note || note?.action || 'Protocol generation completed successfully'
-      setActivities((prev: AgentActivity[]) => {
-        const exists = prev.some(
-          a => a.agent === 'System' && a.action === noteText
-        )
-        if (exists) {
-          console.log('AgentActivityFeed: System note already exists:', noteText)
-          return prev
-        }
-        
-        console.log('AgentActivityFeed: Adding System note to activities:', noteText)
-        const noteTimestamp = note?.timestamp || timestamp || new Date().toISOString()
-        return [
-          {
-            agent: 'System',
-            action: noteText,
-            timestamp: typeof noteTimestamp === 'string' ? noteTimestamp : new Date(noteTimestamp).toISOString(),
-            priority: note?.priority || 'info',
-          },
-          ...prev.slice(0, 49),
-        ]
+        ].slice(-50)
       })
     })
   }
@@ -101,273 +52,146 @@ export default function AgentActivityFeed({ sessionId }: AgentActivityFeedProps)
       return
     }
 
-    // Fetch current state first to get any existing notes
     const fetchCurrentState = async () => {
       try {
-        console.log('AgentActivityFeed: Fetching current state for session:', sessionId)
         const response = await fetch(`${API_BASE_URL}/api/protocols/${sessionId}/state`)
         const data = await response.json()
-        console.log('AgentActivityFeed: Received state data:', data)
         const state = data.state || {}
-        console.log('AgentActivityFeed: State keys:', Object.keys(state))
         const agentNotes = state.agent_notes || []
-        console.log('AgentActivityFeed: Found agent notes array:', agentNotes)
-        console.log('AgentActivityFeed: Agent notes count:', agentNotes.length)
-        
-        if (agentNotes.length > 0) {
-          console.log('AgentActivityFeed: First note example:', agentNotes[0])
-          console.log('AgentActivityFeed: All notes:', JSON.stringify(agentNotes, null, 2))
-        }
-        
+
         addNotesToActivities(agentNotes)
-        
-        // Also check if state is halted and add a message if no note exists
+
+        // Only add human paused notice if the state is halted and not already recorded in activities
         if (state.halted || state.status === 'awaiting_approval') {
-          const hasHaltNote = agentNotes.some((note: any) => 
-            note.agent_name === 'Human' && 
-            (note.note?.includes('halted') || note.note?.includes('review'))
-          )
-          if (!hasHaltNote) {
-            setActivities((prev: AgentActivity[]) => {
-              const exists = prev.some(
-                a => a.agent === 'Human' && a.action === 'Workflow halted for review'
-              )
-              if (exists) return prev
-              
-              console.log('AgentActivityFeed: Adding halt message (no note found)')
-              return [
-                {
-                  agent: 'Human',
-                  action: 'Workflow halted for review',
-                  timestamp: new Date().toISOString(),
-                  priority: 'warning',
-                },
-                ...prev.slice(0, 49),
-              ]
-            })
-          }
-        }
-      } catch (err) {
-        console.error('AgentActivityFeed: Error fetching current state:', err)
-      }
-    }
-    
-    fetchCurrentState()
-    
-    // Set up polling to check for new notes periodically (especially after approval)
-    const pollInterval = setInterval(() => {
-      fetchCurrentState()
-    }, 2000) // Poll every 2 seconds
-
-    // Set up SSE stream
-    console.log('AgentActivityFeed: Setting up SSE for session:', sessionId)
-    const es = new EventSource(
-      `${API_BASE_URL}/api/protocols/${sessionId}/stream`
-    )
-    
-    es.onopen = () => {
-      console.log('AgentActivityFeed: SSE connection opened')
-    }
-
-    // Handle state_update events (real-time agent activity)
-    es.addEventListener('state_update', (event: MessageEvent) => {
-      console.log('AgentActivityFeed: Received state_update:', event.data)
-      try {
-        const data = JSON.parse(event.data)
-        
-        // Handle state updates with or without node
-        const state = data.state || {}
-        const agentNotes = state.agent_notes || []
-        
-        // Always check for Human and System notes first (these are important)
-        addNotesToActivities(agentNotes, data.timestamp)
-        
-        const humanNotes = agentNotes.filter((note: any) => note.agent_name === 'Human')
-        const systemNotes = agentNotes.filter((note: any) => note.agent_name === 'System')
-        
-        // Only process node-based updates if node exists and is not 'current'
-        if (data.node && data.node !== 'current') {
-          // Extract agent activity from state update
-          const nodeName = data.node
-          
-          // Map node names to agent names
-          const agentMap: Record<string, string> = {
-            'draft': 'Drafter',
-            'safety_review': 'SafetyGuardian',
-            'clinical_critique': 'ClinicalCritic',
-            'supervisor': 'Supervisor',
-          }
-          
-          // Skip if we already processed Human/System notes for this update
-          if (humanNotes.length > 0 || systemNotes.length > 0) {
-            // Human/System notes take priority, skip node-based activity
-            return
-          }
-          
-          let agentName = agentMap[nodeName] || nodeName
-          
-          // Get agent thoughts from agent_notes (most recent note from this agent)
-          let agentThought = data.agent_thought || ''
-          
-          // Fallback to most recent note from this agent
-          agentThought = agentNotes
-            .filter((note: any) => note.agent_name === agentName)
-            .slice(-1)[0]?.note || agentThought
-          
-          // Get action description from state and agent thought
-          const status = state.status || 'working'
-          let action = ''
-          let priority: string = 'info'
-          
-          if (agentThought) {
-            action = agentThought
-            // Determine priority from note priority or status
-            const recentNote = agentNotes
-              .filter((note: any) => note.agent_name === agentName)
-              .slice(-1)[0]
-            priority = recentNote?.priority || 'info'
-          } else {
-            // Fallback to status-based action
-            action = status === 'drafting' ? 'Creating draft...' :
-                    status === 'reviewing' ? 'Reviewing safety...' :
-                    status === 'critiquing' ? 'Evaluating quality...' :
-                    status === 'deciding' ? 'Making decision...' :
-                    `Executed ${nodeName}`
-          }
-          
-          // Check for safety issues or warnings
-          if (state.safety_score !== undefined && state.safety_score < 0.8) {
-            priority = 'warning'
-          }
-          
           setActivities((prev: AgentActivity[]) => {
-            // Avoid duplicates - check if same agent/action in last 3 entries
-            const isDuplicate = prev.slice(0, 3).some(
-              a => a.agent === agentName && a.action === action
+            const hasPauseNotice = prev.some(
+              (a) =>
+                a.agent === 'Human' &&
+                (a.action.toLowerCase().includes('paused') ||
+                 a.action.toLowerCase().includes('halted') ||
+                 a.action.toLowerCase().includes('approval') ||
+                 a.action.toLowerCase().includes('review'))
             )
-            if (isDuplicate) {
-              return prev
-            }
-            
+            if (hasPauseNotice) return prev
+
             return [
+              ...prev,
               {
-                agent: agentName,
-                action: action,
-                timestamp: data.timestamp || new Date().toISOString(),
-                priority: priority,
+                agent: 'Human',
+                action: 'Workflow paused for your review',
+                timestamp: new Date().toISOString(),
+                priority: 'warning',
               },
-              ...prev.slice(0, 49), // Keep last 50 activities
             ]
           })
         }
       } catch (err) {
-        console.error('Error parsing activity:', err)
+        console.error('Error fetching current state:', err)
       }
-    })
+    }
 
-    // Also handle halted events
-    es.addEventListener('halted', (event: MessageEvent) => {
-      console.log('AgentActivityFeed: Workflow halted')
+    fetchCurrentState()
+
+    const pollInterval = setInterval(() => {
+      fetchCurrentState()
+    }, 2000)
+
+    const es = new EventSource(`${API_BASE_URL}/api/protocols/${sessionId}/stream`)
+
+    es.addEventListener('state_update', (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data)
         const state = data.state || {}
-        
-        // Extract agent notes from halted state
         const agentNotes = state.agent_notes || []
-        
-        // Check for Human and System notes
+
         addNotesToActivities(agentNotes, data.timestamp)
-        
-        const humanNotes = agentNotes.filter((note: any) => note.agent_name === 'Human')
-        const systemNotes = agentNotes.filter((note: any) => note.agent_name === 'System')
-        
-        // Add halted message if no specific notes found
-        if (humanNotes.length === 0 && systemNotes.length === 0) {
-          setActivities((prev: AgentActivity[]) => [
+
+        if (data.node && data.node !== 'current') {
+          const nodeName = data.node
+          const agentMap: Record<string, string> = {
+            draft: 'Drafter',
+            safety_review: 'SafetyGuardian',
+            clinical_critique: 'ClinicalCritic',
+            supervisor: 'Supervisor',
+          }
+
+          const agentName = agentMap[nodeName] || nodeName
+          let agentThought = data.agent_thought || ''
+
+          agentThought =
+            agentNotes
+              .filter((note: any) => note.agent_name === agentName)
+              .slice(-1)[0]?.note || agentThought || `Executed ${nodeName} stage`
+
+          const priority = data.priority || 'info'
+
+          setActivities((prev: AgentActivity[]) => {
+            const exists = prev.some(
+              (a) =>
+                a.agent === agentName &&
+                a.action.trim().toLowerCase() === agentThought.trim().toLowerCase()
+            )
+            if (exists) return prev
+
+            return [
+              ...prev,
+              {
+                agent: agentName,
+                action: agentThought,
+                timestamp: data.timestamp || new Date().toISOString(),
+                priority,
+              },
+            ].slice(-50)
+          })
+        }
+      } catch (err) {
+        console.error('Error parsing state_update:', err)
+      }
+    })
+
+    es.addEventListener('halted', (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data)
+        const timestamp = data.timestamp || new Date().toISOString()
+        setActivities((prev: AgentActivity[]) => {
+          const exists = prev.some(
+            (a) =>
+              a.agent === 'Human' &&
+              (a.action.toLowerCase().includes('paused') ||
+               a.action.toLowerCase().includes('halted') ||
+               a.action.toLowerCase().includes('approval') ||
+               a.action.toLowerCase().includes('review'))
+          )
+          if (exists) return prev
+
+          return [
+            ...prev,
             {
-              agent: 'System',
-              action: 'Workflow paused for human review',
-              timestamp: data.timestamp || new Date().toISOString(),
+              agent: 'Human',
+              action: data.message || 'Workflow paused for your review',
+              timestamp,
               priority: 'warning',
             },
-            ...prev.slice(0, 49),
-          ])
-        }
+          ]
+        })
       } catch (err) {
         console.error('Error parsing halted event:', err)
       }
     })
 
-    // Also handle generic messages (fallback)
-    es.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data.node && data.node !== 'current') {
-          const nodeName = data.node
-          const stateData = data.state || {}
-          const agentMap: Record<string, string> = {
-            'draft': 'Drafter',
-            'safety_review': 'SafetyGuardian',
-            'clinical_critique': 'ClinicalCritic',
-            'supervisor': 'Supervisor',
-          }
-          
-          // Check for Human or System notes
-          const agentNotes = stateData.agent_notes || []
-          const humanNote = agentNotes.find((note: any) => note.agent_name === 'Human')
-          const systemNote = agentNotes.find((note: any) => note.agent_name === 'System')
-          
-          let agentName = agentMap[nodeName] || nodeName
-          let agentThought = `Executed ${nodeName} node`
-          
-          if (humanNote) {
-            agentName = 'Human'
-            agentThought = humanNote.note || agentThought
-          } else if (systemNote) {
-            agentName = 'System'
-            agentThought = systemNote.note || agentThought
-          } else {
-            // Try to get agent thought from notes
-            agentThought = agentNotes
-              .filter((note: any) => note.agent_name === agentName)
-              .slice(-1)[0]?.note || agentThought
-          }
-          
-          setActivities((prev: AgentActivity[]) => [
-            {
-              agent: agentName,
-              action: agentThought,
-              timestamp: data.timestamp || new Date().toISOString(),
-              priority: 'info',
-            },
-            ...prev.slice(0, 49),
-          ])
-        }
-      } catch (err) {
-        console.error('Error parsing activity:', err)
-      }
-    }
-
     es.addEventListener('complete', (event: MessageEvent) => {
-      console.log('AgentActivityFeed: Received complete event:', event.data)
       try {
         const data = JSON.parse(event.data)
         const state = data.state || {}
-        
-        // Extract agent notes from completed state
         const agentNotes = state.agent_notes || []
-        
-        // Check for Human and System notes in the final state
         addNotesToActivities(agentNotes, data.timestamp)
       } catch (err) {
         console.error('Error parsing complete event:', err)
       }
-      // Close connection after receiving complete event
       es.close()
     })
 
-    es.onerror = (err) => {
-      console.error('SSE error:', err)
+    es.onerror = () => {
       es.close()
     }
 
@@ -379,104 +203,124 @@ export default function AgentActivityFeed({ sessionId }: AgentActivityFeedProps)
     }
   }, [sessionId])
 
-  const getAgentIcon = (agent: string) => {
+  const getAgentLabel = (agent: string) => {
     switch (agent) {
       case 'Drafter':
-        return <MessageSquare className="w-4 h-4 text-blue-400" />
+        return 'Clinical Drafter'
       case 'SafetyGuardian':
-        return <AlertTriangle className="w-4 h-4 text-red-400" />
+        return 'Safety Guardian'
       case 'ClinicalCritic':
-        return <CheckCircle className="w-4 h-4 text-green-400" />
+        return 'Clinical Critic'
       case 'Supervisor':
-        return <Bot className="w-4 h-4 text-purple-400" />
-      case 'System':
-        return <AlertTriangle className="w-4 h-4 text-yellow-400" />
+        return 'Workflow Supervisor'
       case 'Human':
-        return <CheckCircle className="w-4 h-4 text-blue-500" />
+        return 'Human Reviewer'
+      case 'System':
+        return 'System'
       default:
-        return <Bot className="w-4 h-4 text-slate-400" />
+        return agent
     }
   }
 
-  const getPriorityColor = (priority?: string) => {
-    switch (priority) {
-      case 'critical':
-        return 'border-red-500 bg-red-900/10'
-      case 'warning':
-        return 'border-yellow-500 bg-yellow-900/10'
+  const getNodeColor = (agent: string, priority?: string) => {
+    if (priority === 'warning' || agent === 'Human') {
+      return { dot: 'bg-[#D4882C]', ring: 'ring-[#F4DEC2]' }
+    }
+    switch (agent) {
+      case 'Drafter':
+      case 'SafetyGuardian':
+        return { dot: 'bg-[#244F3B]', ring: 'ring-[#D1E2D7]' }
+      case 'ClinicalCritic':
+        return { dot: 'bg-[#2B6CB0]', ring: 'ring-[#D4E4F5]' }
+      case 'Supervisor':
+        return { dot: 'bg-[#553C9A]', ring: 'ring-[#E9D8FD]' }
       default:
-        return 'border-slate-700 bg-slate-800/30'
+        return { dot: 'bg-[#718096]', ring: 'ring-[#E2E8F0]' }
+    }
+  }
+
+  const formatTimestamp = (timestampStr: string) => {
+    try {
+      const date = new Date(timestampStr)
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    } catch {
+      return ''
     }
   }
 
   if (!sessionId) {
     return (
-      <div className="text-center py-8 text-slate-500 text-sm">
-        Start a protocol generation to see agent activity
+      <div className="p-6 text-center text-[#88978F] text-xs">
+        <Activity className="w-5 h-5 mx-auto mb-2 text-[#A4B3AB]" />
+        <p className="font-medium text-[#55635C] mb-1">Workflow trace is idle</p>
+        <p>Start a protocol generation to see real-time agent evaluations and audit log.</p>
       </div>
     )
   }
 
   if (activities.length === 0) {
     return (
-      <div className="text-center py-8 text-slate-500 text-sm">
-        Waiting for agent activity...
+      <div className="p-6 text-center text-[#88978F] text-xs">
+        <div className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#EBF3EE] text-[#244F3B] mb-2 animate-spin">
+          <Clock className="w-3.5 h-3.5" />
+        </div>
+        <p className="font-medium text-[#55635C] mb-1">Awaiting trace events</p>
+        <p>Agents are initializing session...</p>
       </div>
     )
   }
 
   return (
-    <div 
-      className="space-y-3" 
-      style={{ 
-        maxHeight: '600px', 
-        minHeight: '200px',
-        overflowY: 'auto', 
-        overflowX: 'hidden',
-        overscrollBehavior: 'contain',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-        isolation: 'isolate',
-        scrollbarWidth: 'thin'
-      }}
-      onWheel={(e) => {
-        // Prevent page scroll when scrolling the feed
-        const target = e.currentTarget as HTMLElement
-        const isScrolledToTop = target.scrollTop <= 0
-        const isScrolledToBottom = Math.abs(target.scrollHeight - target.scrollTop - target.clientHeight) < 1
-        
-        // Only prevent page scroll if we're not at the boundaries
-        if (!isScrolledToTop && !isScrolledToBottom) {
-          // We're scrolling within the feed, prevent page scroll
-          e.stopPropagation()
-        }
-        // If at boundaries, allow the event to bubble for page scrolling
-      }}
-    >
-      {activities.map((activity: AgentActivity, idx: number) => (
-        <div
-          key={idx}
-          className={`p-3 rounded-lg border ${getPriorityColor(activity.priority)} transition-all`}
-        >
-          <div className="flex items-start gap-2">
-            {getAgentIcon(activity.agent)}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-medium text-white">
-                  {activity.agent}
+    <div className="p-4 space-y-4">
+      {/* Activity Timeline List */}
+      <div className="relative pl-3 space-y-3 before:absolute before:left-4 before:top-2 before:bottom-2 before:w-[1px] before:bg-[#E8E4DA] max-h-[380px] overflow-y-auto pr-1">
+        {activities.map((activity, index) => {
+          const colors = getNodeColor(activity.agent, activity.priority)
+          const agentTitle = getAgentLabel(activity.agent)
+          const time = formatTimestamp(activity.timestamp)
+
+          return (
+            <div key={`${activity.timestamp}-${index}`} className="relative pl-5 text-xs group">
+              {/* Timeline Node */}
+              <div
+                className={`absolute -left-1 top-1 w-2.5 h-2.5 rounded-full ${colors.dot} ring-4 ${colors.ring}`}
+              />
+
+              <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                <span className="font-semibold text-[#18221E] text-xs">
+                  {agentTitle}
                 </span>
-                <span className="text-xs text-slate-500">
-                  {new Date(activity.timestamp).toLocaleTimeString()}
-                </span>
+                {time && (
+                  <span className="text-[10px] font-mono text-[#88978F] shrink-0">
+                    {time}
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-slate-300 break-words">
+
+              <p className="text-[#55635C] leading-relaxed text-[11.5px]">
                 {activity.action}
               </p>
             </div>
+          )
+        })}
+      </div>
+
+      {/* Human Review Waiting Banner at bottom of trace (Informational only) */}
+      {isAwaitingApproval && (
+        <div className="p-3.5 rounded-xl bg-[#FBF5EB] border border-[#EEDDC3] flex items-center gap-3 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+          <div className="p-1.5 rounded-full bg-[#F4DEC2] text-[#8C5921] shrink-0">
+            <PauseCircle className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[#8C5921] truncate">
+              Waiting for your approval
+            </p>
+            <p className="text-[11px] text-[#A6753B] truncate">
+              Review the draft to continue.
+            </p>
           </div>
         </div>
-      ))}
+      )}
     </div>
   )
 }
-

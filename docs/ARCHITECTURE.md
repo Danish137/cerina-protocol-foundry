@@ -176,6 +176,10 @@ Agents communicate through notes:
 - **State history**: All state transitions are logged
 - **Session tracking**: Each protocol generation is a separate session
 
+## LLM Configuration
+
+The backend uses `ChatOpenAI` with an OpenAI-compatible API. See [LLM Configuration](./tech_info.md#13-llm-configuration) in `tech_info.md`.
+
 ## MCP Integration
 
 The MCP server exposes the workflow as tools:

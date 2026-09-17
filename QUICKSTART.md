@@ -6,7 +6,7 @@ Get the Cerina Protocol Foundry running in 5 minutes!
 
 - [ ] Python 3.10+ installed
 - [ ] Node.js 18+ installed
-- [ ] Groq API key (FREE - Get from https://console.groq.com)
+- [ ] OpenAI-compatible API key (see `backend/env.template` — `OPENAI_API_KEY`)
 
 ## Step 1: Backend Setup (2 minutes)
 
@@ -22,7 +22,7 @@ source venv/bin/activate
 
 pip install -r requirements.txt
 
-# rename the .envexample to .env
+cp env.template .env   # add OPENAI_API_KEY
 
 # Start server
 uvicorn main:app --reload

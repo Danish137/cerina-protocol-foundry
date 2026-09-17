@@ -5,7 +5,7 @@
 - Python 3.10+
 - Node.js 18+
 - npm or yarn
-- Groq API key (FREE - Get from https://console.groq.com)
+- OpenAI-compatible API key (`OPENAI_API_KEY` — see `backend/env.template`)
 
 ## Backend Setup
 
@@ -30,19 +30,16 @@
 
 5. **Set up environment variables**:
    ```bash
-   cp .env.example .env
+   cp env.template .env
    ```
-   Edit `.env` and add your Groq API key (get free key from https://console.groq.com):
+   Edit `.env` and add your OpenAI-compatible API key:
    ```
-   GROQ_API_KEY=your_groq_api_key_here
+   OPENAI_API_KEY=your_api_key_here
+   OPENAI_BASE_URL=https://api.chatanywhere.tech/v1
+   DATABASE_URL=sqlite:///./cerina_foundry.db
    ```
    
-   **Getting a Groq API Key (Free)**:
-   1. Go to https://console.groq.com
-   2. Sign up for a free account (no credit card required)
-   3. Navigate to API Keys section
-   4. Create a new API key
-   5. Copy and paste into your `.env` file
+   See `backend/env.template` for all options. The backend uses `ChatOpenAI` with model `gpt-4o-mini`.
 
 6. **Run the backend server**:
    ```bash
@@ -62,7 +59,13 @@
    npm install
    ```
 
-3. **Run development server**:
+3. **Configure API URL** (recommended for local dev):
+   Create `frontend/.env.local`:
+   ```
+   VITE_API_URL=http://localhost:8000
+   ```
+
+4. **Run development server**:
    ```bash
    npm run dev
    ```
@@ -133,8 +136,8 @@
 ### Backend Issues
 - **Import errors**: Make sure virtual environment is activated
 - **Database errors**: Check that SQLite file is writable
-- **API key errors**: Verify `.env` file has GROQ_API_KEY set
-- **Groq API errors**: Ensure you've signed up at https://console.groq.com and have a valid API key
+- **API key errors**: Verify `.env` has `OPENAI_API_KEY` set (see `backend/env.template`)
+- **LLM API errors**: Check `OPENAI_BASE_URL` and API key validity
 
 ### Frontend Issues
 - **Connection errors**: Ensure backend is running on port 8000

@@ -25,13 +25,9 @@ Our MCP server (`mcp_server/server.py`) is a **standard MCP implementation** tha
 - Does NOT require Anthropic API keys
 - Does NOT require any payment
 
-## Using Groq (Free)
+## LLM Backend
 
-We use **Groq for LLM inference** (completely free):
-- No credit card required
-- Generous free tier
-- Fast inference speeds
-- Works perfectly with our MCP server
+The backend uses an **OpenAI-compatible API** (`ChatOpenAI` with `gpt-4o-mini`). Configure via `OPENAI_API_KEY` and optional `OPENAI_BASE_URL` in `backend/.env`. See `backend/env.template` and [`tech_info.md`](../tech_info.md) for details.
 
 ## Testing MCP Integration
 
@@ -55,6 +51,5 @@ To test the MCP integration:
 - ✅ MCP is a protocol standard (like REST)
 - ✅ Works with any MCP-compatible client
 - ✅ Does NOT require Anthropic
-- ✅ We use Groq (free) for LLM inference
-- ✅ No payment required for the entire system
+- ✅ Backend uses OpenAI-compatible LLM API (see `backend/env.template`)
 

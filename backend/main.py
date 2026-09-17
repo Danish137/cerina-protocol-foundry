@@ -3,7 +3,6 @@ Cerina Protocol Foundry - FastAPI Backend
 Main API server for the multi-agent CBT exercise generation system.
 """
 
-# Load environment variables first, before any other imports
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -161,7 +160,22 @@ async def start_workflow_background(workflow, config, session_id: str):
                         break
         logger.info(f"Background: Workflow execution completed for session: {session_id}")
     except Exception as e:
-        logger.error(f"Background: Error executing workflow for {session_id}: {e}")
+        logger.error(f"Background: Error executing workflow for {session_id}: {e}", exc_info=True)
+        try:
+            from agents.state import add_agent_note
+            current_state = await workflow.aget_state(config)
+            err_state = current_state.values.copy() if (current_state and current_state.values) else {}
+            err_state["status"] = "error"
+            err_state = add_agent_note(
+                err_state,
+                "System",
+                f"Workflow execution failed: {str(e)}",
+                priority="critical"
+            )
+            await workflow.aupdate_state(config, err_state)
+            logger.info(f"Recorded error state for session: {session_id}")
+        except Exception as record_err:
+            logger.error(f"Could not record error state: {record_err}")
 
 @app.post("/api/protocols/create", response_model=ProtocolResponse)
 async def create_protocol(request: ProtocolRequest, background_tasks: BackgroundTasks):
