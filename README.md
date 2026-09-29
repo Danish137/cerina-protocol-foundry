@@ -7,7 +7,7 @@ Demo: https://www.loom.com/share/68516d1760b64d8a9d7f4563413a0e52
 
 ## Architecture Diagram
 
-See [`ARCHITECTURE_DIAGRAM.txt`](ARCHITECTURE_DIAGRAM.txt) or the full technical reference in [`tech_info.md`](tech_info.md).
+See [`ARCHITECTURE_DIAGRAM.txt`](ARCHITECTURE_DIAGRAM.txt)
 
 ## Architecture
 
