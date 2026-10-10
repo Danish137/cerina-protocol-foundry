@@ -1,5 +1,6 @@
 """
 Pydantic models for API requests and responses
+Cerina Protocol Foundry
 """
 
 from pydantic import BaseModel, Field
@@ -15,6 +16,12 @@ class ProtocolStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     HALTED = "halted"
+
+class AgentNote(BaseModel):
+    agent_id: str
+    severity: str = "suggestion"  # "suggestion" | "warning" | "critical" | "info"
+    message: str
+    created_at: Optional[str] = None
 
 class ProtocolRequest(BaseModel):
     intent: str = Field(..., description="User intent for the CBT exercise")
@@ -42,4 +49,23 @@ class ProtocolDraft(BaseModel):
 
 class ApproveRequest(BaseModel):
     approved_content: Optional[str] = Field(None, description="Optional edited content to replace the draft")
+    edited: bool = Field(False, description="True if clinician made modifications")
+    validated_hash: Optional[str] = Field(None, description="Hash of the revalidated content")
+    approved_by: Optional[str] = Field("Clinical Supervisor", description="Identifier of the approving clinician")
 
+class RevalidateRequest(BaseModel):
+    draft: str = Field(..., description="The edited CBT protocol draft to revalidate")
+
+class ValidationResult(BaseModel):
+    session_id: str
+    safety_score: Optional[float] = None
+    empathy_score: Optional[float] = None
+    clinical_score: Optional[float] = None
+    safety_checks: Dict[str, bool] = Field(default_factory=dict)
+    agent_notes: List[AgentNote] = Field(default_factory=list)
+    validated_hash: Optional[str] = None
+
+class ErrorEnvelope(BaseModel):
+    code: str
+    message: str
+    retryable: bool = False

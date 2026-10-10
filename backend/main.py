@@ -1,62 +1,98 @@
-"""
-Cerina Protocol Foundry - FastAPI Backend
-Main API server for the multi-agent CBT exercise generation system.
-"""
+import os
+import re
+import sys
+import uuid
+import json
+import asyncio
+import hashlib
+import logging
+from datetime import datetime
+from typing import Optional, List, Dict, Any
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
-import asyncio
-import json
-import logging
-import sys
-from datetime import datetime
-from typing import Any
+from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.encoders import jsonable_encoder
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logger = logging.getLogger(__name__)
+# Configure logging with single handler check
+logger = logging.getLogger("cerina")
+if not logger.handlers:
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(handler)
 
 from agents.workflow import create_workflow
 from database import get_db_session, init_db
-from models import ProtocolRequest, ProtocolResponse, ProtocolStatus, ApproveRequest
+from models import (
+    ProtocolRequest,
+    ProtocolResponse,
+    ProtocolStatus,
+    ApproveRequest,
+    RevalidateRequest,
+    ValidationResult,
+    AgentNote,
+    ErrorEnvelope,
+)
 
 # Temporary storage for session intents (until checkpoint is created)
-# This is used as a fallback if checkpoint creation fails in create endpoint
 _session_intents: Dict[str, str] = {}
 
-def serialize_state_for_json(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert state to JSON-serializable format by converting datetime objects to strings"""
-    if not state:
-        return {}
-    
-    serialized = {}
-    for key, value in state.items():
-        if isinstance(value, datetime):
-            serialized[key] = value.isoformat()
-        elif isinstance(value, dict):
-            serialized[key] = serialize_state_for_json(value)
-        elif isinstance(value, list):
-            serialized[key] = [
-                serialize_state_for_json(item) if isinstance(item, dict) else 
-                item.isoformat() if isinstance(item, datetime) else item
-                for item in value
-            ]
-        else:
-            serialized[key] = value
-    return serialized
+def format_agent_notes(raw_notes: List[Any]) -> List[Dict[str, Any]]:
+    """Normalize agent notes, strip raw prefixes, and assign clean severity."""
+    formatted = []
+    agent_id_map = {
+        "SafetyGuardian": "safety_guardian",
+        "ClinicalCritic": "clinical_critic",
+        "Drafter": "drafter",
+        "Supervisor": "supervisor",
+        "Human": "human",
+        "System": "system",
+    }
+    for note_item in (raw_notes or []):
+        if not isinstance(note_item, dict):
+            continue
+        raw_agent = note_item.get("agent_name", "system")
+        agent_id = agent_id_map.get(raw_agent, raw_agent.lower())
+        raw_text = note_item.get("note", "").strip()
+        priority = note_item.get("priority", "info")
+        ts = note_item.get("timestamp")
+        created_at = ts.isoformat() if isinstance(ts, datetime) else str(ts or "")
+
+        clean_text = raw_text
+        for prefix in ["IMPROVEMENT NEEDED:", "SAFETY ISSUE:", "CRITICAL:", "RECOMMENDATION:"]:
+            if clean_text.upper().startswith(prefix):
+                clean_text = clean_text[len(prefix):].strip()
+                break
+
+        severity = "suggestion"
+        if priority == "critical" or "SAFETY ISSUE" in raw_text.upper() or "FAIL" in raw_text.upper():
+            severity = "critical"
+        elif priority == "warning":
+            severity = "warning"
+        elif priority == "info":
+            severity = "info"
+
+        formatted.append({
+            "agent_id": agent_id,
+            "severity": severity,
+            "message": clean_text,
+            "created_at": created_at
+        })
+    return formatted
+
+def serialize_state_for_json(state: Any) -> Any:
+    """JSON-serializable encoder using FastAPI jsonable_encoder with normalized notes."""
+    if state is None:
+        return None
+    encoded = jsonable_encoder(state)
+    if isinstance(encoded, dict) and "agent_notes" in encoded:
+        encoded["agent_notes"] = format_agent_notes(state.get("agent_notes", []))
+    return encoded
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -94,37 +130,53 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Cerina Protocol Foundry API", version="1.0.0", lifespan=lifespan)
 
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+# CORS configuration
+APP_ENV = os.getenv("APP_ENV", "development")
+cors_origins_env = os.getenv("CORS_ORIGINS", "")
+allowed_origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+if not allowed_origins:
+    allowed_origins = [
         "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
         "http://localhost:5173",
+        "http://localhost:5174",
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002",
         "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
         "https://cerina-protocol-foundry.vercel.app",
-        "https://54.147.175.216",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    ]
 
-# Request logging middleware
+cors_kwargs: Dict[str, Any] = {
+    "allow_origins": allowed_origins,
+    "allow_credentials": False,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+}
+if APP_ENV == "development":
+    cors_kwargs["allow_origin_regex"] = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+
+app.add_middleware(CORSMiddleware, **cors_kwargs)
+
+# Clean request logging middleware with request ID
 @app.middleware("http")
-async def log_requests(request, call_next):
-    logger.info(f"=== INCOMING REQUEST ===")
-    logger.info(f"Method: {request.method}")
-    logger.info(f"URL: {request.url}")
-    logger.info(f"Path: {request.url.path}")
-    logger.info(f"Headers: {dict(request.headers)}")
+async def log_requests(request: Request, call_next):
+    req_id = uuid.uuid4().hex[:8]
+    logger.info(f"[{req_id}] {request.method} {request.url.path}")
     try:
-        response = await call_next(request)
-        logger.info(f"Response status: {response.status_code} for {request.method} {request.url.path}")
+        response: Response = await call_next(request)
+        response.headers["X-Request-ID"] = req_id
+        logger.info(f"[{req_id}] {response.status_code} {request.method} {request.url.path}")
         return response
     except Exception as e:
-        logger.error(f"Error processing request {request.method} {request.url.path}: {e}", exc_info=True)
-        raise
+        logger.error(f"[{req_id}] Error: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"code": "INTERNAL_ERROR", "message": "An unexpected error occurred. Please retry.", "retryable": True},
+            headers={"X-Request-ID": req_id}
+        )
 
 # Note: startup/shutdown logic handled by the `lifespan` context manager
 
@@ -378,10 +430,18 @@ async def stream_protocol(session_id: str):
                         
                         logger.info(f"Node {node_name} - Status: {full_state.get('status')}, Active Agent: {full_state.get('active_agent')}")
                         
-                        # Extract agent activity from state
+                        # Extract agent activity from state correctly matched to current node
                         agent_notes = full_state.get("agent_notes", [])
-                        recent_note = agent_notes[-1] if agent_notes else None
-                        agent_thought = recent_note.get("note", "") if recent_note else ""
+                        agent_map = {
+                            "draft": "Drafter",
+                            "safety_review": "SafetyGuardian",
+                            "clinical_critique": "ClinicalCritic",
+                            "supervisor": "Supervisor",
+                        }
+                        expected_agent = agent_map.get(node_name)
+                        matching_notes = [n for n in agent_notes if n.get("agent_name") == expected_agent]
+                        recent_note = matching_notes[-1] if matching_notes else (agent_notes[-1] if agent_notes else None)
+                        agent_thought = recent_note.get("note", "") if recent_note else f"Completed {node_name} evaluation"
                         
                         # Send node execution event with full state
                         logger.info(f"Sending state_update event for node: {node_name}")
@@ -472,38 +532,52 @@ async def get_protocol_state(session_id: str):
 async def approve_protocol(session_id: str, request: ApproveRequest):
     """
     Human-in-the-loop: Approve the current draft and continue workflow.
-    If approved_content is provided, it replaces the current draft.
+    Strips HTML comments server-side and stores approval audit metadata.
     """
     logger.info(f"Approve endpoint accessed for session: {session_id}")
     try:
         workflow = create_workflow()
         config = {"configurable": {"thread_id": session_id}}
         
-        # Get current state
-        logger.info(f"Getting current state for session: {session_id}")
         current_state = await workflow.aget_state(config)
-        
         if not current_state.values:
             logger.error(f"Session not found: {session_id}")
             raise HTTPException(status_code=404, detail="Session not found")
         
-        # Update with approved content if provided
         updated_state = current_state.values.copy()
-        has_edits = False
-        if request.approved_content:
-            # Check if content actually changed
-            current_draft = current_state.values.get("current_draft", "")
-            if request.approved_content.strip() != current_draft.strip():
-                logger.info(f"Updating draft with approved content (length: {len(request.approved_content)})")
-                updated_state["current_draft"] = request.approved_content
-                updated_state["human_edits"] = request.approved_content
-                has_edits = True
-            else:
-                logger.info("Approved content is same as current draft, no edits made")
+        current_draft_raw = current_state.values.get("current_draft", "") or ""
         
+        # Strip HTML comments server-side
+        clean_current_draft = re.sub(r'<!--.*?-->', '', current_draft_raw, flags=re.DOTALL).strip()
+        
+        has_edits = request.edited
+        if request.approved_content is not None:
+            clean_approved = re.sub(r'<!--.*?-->', '', request.approved_content, flags=re.DOTALL).strip()
+            if clean_approved != clean_current_draft:
+                has_edits = True
+            updated_state["current_draft"] = clean_approved
+            updated_state["human_edits"] = clean_approved
+        else:
+            updated_state["current_draft"] = clean_current_draft
+
+        # Audit record
+        audit = {
+            "approved_by": request.approved_by or "Clinical Supervisor",
+            "approved_at": datetime.now().isoformat(),
+            "scores_at_approval": {
+                "safety": updated_state.get("safety_score"),
+                "empathy": updated_state.get("empathy_score"),
+                "clinical": updated_state.get("clinical_score"),
+            },
+            "edited": has_edits,
+            "validated_hash": request.validated_hash,
+            "revalidated": bool(request.validated_hash),
+        }
+        updated_state["approval_audit"] = audit
+
         # Add note to state about approval
         from agents.state import add_agent_note
-        approval_message = "Protocol approved and finalized" + (" (with edits)" if has_edits else "")
+        approval_message = "Protocol approved and finalized" + (" (with clinical edits)" if has_edits else "")
         updated_state = add_agent_note(
             updated_state,
             "Human",
@@ -518,37 +592,108 @@ async def approve_protocol(session_id: str, request: ApproveRequest):
         # Persist the approved state
         logger.info("Persisting approved state to checkpoint...")
         await workflow.aupdate_state(config, updated_state)
-        logger.info("State persisted successfully")
         
-        # Resume workflow - invoke will continue from the updated state
-        # Since human_approved is True, should_continue will route to "end"
+        # Resume workflow
         logger.info("Resuming workflow execution...")
-        result = await workflow.ainvoke(None, config)  # Use None to load from checkpoint
-        logger.info(f"Workflow completed. Final status: {result.get('status')}")
+        result = await workflow.ainvoke(None, config)
         
-        # Add finalization note
-        if result.get("status") == "completed":
-            from agents.state import add_agent_note
-            result = add_agent_note(
-                result,
-                "System",
-                "Protocol generation completed successfully",
-                priority="info"
-            )
-            # Update the checkpoint with the final note
+        # Ensure draft in final result also has stripped comments and audit
+        if result:
+            if result.get("current_draft"):
+                result["current_draft"] = re.sub(r'<!--.*?-->', '', result["current_draft"], flags=re.DOTALL).strip()
+            result["approval_audit"] = audit
+            if result.get("status") == "completed":
+                result = add_agent_note(
+                    result,
+                    "System",
+                    "Protocol generation completed successfully",
+                    priority="info"
+                )
             await workflow.aupdate_state(config, result)
         
         return {
             "session_id": session_id,
             "status": "approved",
             "message": "Protocol approved and workflow resumed",
-            "final_state": result
+            "approval_audit": audit,
+            "final_state": serialize_state_for_json(result)
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        import traceback
-        error_detail = f"{str(e)}\n{traceback.format_exc()}"
-        logger.error(f"Error approving protocol for session {session_id}: {error_detail}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error approving protocol for session {session_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "APPROVE_FAILED", "message": "Failed to approve protocol. Please retry.", "retryable": True}
+        )
+
+@app.post("/api/protocols/{session_id}/revalidate", response_model=ValidationResult)
+async def revalidate_protocol(session_id: str, request: RevalidateRequest):
+    """
+    Human-in-the-loop: Re-run Safety Guardian and Clinical Critic on edited draft content
+    without restarting the entire workflow. Returns updated scores and normalized agent notes.
+    """
+    logger.info(f"Revalidate endpoint accessed for session: {session_id}")
+    try:
+        workflow = create_workflow()
+        config = {"configurable": {"thread_id": session_id}}
+        current_state = await workflow.aget_state(config)
+        
+        if not current_state.values:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        state_copy = current_state.values.copy()
+        clean_draft = re.sub(r'<!--.*?-->', '', request.draft, flags=re.DOTALL).strip()
+        state_copy["current_draft"] = clean_draft
+        
+        from agents.workflow import safety_guardian, clinical_critic
+        safety_result = await safety_guardian.review(state_copy)
+        if "safety_checks" in safety_result:
+            state_copy.setdefault("safety_checks", {})
+            state_copy["safety_checks"].update(safety_result["safety_checks"])
+        if "safety_score" in safety_result:
+            state_copy["safety_score"] = safety_result["safety_score"]
+            
+        clinical_result = await clinical_critic.critique(state_copy)
+        if "empathy_score" in clinical_result:
+            state_copy["empathy_score"] = clinical_result["empathy_score"]
+        if "clinical_score" in clinical_result:
+            state_copy["clinical_score"] = clinical_result["clinical_score"]
+            
+        from agents.state import add_agent_note
+        state_copy = add_agent_note(
+            state_copy,
+            "System",
+            f"Safety & clinical re-check complete. Safety: {state_copy.get('safety_score', 0.8):.2f}, Empathy: {state_copy.get('empathy_score', 0.7):.2f}",
+            priority="info"
+        )
+        
+        validated_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
+        state_copy["validated_hash"] = validated_hash
+        
+        # Persist updated metrics to checkpoint
+        await workflow.aupdate_state(config, state_copy)
+        
+        raw_notes = state_copy.get("agent_notes", [])
+        clean_notes = format_agent_notes(raw_notes)
+        
+        return ValidationResult(
+            session_id=session_id,
+            safety_score=state_copy.get("safety_score"),
+            empathy_score=state_copy.get("empathy_score"),
+            clinical_score=state_copy.get("clinical_score"),
+            safety_checks=state_copy.get("safety_checks", {}),
+            agent_notes=[AgentNote(**n) for n in clean_notes],
+            validated_hash=validated_hash
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error revalidating protocol: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "REVALIDATE_FAILED", "message": "Failed to revalidate draft against clinical safety thresholds. Please retry.", "retryable": True}
+        )
 
 @app.post("/api/protocols/{session_id}/halt")
 async def halt_protocol(session_id: str):
