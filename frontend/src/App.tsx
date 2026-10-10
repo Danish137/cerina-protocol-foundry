@@ -1,536 +1,718 @@
-import { useState, useEffect } from 'react'
-import ProtocolCreator from './components/ProtocolCreator'
-import ProtocolViewer, { ProtocolState } from './components/ProtocolViewer'
-import AgentActivityFeed from './components/AgentActivityFeed'
-import { Activity, ShieldCheck, ExternalLink, FileText, MessageSquare, UserCheck, Users, Check } from 'lucide-react'
+import { useReducer, useEffect, useRef, useCallback, useMemo, useState } from 'react'
+import { LayoutGroup, motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import axios from 'axios'
 import API_BASE_URL from './config'
+import Header from './components/Header'
+import ProtocolCreator from './components/ProtocolCreator'
+import IntentSummary from './components/IntentSummary'
+import AgentRoster from './components/AgentRoster'
+import ReviewSummary from './components/ReviewSummary'
+import DocumentViewer from './components/DocumentViewer'
+import ActionPanel from './components/ActionPanel'
+import { ToastProvider, useToast } from './components/Toast'
+import { appReducer, derivePhase, AppState } from './stateReducer'
+import { ReviewerSuggestion } from './types'
+import { normalizeAgentId, getAgent } from './agents'
+import { exportClinicalPdf } from './pdfGenerator'
+import { Activity, FileText } from 'lucide-react'
+import { LogEntry } from './components/ActivityLogSheet'
 
-interface ProtocolSession {
-  sessionId: string
-  status: string
-  intent?: string
-  currentDraft?: string
-  safetyScore?: number
-  empathyScore?: number
-  clinicalScore?: number
-  activeAgent?: string
-  halted?: boolean
-  humanApproved?: boolean
+const initialAppState: AppState = {
+  protocolState: null,
+  activeSessionId: null,
+  uiMode: 'idle',
+  editedDraft: '',
+  initialDraftBeforeEdit: '',
+  validationStatus: 'none',
+  lastValidatedHash: null,
+  approvalTime: undefined,
+  addressedSuggestions: {},
+  dismissedSuggestions: {},
+  hasOptimisticStart: false,
 }
 
-type StepState = 'completed' | 'current' | 'upcoming'
+function AppContent() {
+  const { showToast } = useToast()
+  const shouldReduceMotion = useReducedMotion()
 
-interface StepConfig {
-  number: number
-  title: string
-  subtitle: string
-  state: StepState
-}
+  // Pure Reducer + Derived Phase (Section 3)
+  const [state, dispatch] = useReducer(appReducer, initialAppState)
+  const phase = derivePhase(state.protocolState, state.uiMode)
 
-function getWorkflowSteps(activeSession: ProtocolSession | null): StepConfig[] {
-  if (!activeSession || !activeSession.sessionId) {
-    return [
-      { number: 1, title: 'User intent', subtitle: 'Clinical goal & context', state: 'current' },
-      { number: 2, title: 'Clinical drafting', subtitle: 'Structured exercise', state: 'upcoming' },
-      { number: 3, title: 'Specialist review', subtitle: 'Safety, clinical & tone', state: 'upcoming' },
-      { number: 4, title: 'Human review', subtitle: 'Edit & approve', state: 'upcoming' },
-      { number: 5, title: 'Final protocol', subtitle: 'Download & use', state: 'upcoming' },
-    ]
+  // Mobile navigation tab (<1024px)
+  const [mobileTab, setMobileTab] = useState<'document' | 'review'>('document')
+
+  // Timers and fallback polling refs
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0)
+  const timerRef = useRef<number | null>(null)
+  const sseRef = useRef<EventSource | null>(null)
+  const lastSseEventTime = useRef<number>(Date.now())
+  const pollingBackoffMs = useRef<number>(2000)
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Document Heading Scroll target
+  const handleHeadingClick = (headingText: string) => {
+    const headings = document.querySelectorAll('article h1, article h2, article h3')
+    for (const el of headings) {
+      if (el.textContent?.includes(headingText)) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        break
+      }
+    }
   }
 
-  const status = (activeSession.status || '').toLowerCase()
-  const agent = activeSession.activeAgent || ''
-  const isHalted = activeSession.halted || status === 'awaiting_approval' || status === 'ready_for_review' || status === 'awaiting_review'
-
-  // Stage 5: Completed
-  if (status === 'completed') {
-    return [
-      { number: 1, title: 'User intent', subtitle: 'Clinical goal & context', state: 'completed' },
-      { number: 2, title: 'Clinical drafting', subtitle: 'Structured exercise', state: 'completed' },
-      { number: 3, title: 'Specialist review', subtitle: 'Safety, clinical & tone', state: 'completed' },
-      { number: 4, title: 'Human review', subtitle: 'Edit & approve', state: 'completed' },
-      { number: 5, title: 'Final protocol', subtitle: 'Download & use', state: 'completed' },
-    ]
-  }
-
-  // Stage 5: Finalizing (approved and completing)
-  if (status === 'approved' || activeSession.humanApproved) {
-    return [
-      { number: 1, title: 'User intent', subtitle: 'Clinical goal & context', state: 'completed' },
-      { number: 2, title: 'Clinical drafting', subtitle: 'Structured exercise', state: 'completed' },
-      { number: 3, title: 'Specialist review', subtitle: 'Safety, clinical & tone', state: 'completed' },
-      { number: 4, title: 'Human review', subtitle: 'Edit & approve', state: 'completed' },
-      { number: 5, title: 'Final protocol', subtitle: 'Download & use', state: 'current' },
-    ]
-  }
-
-  // Stage 4: Human review checkpoint
-  if (isHalted) {
-    return [
-      { number: 1, title: 'User intent', subtitle: 'Clinical goal & context', state: 'completed' },
-      { number: 2, title: 'Clinical drafting', subtitle: 'Structured exercise', state: 'completed' },
-      { number: 3, title: 'Specialist review', subtitle: 'Safety, clinical & tone', state: 'completed' },
-      { number: 4, title: 'Human review', subtitle: 'Edit & approve', state: 'current' },
-      { number: 5, title: 'Final protocol', subtitle: 'Download & use', state: 'upcoming' },
-    ]
-  }
-
-  // Stage 3: Specialist review
-  if (agent === 'SafetyGuardian' || agent === 'ClinicalCritic' || status === 'reviewing' || status === 'critiquing' || status === 'deciding') {
-    return [
-      { number: 1, title: 'User intent', subtitle: 'Clinical goal & context', state: 'completed' },
-      { number: 2, title: 'Clinical drafting', subtitle: 'Structured exercise', state: 'completed' },
-      { number: 3, title: 'Specialist review', subtitle: 'Safety, clinical & tone', state: 'current' },
-      { number: 4, title: 'Human review', subtitle: 'Edit & approve', state: 'upcoming' },
-      { number: 5, title: 'Final protocol', subtitle: 'Download & use', state: 'upcoming' },
-    ]
-  }
-
-  // Stage 2: Clinical drafting
-  if (agent === 'Drafter' || status === 'drafting' || status === 'initializing' || status === 'working' || status === 'loading') {
-    return [
-      { number: 1, title: 'User intent', subtitle: 'Clinical goal & context', state: 'completed' },
-      { number: 2, title: 'Clinical drafting', subtitle: 'Structured exercise', state: 'current' },
-      { number: 3, title: 'Specialist review', subtitle: 'Safety, clinical & tone', state: 'upcoming' },
-      { number: 4, title: 'Human review', subtitle: 'Edit & approve', state: 'upcoming' },
-      { number: 5, title: 'Final protocol', subtitle: 'Download & use', state: 'upcoming' },
-    ]
-  }
-
-  // Default fallback when session exists: Step 1 completed, Step 2 current
-  return [
-    { number: 1, title: 'User intent', subtitle: 'Clinical goal & context', state: 'completed' },
-    { number: 2, title: 'Clinical drafting', subtitle: 'Structured exercise', state: 'current' },
-    { number: 3, title: 'Specialist review', subtitle: 'Safety, clinical & tone', state: 'upcoming' },
-    { number: 4, title: 'Human review', subtitle: 'Edit & approve', state: 'upcoming' },
-    { number: 5, title: 'Final protocol', subtitle: 'Download & use', state: 'upcoming' },
-  ]
-}
-
-// Subtle Botanical Branch SVG to match the reference illustration
-function BotanicalIllustration() {
-  return (
-    <div className="relative w-full h-full flex flex-col items-center justify-center p-4">
-      {/* Organic Watercolor Leaf Branch */}
-      <svg
-        viewBox="0 0 320 180"
-        className="w-full max-w-[280px] h-auto text-[#2D5A43] drop-shadow-sm opacity-90 transition-transform duration-700 hover:scale-105"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        {/* Soft Background Warm Glow */}
-        <ellipse cx="160" cy="90" rx="130" ry="70" fill="url(#botanicalGlow)" opacity="0.6" />
-        
-        {/* Main Stem */}
-        <path
-          d="M40 140 C 90 125, 160 95, 270 40"
-          stroke="#405849"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-        />
-        {/* Branch 1 */}
-        <path d="M100 120 C 120 100, 140 70, 150 50" stroke="#4D6756" strokeWidth="1.8" strokeLinecap="round" />
-        {/* Branch 2 */}
-        <path d="M170 90 C 195 75, 215 55, 225 35" stroke="#4D6756" strokeWidth="1.8" strokeLinecap="round" />
-
-        {/* Leaves */}
-        {/* Leaf Top */}
-        <path
-          d="M270 40 C 290 30, 295 15, 275 25 C 255 35, 260 40, 270 40 Z"
-          fill="url(#leafGradient1)"
-          stroke="#385442"
-          strokeWidth="0.8"
-        />
-        {/* Leaf 2 */}
-        <path
-          d="M230 60 C 255 50, 265 30, 245 42 C 225 54, 222 58, 230 60 Z"
-          fill="url(#leafGradient2)"
-          stroke="#385442"
-          strokeWidth="0.8"
-        />
-        {/* Leaf 3 */}
-        <path
-          d="M195 80 C 220 70, 228 50, 208 62 C 188 74, 190 78, 195 80 Z"
-          fill="url(#leafGradient1)"
-          stroke="#385442"
-          strokeWidth="0.8"
-        />
-        {/* Leaf 4 (Left) */}
-        <path
-          d="M150 50 C 145 25, 125 25, 135 45 C 145 60, 148 55, 150 50 Z"
-          fill="url(#leafGradient3)"
-          stroke="#385442"
-          strokeWidth="0.8"
-        />
-        {/* Leaf 5 (Left Middle) */}
-        <path
-          d="M115 85 C 105 60, 85 65, 100 80 C 112 92, 114 88, 115 85 Z"
-          fill="url(#leafGradient2)"
-          stroke="#385442"
-          strokeWidth="0.8"
-        />
-        {/* Leaf 6 (Lower) */}
-        <path
-          d="M140 105 C 160 115, 175 135, 155 125 C 135 115, 135 110, 140 105 Z"
-          fill="url(#leafGradient3)"
-          stroke="#385442"
-          strokeWidth="0.8"
-        />
-        {/* Leaf 7 (Bottom Left) */}
-        <path
-          d="M80 130 C 70 110, 50 115, 65 128 C 75 138, 78 133, 80 130 Z"
-          fill="url(#leafGradient1)"
-          stroke="#385442"
-          strokeWidth="0.8"
-        />
-
-        <defs>
-          <radialGradient id="botanicalGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#E2EBE5" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#FAF8F5" stopOpacity="0" />
-          </radialGradient>
-          <linearGradient id="leafGradient1" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#688B74" />
-            <stop offset="100%" stopColor="#325A42" />
-          </linearGradient>
-          <linearGradient id="leafGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#7E9F8A" />
-            <stop offset="100%" stopColor="#3D684E" />
-          </linearGradient>
-          <linearGradient id="leafGradient3" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#557C63" />
-            <stop offset="100%" stopColor="#254A34" />
-          </linearGradient>
-        </defs>
-      </svg>
-
-      {/* Elegant Italic Script Callout */}
-      <div className="mt-1 text-right w-full pr-4">
-        <p className="font-script text-2xl sm:text-3xl text-[#53655C] tracking-wide -rotate-2 select-none">
-          Better tools for a calmer tomorrow.
-        </p>
-      </div>
-    </div>
-  )
-}
-
-export default function App() {
-  const [activeSession, setActiveSession] = useState<ProtocolSession | null>(null)
-  const [showViewer, setShowViewer] = useState(false)
-
-  // Restore previous active session on reload if exists
+  // Restore session from localStorage on initial mount
   useEffect(() => {
-    const savedSessionId = localStorage.getItem('cerina_active_session_id')
-    if (savedSessionId) {
-      setActiveSession({
-        sessionId: savedSessionId,
-        status: 'loading',
-      })
-      setShowViewer(true)
+    const savedId = localStorage.getItem('cerina_active_session_id')
+    if (savedId) {
+      // Restore addressed/dismissed
+      try {
+        const addr = sessionStorage.getItem(`cerina_addressed_${savedId}`)
+        const dism = sessionStorage.getItem(`cerina_dismissed_${savedId}`)
+        if (addr) state.addressedSuggestions = JSON.parse(addr)
+        if (dism) state.dismissedSuggestions = JSON.parse(dism)
+      } catch (_) {}
 
-      fetch(`${API_BASE_URL}/api/protocols/${savedSessionId}/state`)
+      fetch(`${API_BASE_URL}/api/protocols/${savedId}/state`)
         .then((res) => res.json())
         .then((data) => {
           if (data.state) {
-            setActiveSession({
-              sessionId: savedSessionId,
-              status: data.state.status || 'drafting',
-              intent: data.state.user_intent,
-              currentDraft: data.state.current_draft,
-              safetyScore: data.state.safety_score,
-              empathyScore: data.state.empathy_score,
-              clinicalScore: data.state.clinical_score,
-              activeAgent: data.state.active_agent,
-              halted: data.state.halted,
-              humanApproved: data.state.human_approved,
-            })
+            dispatch({ type: 'APPLY_SNAPSHOT', state: data.state })
           }
         })
         .catch((err) => {
-          console.warn('Could not restore session on load:', err)
+          console.warn('Could not restore session:', err)
         })
     }
   }, [])
 
-  const handleSessionStart = (session: { sessionId: string; status: string; intent?: string }) => {
-    localStorage.setItem('cerina_active_session_id', session.sessionId)
-    setActiveSession({
-      sessionId: session.sessionId,
-      status: session.status,
-      intent: session.intent,
-    })
-    setShowViewer(true)
-  }
+  // Browser tab title update based on phase
+  useEffect(() => {
+    if (phase === 'review') {
+      document.title = '● Review needed — Cerina'
+    } else if (phase === 'editing') {
+      document.title = 'Editing — Cerina'
+    } else if (phase === 'approved') {
+      document.title = 'Approved ✓ — Cerina Protocol Foundry'
+    } else if (phase === 'generating') {
+      document.title = 'Drafting… — Cerina'
+    } else {
+      document.title = 'Cerina Protocol Foundry — CBT Protocol Design'
+    }
+  }, [phase])
 
-  const handleStateChange = (newState: ProtocolState) => {
-    setActiveSession((prev) => {
-      if (!prev) return null
-      return {
-        ...prev,
-        status: newState.status,
-        intent: newState.user_intent || prev.intent,
-        currentDraft: newState.current_draft || prev.currentDraft,
-        safetyScore: newState.safety_score ?? prev.safetyScore,
-        empathyScore: newState.empathy_score ?? prev.empathyScore,
-        clinicalScore: newState.clinical_score ?? prev.clinicalScore,
-        activeAgent: newState.active_agent ?? prev.activeAgent,
-        halted: newState.halted ?? prev.halted,
-        humanApproved: newState.human_approved ?? prev.humanApproved,
+  // Elapsed generation timer
+  useEffect(() => {
+    if (phase === 'generating') {
+      setElapsedSeconds(0)
+      timerRef.current = window.setInterval(() => {
+        setElapsedSeconds((prev) => prev + 1)
+      }, 1000)
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [phase])
+
+  // Word diff calculation
+  const { wordsAdded, wordsRemoved } = useMemo(() => {
+    if (phase !== 'editing' || !state.initialDraftBeforeEdit) return { wordsAdded: 0, wordsRemoved: 0 }
+    const origWords = state.initialDraftBeforeEdit.trim().split(/\s+/).filter(Boolean)
+    const newWords = state.editedDraft.trim().split(/\s+/).filter(Boolean)
+    const added = Math.max(0, newWords.length - origWords.length)
+    const removed = Math.max(0, origWords.length - newWords.length)
+    return { wordsAdded: added, wordsRemoved: removed }
+  }, [phase, state.initialDraftBeforeEdit, state.editedDraft])
+
+  // Suggestions conversion with normalized severity (Section 4 & 5)
+  const suggestions: ReviewerSuggestion[] = useMemo(() => {
+    const notes = state.protocolState?.agent_notes || []
+    return notes
+      .filter((n) => {
+        const msg = n.message || n.note || ''
+        return msg.length > 5
+      })
+      .map((n, idx) => {
+        const agentId = normalizeAgentId(n.agent_id || n.agent_name)
+        const agentCfg = getAgent(agentId)
+        const rawMsg = (n.message || n.note || '').replace(/^IMPROVEMENT NEEDED:\s*/i, '').trim()
+        const id = `sug_${idx}_${rawMsg.slice(0, 16)}`
+
+        // Severity: Default "suggestion", "warning" only if score within 5pts of threshold, "critical" for safety
+        let sev: 'suggestion' | 'warning' | 'critical' = 'suggestion'
+        if (
+          agentId === 'safety_guardian' &&
+          ((state.protocolState?.safety_score ?? 1) < 0.8 ||
+            rawMsg.toLowerCase().includes('contraindication') ||
+            rawMsg.toLowerCase().includes('critical'))
+        ) {
+          sev = 'critical'
+        } else if (
+          (state.protocolState?.safety_score !== undefined && state.protocolState.safety_score < 0.85) ||
+          (state.protocolState?.empathy_score !== undefined && state.protocolState.empathy_score < 0.75) ||
+          (state.protocolState?.clinical_score !== undefined && state.protocolState.clinical_score < 0.75)
+        ) {
+          sev = 'warning'
+        }
+
+        return {
+          id,
+          agentId,
+          agentLabel: agentCfg.label,
+          message: rawMsg,
+          severity: sev,
+          createdAt: n.created_at || n.timestamp,
+          isAddressed: Boolean(state.addressedSuggestions[id]),
+          isDismissed: Boolean(state.dismissedSuggestions[id]),
+        }
+      })
+  }, [state.protocolState, state.addressedSuggestions, state.dismissedSuggestions])
+
+  // Activity logs newest-first (Section 1 & 4)
+  const activityLogs: LogEntry[] = useMemo(() => {
+    const notes = state.protocolState?.agent_notes || []
+    return notes
+      .map((n, idx) => {
+        const agentId = normalizeAgentId(n.agent_id || n.agent_name)
+        const agentCfg = getAgent(agentId)
+        const cleanMsg = (n.message || n.note || '').replace(/^IMPROVEMENT NEEDED:\s*/i, '').trim()
+        const prio: 'info' | 'warning' | 'critical' =
+          n.severity === 'critical' ? 'critical' : n.severity === 'warning' ? 'warning' : 'info'
+        return {
+          id: `log_${idx}`,
+          agent: agentCfg.label,
+          action: cleanMsg,
+          timestamp: n.created_at || n.timestamp || 'Just now',
+          priority: prio,
+        }
+      })
+      .reverse()
+  }, [state.protocolState?.agent_notes])
+
+  // Fallback Polling Function (Section 3)
+  const pollServerState = useCallback(async () => {
+    const sid = state.activeSessionId || state.protocolState?.session_id
+    if (!sid) return
+
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = new AbortController()
+
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/protocols/${sid}/state`, {
+        signal: abortControllerRef.current.signal,
+      })
+      if (res.data?.state) {
+        lastSseEventTime.current = Date.now()
+        dispatch({ type: 'APPLY_SNAPSHOT', state: res.data.state })
       }
-    })
+    } catch (err: any) {
+      if (axios.isCancel(err)) return
+      console.warn('Fallback poll error:', err.message)
+    }
+  }, [state.activeSessionId, state.protocolState?.session_id])
+
+  // SSE Stream Management & Silence Detection
+  useEffect(() => {
+    const sid = state.activeSessionId || state.protocolState?.session_id
+    if (!sid || phase === 'approved' || phase === 'idle') return
+
+    const sseUrl = `${API_BASE_URL}/api/protocols/${sid}/stream`
+    const es = new EventSource(sseUrl)
+    sseRef.current = es
+    lastSseEventTime.current = Date.now()
+
+    const handleSnapshot = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.state) {
+          lastSseEventTime.current = Date.now()
+          pollingBackoffMs.current = 2000
+          dispatch({ type: 'APPLY_SNAPSHOT', state: data.state })
+        }
+      } catch (err) {
+        console.error('Error handling SSE event:', err)
+      }
+    }
+
+    es.addEventListener('state_update', handleSnapshot)
+    es.addEventListener('halted', handleSnapshot)
+    es.addEventListener('complete', handleSnapshot)
+
+    es.onerror = () => {
+      es.close()
+      // Immediately schedule fallback poll on error
+      pollServerState()
+    }
+
+    // 10s Silence Checker & Backoff Fallback (Section 3)
+    const silenceInterval = window.setInterval(() => {
+      const elapsedSilence = Date.now() - lastSseEventTime.current
+      if (elapsedSilence >= 10000 && phase === 'generating') {
+        pollServerState()
+        pollingBackoffMs.current = Math.min(8000, pollingBackoffMs.current * 2)
+      }
+    }, pollingBackoffMs.current)
+
+    // Visibility change resync (Section 3)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        pollServerState()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      es.close()
+      clearInterval(silenceInterval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [state.activeSessionId, state.protocolState?.session_id, phase, pollServerState])
+
+  // Session start handler with Optimistic Transition (Section 2)
+  const handleSessionStart = async ({ sessionId, intent }: { sessionId: string; status: string; intent: string }) => {
+    localStorage.setItem('cerina_active_session_id', sessionId)
+    dispatch({ type: 'START_CREATE', sessionId, intent })
+
+    try {
+      // Trigger initial poll immediately
+      const res = await axios.get(`${API_BASE_URL}/api/protocols/${sessionId}/state`)
+      if (res.data?.state) {
+        dispatch({ type: 'APPLY_SNAPSHOT', state: res.data.state })
+      }
+    } catch (err: any) {
+      console.warn('Initial session sync failed, fallback polling will retry:', err)
+    }
   }
 
-  const steps = getWorkflowSteps(activeSession)
-  const isAwaitingApproval = steps[3].state === 'current'
+  // Edit Handlers
+  const handleStartEditing = () => {
+    dispatch({ type: 'ENTER_EDIT' })
+    showToast('Entered clinician edit mode', 'info')
+  }
+
+  const handleDiscardEdits = () => {
+    dispatch({ type: 'DISCARD_EDIT' })
+    showToast('Unsaved edits discarded', 'info')
+  }
+
+  const handleDraftChange = (newText: string) => {
+    dispatch({ type: 'UPDATE_EDITED_DRAFT', draft: newText })
+  }
+
+  // Revalidate only (Section 7)
+  const handleRevalidateOnly = async () => {
+    const sid = state.activeSessionId || state.protocolState?.session_id
+    if (!sid) return
+    dispatch({ type: 'START_VALIDATING' })
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/protocols/${sid}/revalidate`, {
+        draft: state.editedDraft,
+      })
+      const data = response.data
+      const passes = data.safety_score >= 0.8 && data.empathy_score >= 0.7 && data.clinical_score >= 0.7
+
+      if (passes) {
+        dispatch({
+          type: 'VALIDATION_SUCCESS',
+          hash: data.validated_hash || 'OK',
+          safetyScore: data.safety_score,
+          empathyScore: data.empathy_score,
+          clinicalScore: data.clinical_score,
+        })
+        showToast('Safety check passed for updated draft', 'success')
+      } else {
+        dispatch({ type: 'VALIDATION_FAILED' })
+        const failedMetrics: string[] = []
+        if (data.safety_score < 0.8) failedMetrics.push('Safety')
+        if (data.empathy_score < 0.7) failedMetrics.push('Empathy')
+        if (data.clinical_score < 0.7) failedMetrics.push('Clinical Fidelity')
+        showToast(`Validation below required threshold in: ${failedMetrics.join(', ')}`, 'error')
+      }
+    } catch (err: any) {
+      dispatch({ type: 'VALIDATION_FAILED' })
+      const friendlyMsg = err.response?.data?.message || err.response?.data?.detail || 'Validation service temporarily unavailable'
+      showToast(friendlyMsg, 'error')
+    }
+  }
+
+  // Approve handlers (Section 7)
+  const handleApprove = async () => {
+    const sid = state.activeSessionId || state.protocolState?.session_id
+    if (!sid) return
+    dispatch({ type: 'START_APPROVING' })
+
+    try {
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      await axios.post(`${API_BASE_URL}/api/protocols/${sid}/approve`, {
+        approved_by: 'Clinical Supervisor',
+        edited: false,
+        validated_hash: state.lastValidatedHash || 'BASELINE',
+      })
+
+      dispatch({ type: 'APPROVE_SUCCESS', time: now })
+      showToast('Protocol approved & locked', 'success')
+      pollServerState()
+    } catch (err: any) {
+      dispatch({ type: 'APPROVE_FAILED' })
+      const friendlyMsg = err.response?.data?.message || err.response?.data?.detail || 'Approval request failed'
+      showToast(friendlyMsg, 'error')
+    }
+  }
+
+  const handleSaveEditsAndApprove = async () => {
+    const sid = state.activeSessionId || state.protocolState?.session_id
+    if (!sid) return
+
+    // If edits are stale or unvalidated, revalidate first per Section 7
+    if (state.validationStatus === 'stale' || state.validationStatus === 'none') {
+      dispatch({ type: 'START_VALIDATING' })
+      try {
+        const valRes = await axios.post(`${API_BASE_URL}/api/protocols/${sid}/revalidate`, {
+          draft: state.editedDraft,
+        })
+        const valData = valRes.data
+        const passes = valData.safety_score >= 0.8 && valData.empathy_score >= 0.7 && valData.clinical_score >= 0.7
+
+        if (!passes) {
+          dispatch({ type: 'VALIDATION_FAILED' })
+          const failedMetrics: string[] = []
+          if (valData.safety_score < 0.8) failedMetrics.push('Safety')
+          if (valData.empathy_score < 0.7) failedMetrics.push('Empathy')
+          if (valData.clinical_score < 0.7) failedMetrics.push('Clinical Fidelity')
+          showToast(`Cannot approve: ${failedMetrics.join(', ')} failed validation`, 'error')
+          return
+        }
+
+        dispatch({
+          type: 'VALIDATION_SUCCESS',
+          hash: valData.validated_hash || 'OK',
+          safetyScore: valData.safety_score,
+          empathyScore: valData.empathy_score,
+          clinicalScore: valData.clinical_score,
+        })
+      } catch (err: any) {
+        dispatch({ type: 'VALIDATION_FAILED' })
+        const friendlyMsg = err.response?.data?.message || err.response?.data?.detail || 'Revalidation failed'
+        showToast(friendlyMsg, 'error')
+        return
+      }
+    }
+
+    dispatch({ type: 'START_APPROVING' })
+    try {
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      await axios.post(`${API_BASE_URL}/api/protocols/${sid}/approve`, {
+        approved_content: state.editedDraft,
+        approved_by: 'Clinical Supervisor',
+        edited: true,
+        validated_hash: state.lastValidatedHash || 'EDITED-OK',
+      })
+
+      dispatch({ type: 'APPROVE_SUCCESS', time: now })
+      showToast('Protocol validated and approved with edits', 'success')
+      pollServerState()
+    } catch (err: any) {
+      dispatch({ type: 'APPROVE_FAILED' })
+      const friendlyMsg = err.response?.data?.message || err.response?.data?.detail || 'Failed to approve edited protocol'
+      showToast(friendlyMsg, 'error')
+    }
+  }
+
+  // Export PDF with @react-pdf/renderer (Section 8)
+  const handleExportPdf = async () => {
+    const draftText = state.editedDraft || state.protocolState?.current_draft || ''
+    if (!draftText.trim()) {
+      showToast('No protocol content available to export', 'error')
+      return
+    }
+
+    try {
+      const filename = await exportClinicalPdf(
+        draftText,
+        state.protocolState?.approval_audit,
+        {
+          safety: state.protocolState?.safety_score,
+          empathy: state.protocolState?.empathy_score,
+          clinical: state.protocolState?.clinical_score,
+        }
+      )
+      showToast(`Saved ${filename}`, 'success')
+    } catch (err: any) {
+      showToast(`PDF Export error: ${err.message}`, 'error')
+    }
+  }
+
+  const handleCopyMarkdown = () => {
+    const draftText = state.editedDraft || state.protocolState?.current_draft || ''
+    navigator.clipboard.writeText(draftText)
+    showToast('Protocol markdown copied to clipboard', 'success')
+  }
+
+  const handleNewProtocol = () => {
+    if (phase === 'editing' && (wordsAdded > 0 || wordsRemoved > 0)) {
+      if (!window.confirm('You have unsaved edits. Discard and start a new protocol?')) {
+        return
+      }
+    }
+    localStorage.removeItem('cerina_active_session_id')
+    dispatch({ type: 'RESET' })
+    showToast('Ready for new protocol', 'info')
+  }
+
+  const hasDraft = Boolean(state.protocolState?.current_draft || state.editedDraft)
+  const isSafetyCriticRunning = phase === 'generating' && hasDraft
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-[#18221E] flex flex-col">
-      {/* Top Header Bar */}
-      <header className="border-b border-[#E8E4DA] bg-[#FAF8F5]/90 backdrop-blur-sm sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          {/* Brand Logo */}
-          <div className="flex items-center gap-2.5">
-            {/* Botanical Icon */}
-            <div className="p-1 rounded-md text-[#244F3B]">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2C6.5 2 2 6.5 2 12c0 3.5 2 6.5 5 8 .5-4 3.5-7 7-7 3.5 0 6.5 3 7 7 3-1.5 5-4.5 5-8 0-5.5-4.5-10-10-10z" fill="#244F3B" stroke="none" opacity="0.9" />
-                <path d="M12 22V12" stroke="#FAF8F5" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-serif text-xl font-bold tracking-tight text-[#18221E]">
-                CERINA
-              </span>
-              <span className="text-[#C8C2B4] font-light">|</span>
-              <span className="text-xs font-sans text-[#7E8F87] font-medium tracking-normal">
-                Protocol Foundry
-              </span>
-            </div>
-          </div>
+    <LayoutGroup>
+      {/* Height Guard: shell min-h-[620px]; below that let body scroll rather than clip controls (Section 1) */}
+      <div className="min-h-[620px] h-dvh flex flex-col bg-[#FAF8F5] text-[#18221E] select-none">
+        {/* Header Bar */}
+        <Header
+          phase={phase}
+          activeAgent={state.protocolState?.active_agent}
+          sessionId={state.activeSessionId || state.protocolState?.session_id}
+          onNewProtocol={handleNewProtocol}
+        />
 
-          {/* Right Header Navigation */}
-          <div className="flex items-center gap-3">
-            <a
-              href="https://github.com/Danish137/cerina-protocol-foundry/blob/main/mcp_server/TEST_MCP.md"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg border border-[#E8E4DA] bg-white hover:bg-[#F5F2EC] text-[#18221E] transition-colors shadow-xs"
-              title="Model Context Protocol integration documentation"
-            >
-              <span className="font-mono text-[11px]">MCP</span>
-              <ExternalLink className="w-3 h-3 text-[#7E8F87]" />
-            </a>
+        {/* Main Workspace Shell */}
+        <main className="flex-1 overflow-hidden max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-3.5 sm:py-4 flex flex-col">
+          {/* =========================================================================
+              PHASE: IDLE (Hero + Compact Form + AI Roster Explainer)
+             ========================================================================= */}
+          {phase === 'idle' ? (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key="idle-view"
+                initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                className="h-full flex flex-col justify-center max-w-5xl mx-auto space-y-4 sm:space-y-6"
+              >
+                {/* Hero Header with Sprig & Plain Copy (Section 10) */}
+                <div className="text-center space-y-2 pt-2">
+                  <div className="flex items-center justify-center gap-2">
+                    <svg
+                      className="w-5 h-5 text-[#244F3B]"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      <path d="M12 2C8 6 4 12 12 22M12 7c-2 1-4 3-4 5m4-7c2 1 4 3 4 5" strokeLinecap="round" />
+                    </svg>
+                    <span className="text-xs font-semibold text-[#244F3B] tracking-normal font-sans">
+                      Clinical-grade Cognitive Behavioral Protocol Design
+                    </span>
+                  </div>
 
-            {/* Profile Avatar Badge */}
-            <div
-              className="w-7 h-7 rounded-full bg-[#244F3B] text-white flex items-center justify-center text-xs font-semibold shadow-xs"
-              title="Clinical Reviewer Session"
-            >
-              DA
-            </div>
-          </div>
-        </div>
-      </header>
+                  <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-[#18221E] font-medium tracking-tight">
+                    Design structured CBT exercises with multidisciplinary AI.
+                  </h1>
 
-      {/* Main Container */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full space-y-7">
-        {/* Hero Section */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center pb-2">
-          {/* Hero Left: Product Introduction */}
-          <div className="md:col-span-7 space-y-3">
-            <div className="text-[11px] font-mono tracking-wider font-semibold text-[#244F3B] uppercase">
-              MENTAL HEALTH, REAL PROGRESS
-            </div>
-            <h1 className="font-serif text-3xl sm:text-4xl text-[#18221E] font-normal leading-[1.2] tracking-tight">
-              Design structured<br className="hidden sm:inline" />
-              CBT exercises, with AI that thinks like a clinical team.
-            </h1>
-            <p className="text-xs sm:text-sm text-[#55635C] leading-relaxed max-w-lg pt-1">
-              Describe the exercise you want to create. Cerina drafts a protocol, reviews it through specialized agents, and pauses for your approval before finalization.
-            </p>
-          </div>
+                  <p className="font-serif italic text-sm text-[#244F3B]/80 max-w-md mx-auto">
+                    Evidence-based protocol authoring for clinical excellence
+                  </p>
 
-          {/* Hero Right: Botanical Illustration & Quote */}
-          <div className="md:col-span-5 flex items-center justify-center">
-            <BotanicalIllustration />
-          </div>
-        </div>
+                  <p className="text-xs text-[#55635C] max-w-lg mx-auto">
+                    Cerina drafts exercises, verifies clinical contraindications, evaluates therapeutic empathy, and halts for licensed clinician review.
+                  </p>
+                </div>
 
-        {/* Dynamic State-Aware Horizontal Workflow Stepper */}
-        <div className="bg-white border border-[#E8E4DA] rounded-xl p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-2 items-center">
-            {steps.map((step) => {
-              const isCompleted = step.state === 'completed'
-              const isCurrent = step.state === 'current'
-              const isHumanReviewCurrent = isCurrent && step.number === 4
+                {/* 2-Column Split: Form (layoutId="intent") + Explainer Roster (layoutId="roster") */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+                  <div className="md:col-span-7">
+                    <ProtocolCreator onSessionStart={handleSessionStart} />
+                  </div>
 
-              return (
-                <div key={step.number} className="flex items-center gap-3">
-                  <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
-                      isCompleted
-                        ? 'bg-[#244F3B] text-white'
-                        : isHumanReviewCurrent
-                        ? 'bg-[#D4882C] text-white ring-4 ring-[#F4DEC2]'
-                        : isCurrent
-                        ? 'bg-[#244F3B] text-white ring-4 ring-[#D1E2D7]'
-                        : 'bg-[#FAF8F5] text-[#88978F] border border-[#E8E4DA]'
+                  <div className="md:col-span-5">
+                    <AgentRoster phase="idle" state={null} isExplainer={true} />
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          ) : (
+            /* =========================================================================
+                ACTIVE PHASES: generating | review | editing | approving | approved
+                3-Column Shell (Section 1): Exactly ONE vertical scroll surface at >=1024px.
+               ========================================================================= */
+            <div className="h-full flex flex-col overflow-hidden">
+              {/* Mobile Tab Switcher (<1024px) */}
+              <div className="lg:hidden flex items-center justify-between pb-2 mb-2 border-b border-[#E8E4DA] shrink-0">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMobileTab('document')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${
+                      mobileTab === 'document'
+                        ? 'bg-[#244F3B] text-white shadow-2xs'
+                        : 'bg-white text-[#55635C] border border-[#E8E4DA]'
                     }`}
                   >
-                    {isCompleted ? (
-                      <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                    ) : (
-                      <span>{step.number}</span>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p
-                      className={`text-xs leading-tight ${
-                        isHumanReviewCurrent
-                          ? 'font-bold text-[#8C5921]'
-                          : isCurrent
-                          ? 'font-bold text-[#18221E]'
-                          : isCompleted
-                          ? 'font-semibold text-[#18221E]'
-                          : 'font-medium text-[#88978F]'
-                      }`}
-                    >
-                      {step.title}
-                    </p>
-                    <p
-                      className={`text-[10.5px] truncate ${
-                        isHumanReviewCurrent
-                          ? 'text-[#A6753B]'
-                          : isCurrent
-                          ? 'text-[#55635C]'
-                          : isCompleted
-                          ? 'text-[#7E8F87]'
-                          : 'text-[#A4B3AB]'
-                      }`}
-                    >
-                      {step.subtitle}
-                    </p>
-                  </div>
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Protocol Draft</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileTab('review')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${
+                      mobileTab === 'review'
+                        ? 'bg-[#244F3B] text-white shadow-2xs'
+                        : 'bg-white text-[#55635C] border border-[#E8E4DA]'
+                    }`}
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                    <span>Review & Metrics</span>
+                  </button>
                 </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* 2-Column Workspace Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
-          {/* Left Column: Creator & Protocol Viewer (7 cols) */}
-          <div className="lg:col-span-7 space-y-6">
-            <ProtocolCreator
-              onSessionStart={handleSessionStart}
-            />
-
-            {showViewer && activeSession && (
-              <ProtocolViewer
-                sessionId={activeSession.sessionId}
-                onStateChange={handleStateChange}
-              />
-            )}
-          </div>
-
-          {/* Right Column: AI Review Team & Activity Trace (5 cols) */}
-          <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
-            {/* The AI Review Team Card */}
-            <div className="bg-white border border-[#E8E4DA] rounded-xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-              <div className="flex items-center gap-2 pb-3 mb-3 border-b border-[#F0ECE3]">
-                <div className="p-1 rounded bg-[#EBF3EE] text-[#244F3B]">
-                  <Users className="w-4 h-4" />
-                </div>
-                <h3 className="text-sm font-semibold text-[#18221E] font-sans">
-                  The AI Review Team
-                </h3>
               </div>
 
-              <div className="space-y-3.5 text-xs">
-                {/* Drafter */}
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-[#FAF8F5] border border-[#E8E4DA] text-[#244F3B] shrink-0 mt-0.5">
-                    <FileText className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-semibold text-[#18221E] text-xs">Clinical Drafter</span>
-                    <p className="text-[11px] text-[#55635C] leading-snug mt-0.5">
-                      Structures evidence-based CBT exercises.
-                    </p>
-                  </div>
+              {/* 3-Column Shell Container */}
+              <div className="flex-1 flex gap-5 overflow-hidden">
+                {/* =====================================================================
+                    1. LEFT RAIL: >=1536px (300px fixed). NEVER SCROLLS.
+                    Contains: IntentSummary (layoutId="intent") + AgentRoster (layoutId="roster")
+                   ===================================================================== */}
+                <div className="hidden 2xl:flex w-[300px] shrink-0 flex-col gap-4 overflow-hidden select-none">
+                  <IntentSummary
+                    intent={state.protocolState?.user_intent || ''}
+                    draftVersion={state.protocolState?.draft_history?.length || 1}
+                    maxIterations={state.protocolState?.max_iterations || 5}
+                    phase={phase}
+                    onNewProtocol={handleNewProtocol}
+                  />
+
+                  <AgentRoster
+                    phase={phase}
+                    state={state.protocolState}
+                    onHeadingClick={handleHeadingClick}
+                  />
                 </div>
 
-                {/* Safety Guardian */}
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-[#FAF8F5] border border-[#E8E4DA] text-[#244F3B] shrink-0 mt-0.5">
-                    <ShieldCheck className="w-4 h-4" />
+                {/* =====================================================================
+                    2. CENTER PANE: DocumentViewer (1fr).
+                    THE ONLY SCROLLER AT >=1024px.
+                    Scroller is on outermost element; margins & padding live inside.
+                   ===================================================================== */}
+                <motion.div
+                  initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.08 }}
+                  className={`flex-1 min-w-0 h-full flex flex-col gap-3 overflow-hidden ${
+                    mobileTab !== 'document' ? 'hidden lg:flex' : 'flex'
+                  }`}
+                >
+                  {/* On 1024-1535px: show IntentSummary strip at top */}
+                  <div className="hidden lg:block 2xl:hidden shrink-0">
+                    <IntentSummary
+                      intent={state.protocolState?.user_intent || ''}
+                      draftVersion={state.protocolState?.draft_history?.length || 1}
+                      maxIterations={state.protocolState?.max_iterations || 5}
+                      phase={phase}
+                      onNewProtocol={handleNewProtocol}
+                    />
                   </div>
-                  <div>
-                    <span className="font-semibold text-[#18221E] text-xs">Safety Guardian</span>
-                    <p className="text-[11px] text-[#55635C] leading-snug mt-0.5">
-                      Screens for medical advice, contraindications and self-harm risk.
-                    </p>
-                  </div>
-                </div>
 
-                {/* Clinical Critic */}
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-[#FAF8F5] border border-[#E8E4DA] text-[#2B6CB0] shrink-0 mt-0.5">
-                    <MessageSquare className="w-4 h-4" />
+                  {/* DocumentViewer with Outermost Scroller */}
+                  <div className="flex-1 overflow-hidden">
+                    <DocumentViewer
+                      phase={phase}
+                      draft={state.protocolState?.current_draft || ''}
+                      editedDraft={state.editedDraft}
+                      isSafetyCriticRunning={isSafetyCriticRunning}
+                      elapsedSeconds={elapsedSeconds}
+                      sessionId={state.activeSessionId || state.protocolState?.session_id}
+                      onDraftChange={handleDraftChange}
+                      onStartEditing={handleStartEditing}
+                      onSaveEditsAndApprove={handleSaveEditsAndApprove}
+                      onDiscardEdits={handleDiscardEdits}
+                      onExportPdf={handleExportPdf}
+                    />
                   </div>
-                  <div>
-                    <span className="font-semibold text-[#18221E] text-xs">Clinical Critic</span>
-                    <p className="text-[11px] text-[#55635C] leading-snug mt-0.5">
-                      Evaluates tone, empathy, warmth and CBT alignment.
-                    </p>
-                  </div>
-                </div>
+                </motion.div>
 
-                {/* Human Checkpoint */}
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-[#FBF5EB] border border-[#EEDDC3] text-[#8C5921] shrink-0 mt-0.5">
-                    <UserCheck className="w-4 h-4" />
+                {/* =====================================================================
+                    3. RIGHT RAIL: ReviewSummary + flex-1 spacer + Pinned ActionPanel.
+                    NEVER SCROLLS AT >=1024px. (Section 1)
+                   ===================================================================== */}
+                <motion.div
+                  initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: 16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: 0.12 }}
+                  className={`w-full lg:w-[360px] 2xl:w-[380px] shrink-0 h-full flex flex-col overflow-hidden select-none ${
+                    mobileTab !== 'review' ? 'hidden lg:flex' : 'flex'
+                  }`}
+                >
+                  {/* ReviewSummary (Auto Height, Compact, No Inner Scroller) */}
+                  <div className="shrink-0">
+                    <ReviewSummary
+                      state={state.protocolState}
+                      suggestions={suggestions}
+                      activityLogs={activityLogs}
+                      onToggleAddressed={(id) => dispatch({ type: 'TOGGLE_ADDRESSED', id })}
+                      onDismissSuggestion={(id) => dispatch({ type: 'DISMISS_SUGGESTION', id })}
+                    />
                   </div>
-                  <div>
-                    <span className="font-semibold text-[#8C5921] text-xs">Human Checkpoint</span>
-                    <p className="text-[11px] text-[#734A1B] leading-snug mt-0.5">
-                      Mandatory pause for your review and approval.
-                    </p>
+
+                  {/* flex-1 min-h-0 spacer (absorbs vertical slack) */}
+                  <div className="flex-1 min-h-0" />
+
+                  {/* Desktop Pinned ActionPanel (shrink-0, border-t, never overlaps) */}
+                  <div className="hidden lg:block shrink-0">
+                    <ActionPanel
+                      phase={phase}
+                      validationStatus={state.validationStatus}
+                      hasEdits={state.editedDraft !== state.initialDraftBeforeEdit}
+                      wordsAdded={wordsAdded}
+                      wordsRemoved={wordsRemoved}
+                      approvalTime={state.approvalTime}
+                      onApprove={handleApprove}
+                      onStartEditing={handleStartEditing}
+                      onSaveEditsAndApprove={handleSaveEditsAndApprove}
+                      onRevalidateOnly={handleRevalidateOnly}
+                      onDiscardEdits={handleDiscardEdits}
+                      onExportPdf={handleExportPdf}
+                      onCopyMarkdown={handleCopyMarkdown}
+                      onNewProtocol={handleNewProtocol}
+                    />
                   </div>
-                </div>
+                </motion.div>
+              </div>
+
+              {/* Mobile Sticky ActionPanel (<1024px) */}
+              <div className="lg:hidden shrink-0 pt-2 border-t border-[#E8E4DA] bg-[#FAF8F5]">
+                <ActionPanel
+                  phase={phase}
+                  validationStatus={state.validationStatus}
+                  hasEdits={state.editedDraft !== state.initialDraftBeforeEdit}
+                  wordsAdded={wordsAdded}
+                  wordsRemoved={wordsRemoved}
+                  approvalTime={state.approvalTime}
+                  onApprove={handleApprove}
+                  onStartEditing={handleStartEditing}
+                  onSaveEditsAndApprove={handleSaveEditsAndApprove}
+                  onRevalidateOnly={handleRevalidateOnly}
+                  onDiscardEdits={handleDiscardEdits}
+                  onExportPdf={handleExportPdf}
+                  onCopyMarkdown={handleCopyMarkdown}
+                  onNewProtocol={handleNewProtocol}
+                />
               </div>
             </div>
-
-            {/* Workflow Activity Trace Card */}
-            <div className="bg-white border border-[#E8E4DA] rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-              <div className="p-4 bg-[#FAF8F5] border-b border-[#E8E4DA] flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-1 rounded bg-[#EBF3EE] text-[#244F3B]">
-                    <Activity className="w-4 h-4" />
-                  </div>
-                  <h3 className="text-sm font-semibold text-[#18221E] font-sans">
-                    Workflow activity trace
-                  </h3>
-                </div>
-              </div>
-
-              <AgentActivityFeed
-                sessionId={activeSession?.sessionId}
-                isAwaitingApproval={isAwaitingApproval}
-              />
-            </div>
-          </div>
-        </div>
-      </main>
-
-      {/* Clean Minimalist Footer */}
-      <footer className="border-t border-[#E8E4DA] py-6 mt-12 text-xs text-[#7E8F87]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span className="font-serif text-[#18221E]">Cerina Protocol Foundry</span>
-          <span>Collaborative AI Review & Human-in-the-Loop CBT Engineering</span>
-        </div>
-      </footer>
-    </div>
+          )}
+        </main>
+      </div>
+    </LayoutGroup>
   )
 }
 
+export default function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
+  )
+}
