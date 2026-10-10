@@ -171,6 +171,13 @@ Respond with a JSON object:
                     target_agent="Drafter",
                     priority="critical"
                 )
+        else:
+            state = add_agent_note(
+                state,
+                self.name,
+                f"Safety check passed. No contraindications detected (Safety score: {safety_score:.2f})",
+                priority="info"
+            )
         
         # Log activity
         log_agent_activity(
@@ -249,6 +256,13 @@ Respond with JSON:
                     target_agent="Drafter",
                     priority="warning"
                 )
+        else:
+            state = add_agent_note(
+                state,
+                self.name,
+                f"Clinical critique passed. Empathy: {empathy_score:.2f}, Clinical fidelity: {clinical_score:.2f}",
+                priority="info"
+            )
         
         # Log activity
         log_agent_activity(
@@ -349,6 +363,7 @@ class SupervisorAgent:
         # Fallback: halt for review
         return {
             "next_agent": "HALT",
-            "status": "awaiting_review"
+            "status": "awaiting_approval",
+            "halted": True
         }
 

@@ -110,7 +110,7 @@ def add_agent_note(
         timestamp=datetime.now(),
         priority=priority
     )
-    state["agent_notes"].append(new_note)
+    state.setdefault("agent_notes", []).append(new_note)
     state["last_update"] = datetime.now()
     return state
 

@@ -121,7 +121,7 @@ async def supervisor_node(state: ProtocolState) -> ProtocolState:
     state["status"] = result.get("status", "deciding")
     
     # Handle halt condition
-    if result.get("halted"):
+    if result.get("halted") or result.get("next_agent") == "HALT" or result.get("status") in ["awaiting_approval", "ready_for_review", "awaiting_review"]:
         state["halted"] = True
         state["status"] = "awaiting_approval"
     
