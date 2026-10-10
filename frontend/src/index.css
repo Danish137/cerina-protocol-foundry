@@ -8,10 +8,10 @@
     color-scheme: light;
   }
 
-  body {
+  html, body {
     margin: 0;
     padding: 0;
-    min-height: 100vh;
+    height: 100%;
     background-color: #FAF8F5;
     color: #18221E;
     -webkit-font-smoothing: antialiased;
@@ -19,7 +19,7 @@
   }
 
   #root {
-    min-height: 100vh;
+    height: 100%;
     width: 100%;
   }
 
@@ -30,16 +30,71 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: #FAF8F5;
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
     background: #D8D2C4;
-    border-radius: 3px;
+    border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #C0B8A6;
+    background: #B8B09E;
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Document & Markdown custom styles */
+.cerina-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+}
+
+.cerina-prose th,
+.cerina-prose td {
+  border: 1px solid #E8E4DA;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.cerina-prose th {
+  background-color: #F5F2EC;
+  font-weight: 600;
+  color: #18221E;
+}
+
+.cerina-prose tr:nth-child(even) td {
+  background-color: #FCFBF9;
+}
+
+.cerina-prose ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.cerina-prose ul ul {
+  list-style-type: circle;
+  margin: 0.25rem 0;
+}
+
+.cerina-prose ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.cerina-prose ol ol {
+  list-style-type: lower-alpha;
+  margin: 0.25rem 0;
+}
