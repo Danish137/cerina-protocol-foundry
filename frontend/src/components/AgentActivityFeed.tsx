@@ -1,51 +1,86 @@
-import { useState, useEffect } from 'react'
-import { Activity, Clock, PauseCircle } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import {
+  Activity,
+  ArrowDown,
+  FileText,
+  ShieldCheck,
+  MessageSquare,
+  Bot,
+  UserCheck,
+} from 'lucide-react'
 import API_BASE_URL from '../config'
-
-interface AgentActivity {
-  agent: string
-  action: string
-  timestamp: string
-  priority?: string
-}
+import { AgentActivity } from '../types'
 
 interface AgentActivityFeedProps {
   sessionId?: string
   isAwaitingApproval?: boolean
 }
 
-export default function AgentActivityFeed({ sessionId, isAwaitingApproval }: AgentActivityFeedProps) {
-  const [activities, setActivities] = useState<AgentActivity[]>([])
+function getRelativeTime(timestamp: string): string {
+  try {
+    const date = new Date(timestamp)
+    const diffSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000))
+    if (diffSeconds < 5) return 'just now'
+    if (diffSeconds < 60) return `${diffSeconds}s ago`
+    const diffMinutes = Math.floor(diffSeconds / 60)
+    if (diffMinutes < 60) return `${diffMinutes}m ago`
+    const diffHours = Math.floor(diffMinutes / 60)
+    return `${diffHours}h ago`
+  } catch {
+    return ''
+  }
+}
 
-  const addNotesToActivities = (agentNotes: any[], timestamp?: string) => {
+export default function AgentActivityFeed({
+  sessionId,
+  isAwaitingApproval = false,
+}: AgentActivityFeedProps) {
+  const [activities, setActivities] = useState<AgentActivity[]>([])
+  const [isScrolledUp, setIsScrolledUp] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Helper to add notes with deduplication
+  const addNotesToActivities = (agentNotes: any[], fallbackTimestamp?: string) => {
     if (!agentNotes || !Array.isArray(agentNotes)) return
 
-    agentNotes.forEach((note: any) => {
-      const agent = note?.agent_name || 'System'
-      const noteText = note?.note || note?.action || ''
-      if (!noteText) return
+    setActivities((prev) => {
+      let updated = [...prev]
 
-      setActivities((prev: AgentActivity[]) => {
-        // Strict deduplication check: match agent and normalized noteText
-        const exists = prev.some(
-          (a) => a.agent === agent && a.action.trim().toLowerCase() === noteText.trim().toLowerCase()
+      agentNotes.forEach((note) => {
+        const agent = note.agent_name || 'System'
+        const rawAction = note.note || note.action || ''
+        const timestamp = note.timestamp || fallbackTimestamp || new Date().toISOString()
+        const priority = note.priority || 'info'
+
+        if (!rawAction) return
+
+        // Deduplication check: ignore if an entry with exact same agent and text exists
+        const exists = updated.some(
+          (a) =>
+            a.agent === agent &&
+            a.action.trim().toLowerCase() === rawAction.trim().toLowerCase()
         )
-        if (exists) return prev
 
-        const noteTimestamp = note?.timestamp || timestamp || new Date().toISOString()
-        return [
-          ...prev,
-          {
+        if (!exists) {
+          updated.push({
             agent,
-            action: noteText,
-            timestamp: typeof noteTimestamp === 'string' ? noteTimestamp : new Date(noteTimestamp).toISOString(),
-            priority: note?.priority || 'info',
-          },
-        ].slice(-50)
+            action: rawAction,
+            timestamp,
+            priority,
+          })
+        }
       })
+
+      // Sort chronologically
+      updated.sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      )
+
+      return updated.slice(-60) // Keep last 60 activities
     })
   }
 
+  // Handle SSE and Polling
   useEffect(() => {
     if (!sessionId) {
       setActivities([])
@@ -60,42 +95,16 @@ export default function AgentActivityFeed({ sessionId, isAwaitingApproval }: Age
         const agentNotes = state.agent_notes || []
 
         addNotesToActivities(agentNotes)
-
-        // Only add human paused notice if the state is halted and not already recorded in activities
-        if (state.halted || state.status === 'awaiting_approval') {
-          setActivities((prev: AgentActivity[]) => {
-            const hasPauseNotice = prev.some(
-              (a) =>
-                a.agent === 'Human' &&
-                (a.action.toLowerCase().includes('paused') ||
-                 a.action.toLowerCase().includes('halted') ||
-                 a.action.toLowerCase().includes('approval') ||
-                 a.action.toLowerCase().includes('review'))
-            )
-            if (hasPauseNotice) return prev
-
-            return [
-              ...prev,
-              {
-                agent: 'Human',
-                action: 'Workflow paused for your review',
-                timestamp: new Date().toISOString(),
-                priority: 'warning',
-              },
-            ]
-          })
-        }
       } catch (err) {
-        console.error('Error fetching current state:', err)
+        console.error('Error fetching state in activity feed:', err)
       }
     }
 
+    // Initial state fetch + 2s polling
     fetchCurrentState()
+    const pollInterval = setInterval(fetchCurrentState, 2000)
 
-    const pollInterval = setInterval(() => {
-      fetchCurrentState()
-    }, 2000)
-
+    // SSE connection
     const es = new EventSource(`${API_BASE_URL}/api/protocols/${sessionId}/stream`)
 
     es.addEventListener('state_update', (event: MessageEvent) => {
@@ -116,66 +125,32 @@ export default function AgentActivityFeed({ sessionId, isAwaitingApproval }: Age
           }
 
           const agentName = agentMap[nodeName] || nodeName
-          let agentThought = data.agent_thought || ''
+          let thought = data.agent_thought
 
-          agentThought =
-            agentNotes
-              .filter((note: any) => note.agent_name === agentName)
-              .slice(-1)[0]?.note || agentThought || `Executed ${nodeName} stage`
+          if (thought) {
+            setActivities((prev) => {
+              const exists = prev.some(
+                (a) =>
+                  a.agent === agentName &&
+                  a.action.trim().toLowerCase() === thought.trim().toLowerCase()
+              )
+              if (exists) return prev
 
-          const priority = data.priority || 'info'
-
-          setActivities((prev: AgentActivity[]) => {
-            const exists = prev.some(
-              (a) =>
-                a.agent === agentName &&
-                a.action.trim().toLowerCase() === agentThought.trim().toLowerCase()
-            )
-            if (exists) return prev
-
-            return [
-              ...prev,
-              {
-                agent: agentName,
-                action: agentThought,
-                timestamp: data.timestamp || new Date().toISOString(),
-                priority,
-              },
-            ].slice(-50)
-          })
+              const next = [
+                ...prev,
+                {
+                  agent: agentName,
+                  action: thought,
+                  timestamp: data.timestamp || new Date().toISOString(),
+                  priority: data.priority || 'info',
+                },
+              ]
+              return next.slice(-60)
+            })
+          }
         }
       } catch (err) {
-        console.error('Error parsing state_update:', err)
-      }
-    })
-
-    es.addEventListener('halted', (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data)
-        const timestamp = data.timestamp || new Date().toISOString()
-        setActivities((prev: AgentActivity[]) => {
-          const exists = prev.some(
-            (a) =>
-              a.agent === 'Human' &&
-              (a.action.toLowerCase().includes('paused') ||
-               a.action.toLowerCase().includes('halted') ||
-               a.action.toLowerCase().includes('approval') ||
-               a.action.toLowerCase().includes('review'))
-          )
-          if (exists) return prev
-
-          return [
-            ...prev,
-            {
-              agent: 'Human',
-              action: data.message || 'Workflow paused for your review',
-              timestamp,
-              priority: 'warning',
-            },
-          ]
-        })
-      } catch (err) {
-        console.error('Error parsing halted event:', err)
+        console.error('Error parsing activity update:', err)
       }
     })
 
@@ -183,10 +158,9 @@ export default function AgentActivityFeed({ sessionId, isAwaitingApproval }: Age
       try {
         const data = JSON.parse(event.data)
         const state = data.state || {}
-        const agentNotes = state.agent_notes || []
-        addNotesToActivities(agentNotes, data.timestamp)
+        addNotesToActivities(state.agent_notes || [], data.timestamp)
       } catch (err) {
-        console.error('Error parsing complete event:', err)
+        console.error('Error parsing complete event in feed:', err)
       }
       es.close()
     })
@@ -203,6 +177,44 @@ export default function AgentActivityFeed({ sessionId, isAwaitingApproval }: Age
     }
   }, [sessionId])
 
+  // Auto-scroll to bottom if not user-scrolled
+  useEffect(() => {
+    if (!isScrolledUp && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight
+    }
+  }, [activities, isScrolledUp])
+
+  const handleScroll = () => {
+    if (!containerRef.current) return
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current
+    const atBottom = scrollHeight - scrollTop - clientHeight < 40
+    setIsScrolledUp(!atBottom)
+  }
+
+  const scrollToBottom = () => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight
+      setIsScrolledUp(false)
+    }
+  }
+
+  const getAgentIcon = (agent: string) => {
+    switch (agent) {
+      case 'Drafter':
+        return <FileText className="w-3.5 h-3.5 text-[#244F3B]" />
+      case 'SafetyGuardian':
+        return <ShieldCheck className="w-3.5 h-3.5 text-[#D4882C]" />
+      case 'ClinicalCritic':
+        return <MessageSquare className="w-3.5 h-3.5 text-[#2B6CB0]" />
+      case 'Supervisor':
+        return <Bot className="w-3.5 h-3.5 text-[#553C9A]" />
+      case 'Human':
+        return <UserCheck className="w-3.5 h-3.5 text-[#8C5921]" />
+      default:
+        return <Activity className="w-3.5 h-3.5 text-[#7E8F87]" />
+    }
+  }
+
   const getAgentLabel = (agent: string) => {
     switch (agent) {
       case 'Drafter':
@@ -215,111 +227,86 @@ export default function AgentActivityFeed({ sessionId, isAwaitingApproval }: Age
         return 'Workflow Supervisor'
       case 'Human':
         return 'Human Reviewer'
-      case 'System':
-        return 'System'
       default:
         return agent
     }
   }
 
-  const getNodeColor = (agent: string, priority?: string) => {
-    if (priority === 'warning' || agent === 'Human') {
-      return { dot: 'bg-[#D4882C]', ring: 'ring-[#F4DEC2]' }
-    }
-    switch (agent) {
-      case 'Drafter':
-      case 'SafetyGuardian':
-        return { dot: 'bg-[#244F3B]', ring: 'ring-[#D1E2D7]' }
-      case 'ClinicalCritic':
-        return { dot: 'bg-[#2B6CB0]', ring: 'ring-[#D4E4F5]' }
-      case 'Supervisor':
-        return { dot: 'bg-[#553C9A]', ring: 'ring-[#E9D8FD]' }
-      default:
-        return { dot: 'bg-[#718096]', ring: 'ring-[#E2E8F0]' }
-    }
-  }
-
-  const formatTimestamp = (timestampStr: string) => {
-    try {
-      const date = new Date(timestampStr)
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    } catch {
-      return ''
-    }
-  }
-
-  if (!sessionId) {
-    return (
-      <div className="p-6 text-center text-[#88978F] text-xs">
-        <Activity className="w-5 h-5 mx-auto mb-2 text-[#A4B3AB]" />
-        <p className="font-medium text-[#55635C] mb-1">Workflow trace is idle</p>
-        <p>Start a protocol generation to see real-time agent evaluations and audit log.</p>
-      </div>
-    )
-  }
-
-  if (activities.length === 0) {
-    return (
-      <div className="p-6 text-center text-[#88978F] text-xs">
-        <div className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#EBF3EE] text-[#244F3B] mb-2 animate-spin">
-          <Clock className="w-3.5 h-3.5" />
-        </div>
-        <p className="font-medium text-[#55635C] mb-1">Awaiting trace events</p>
-        <p>Agents are initializing session...</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="p-4 space-y-4">
-      {/* Activity Timeline List */}
-      <div className="relative pl-3 space-y-3 before:absolute before:left-4 before:top-2 before:bottom-2 before:w-[1px] before:bg-[#E8E4DA] max-h-[380px] overflow-y-auto pr-1">
-        {activities.map((activity, index) => {
-          const colors = getNodeColor(activity.agent, activity.priority)
-          const agentTitle = getAgentLabel(activity.agent)
-          const time = formatTimestamp(activity.timestamp)
-
-          return (
-            <div key={`${activity.timestamp}-${index}`} className="relative pl-5 text-xs group">
-              {/* Timeline Node */}
-              <div
-                className={`absolute -left-1 top-1 w-2.5 h-2.5 rounded-full ${colors.dot} ring-4 ${colors.ring}`}
-              />
-
-              <div className="flex items-baseline justify-between gap-2 mb-0.5">
-                <span className="font-semibold text-[#18221E] text-xs">
-                  {agentTitle}
-                </span>
-                {time && (
-                  <span className="text-[10px] font-mono text-[#88978F] shrink-0">
-                    {time}
-                  </span>
-                )}
-              </div>
-
-              <p className="text-[#55635C] leading-relaxed text-[11.5px]">
-                {activity.action}
-              </p>
-            </div>
-          )
-        })}
+    <div className="relative flex flex-col h-full bg-white border border-[#E8E4DA] rounded-xl overflow-hidden shadow-2xs">
+      {/* Trace Header */}
+      <div className="px-4 py-2.5 bg-[#FAF8F5] border-b border-[#E8E4DA] flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-1.5">
+          <Activity className="w-3.5 h-3.5 text-[#244F3B]" />
+          <span className="text-xs font-semibold text-[#18221E]">
+            Activity Trace ({activities.length})
+          </span>
+        </div>
+        {isAwaitingApproval && (
+          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#FBF5EB] text-[#8C5921] border border-[#EEDDC3]">
+            Awaiting Approval
+          </span>
+        )}
       </div>
 
-      {/* Human Review Waiting Banner at bottom of trace (Informational only) */}
-      {isAwaitingApproval && (
-        <div className="p-3.5 rounded-xl bg-[#FBF5EB] border border-[#EEDDC3] flex items-center gap-3 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-          <div className="p-1.5 rounded-full bg-[#F4DEC2] text-[#8C5921] shrink-0">
-            <PauseCircle className="w-4 h-4" />
+      {/* Internal Scrollable Feed with Isolated Wheel Scrolling */}
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[140px] max-h-[300px]"
+      >
+        {activities.length === 0 ? (
+          <div className="h-28 flex flex-col items-center justify-center text-center text-xs text-[#88978F]">
+            <p>Initializing agent trace…</p>
           </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-[#8C5921] truncate">
-              Waiting for your approval
-            </p>
-            <p className="text-[11px] text-[#A6753B] truncate">
-              Review the draft to continue.
-            </p>
-          </div>
-        </div>
+        ) : (
+          activities.map((act, idx) => {
+            const timeAgo = getRelativeTime(act.timestamp)
+            const isCritical = act.priority === 'critical'
+            const isWarning = act.priority === 'warning'
+
+            return (
+              <div
+                key={`${act.timestamp}-${idx}`}
+                className={`p-2.5 rounded-lg border text-xs transition-colors ${
+                  isCritical
+                    ? 'bg-red-50/70 border-red-200 text-red-900'
+                    : isWarning
+                    ? 'bg-[#FBF5EB]/70 border-[#EEDDC3] text-[#8C5921]'
+                    : 'bg-[#FAF8F5]/80 border-[#E8E4DA] text-[#18221E]'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5 font-semibold text-[11px]">
+                    {getAgentIcon(act.agent)}
+                    <span>{getAgentLabel(act.agent)}</span>
+                  </div>
+                  <span
+                    className="text-[10px] font-mono text-[#88978F] cursor-help"
+                    title={new Date(act.timestamp).toLocaleTimeString()}
+                  >
+                    {timeAgo}
+                  </span>
+                </div>
+                <p className="text-[11.5px] leading-relaxed text-[#55635C]">
+                  {act.action}
+                </p>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* "Jump to latest" floating pill if user scrolled up */}
+      {isScrolledUp && (
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#18221E] text-white text-[10px] font-semibold rounded-full shadow-md hover:bg-black transition-transform active:scale-95 flex items-center gap-1 z-20"
+        >
+          <ArrowDown className="w-3 h-3" />
+          <span>Jump to latest</span>
+        </button>
       )}
     </div>
   )
