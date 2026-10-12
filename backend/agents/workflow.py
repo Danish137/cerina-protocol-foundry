@@ -252,7 +252,7 @@ async def init_checkpointer_async():
     checkpointer is available for `StateGraph` async methods.
     """
     global _checkpointer
-    if _checkpointer is not None:
+    if _checkpointer is not None and AsyncSqliteSaver is not None and isinstance(_checkpointer, AsyncSqliteSaver):
         return _checkpointer
 
     if AsyncSqliteSaver is None:

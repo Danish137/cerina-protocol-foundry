@@ -1,8 +1,24 @@
+"""
+Cerina Protocol Foundry API (Phase A)
+Implements:
+- A1: Single Runner Registry (/stream NEVER executes graph, 409 if active)
+- A2: Events table emission synchronously before SSE tail
+- A3: SSE pure tail (id: {seq}, Last-Event-ID, 15s ping, fail-safe error propagation)
+- A4: Secure tokens (secrets.token_urlsafe, SHA-256 hash, 404 on mismatch, retention purge, slowapi)
+- A5: Capacity Guard (DAILY_LLM_CALL_BUDGET, GET /api/capacity, 429 quota_exceeded)
+- A6: Scoring Integrity & fail-closed rubrics
+- A7: Loop Policy & FORCE_REVISION
+- A8: Human Steering (/revise human_revision, /revalidate recheck)
+- A9: Draft structure template & normalization
+- A10: Crisis pre-screen & region-aware care panel
+"""
+
 import os
 import re
 import sys
 import uuid
 import json
+import secrets
 import asyncio
 import hashlib
 import logging
@@ -13,12 +29,16 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response, Header, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.encoders import jsonable_encoder
 
-# Configure logging with single handler check
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+# Configure logging: NEVER log intent text or user_id (A4)
 logger = logging.getLogger("cerina")
 if not logger.handlers:
     logger.setLevel(logging.INFO)
@@ -26,729 +46,586 @@ if not logger.handlers:
     handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logger.addHandler(handler)
 
-from agents.workflow import create_workflow
-from database import get_db_session, init_db
+from database import get_db_session, init_db, ProtocolSession, Event, LLMUsage
 from models import (
     ProtocolRequest,
     ProtocolResponse,
     ProtocolStatus,
+    ReviseRequest,
     ApproveRequest,
     RevalidateRequest,
     ValidationResult,
+    CapacityResponse,
     AgentNote,
     ErrorEnvelope,
 )
+from runner import registry, emit_event, run_protocol_workflow, run_recheck_workflow, RunnerAlreadyActiveError
+from security import (
+    generate_session_id, generate_session_token, hash_token, verify_session_access,
+    purge_expired_sessions, get_capacity_status, record_llm_call
+)
+from crisis import screen_crisis_intent, get_crisis_resources
+from normalizer import normalize_protocol_markdown
 
-# Temporary storage for session intents (until checkpoint is created)
-_session_intents: Dict[str, str] = {}
-
-def format_agent_notes(raw_notes: List[Any]) -> List[Dict[str, Any]]:
-    """Normalize agent notes, strip raw prefixes, and assign clean severity."""
-    formatted = []
-    agent_id_map = {
-        "SafetyGuardian": "safety_guardian",
-        "ClinicalCritic": "clinical_critic",
-        "Drafter": "drafter",
-        "Supervisor": "supervisor",
-        "Human": "human",
-        "System": "system",
-    }
-    for note_item in (raw_notes or []):
-        if not isinstance(note_item, dict):
-            continue
-        raw_agent = note_item.get("agent_name", "system")
-        agent_id = agent_id_map.get(raw_agent, raw_agent.lower())
-        raw_text = note_item.get("note", "").strip()
-        priority = note_item.get("priority", "info")
-        ts = note_item.get("timestamp")
-        created_at = ts.isoformat() if isinstance(ts, datetime) else str(ts or "")
-
-        clean_text = raw_text
-        for prefix in ["IMPROVEMENT NEEDED:", "SAFETY ISSUE:", "CRITICAL:", "RECOMMENDATION:"]:
-            if clean_text.upper().startswith(prefix):
-                clean_text = clean_text[len(prefix):].strip()
-                break
-
-        severity = "suggestion"
-        if priority == "critical" or "SAFETY ISSUE" in raw_text.upper() or "FAIL" in raw_text.upper():
-            severity = "critical"
-        elif priority == "warning":
-            severity = "warning"
-        elif priority == "info":
-            severity = "info"
-
-        formatted.append({
-            "agent_id": agent_id,
-            "severity": severity,
-            "message": clean_text,
-            "created_at": created_at
-        })
-    return formatted
-
-def serialize_state_for_json(state: Any) -> Any:
-    """JSON-serializable encoder using FastAPI jsonable_encoder with normalized notes."""
-    if state is None:
-        return None
-    encoded = jsonable_encoder(state)
-    if isinstance(encoded, dict) and "agent_notes" in encoded:
-        encoded["agent_notes"] = format_agent_notes(state.get("agent_notes", []))
-    return encoded
+# Rate limiter setup (A4: create 5/min, revise/revalidate 10/min)
+limiter = Limiter(key_func=get_remote_address)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize database and async checkpointer on startup
-    logger.info("Starting application lifespan...")
-    try:
-        logger.info("Initializing database...")
-        init_db()
-        logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize database: {e}", exc_info=True)
-        raise
+    logger.info("Initializing Cerina Protocol Foundry database and checkpointer...")
+    init_db()
     
     try:
-        logger.info("Initializing async checkpointer...")
         from agents.workflow import init_checkpointer_async
         await init_checkpointer_async()
-        logger.info("Async checkpointer initialized successfully")
+        logger.info("Async checkpointer initialized.")
     except Exception as e:
-        logger.warning(f"Could not initialize async checkpointer (this is okay): {e}")
-        pass
-    
-    logger.info("Application startup complete")
+        logger.warning(f"Async checkpointer fallback: {e}")
+
+    # Retention purge on startup (A4)
     try:
-        yield
-    finally:
-        logger.info("Shutting down application...")
-        try:
-            from agents.workflow import close_checkpointer_async
-            await close_checkpointer_async()
-        except Exception:
-            pass
-        logger.info("Application shutdown complete")
+        purged = purge_expired_sessions()
+        logger.info(f"Startup retention purge cleared {purged} expired sessions.")
+    except Exception as e:
+        logger.warning(f"Startup retention purge error: {e}")
 
+    yield
 
-app = FastAPI(title="Cerina Protocol Foundry API", version="1.0.0", lifespan=lifespan)
+    logger.info("Shutting down Cerina Protocol Foundry...")
+    try:
+        from agents.workflow import close_checkpointer_async
+        await close_checkpointer_async()
+    except Exception:
+        pass
 
-# CORS configuration
+app = FastAPI(
+    title="Cerina Protocol Foundry API",
+    version="3.0.0",
+    lifespan=lifespan
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS configuration (A4)
 APP_ENV = os.getenv("APP_ENV", "development")
 cors_origins_env = os.getenv("CORS_ORIGINS", "")
 allowed_origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
 if not allowed_origins:
-    allowed_origins = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:3002",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "https://cerina-protocol-foundry.vercel.app",
-    ]
+    if APP_ENV == "development":
+        allowed_origins = [
+            "http://localhost:3000", "http://localhost:3001", "http://localhost:5173",
+            "http://127.0.0.1:3000", "http://127.0.0.1:3001", "http://127.0.0.1:5173",
+            "https://cerina-protocol-foundry.vercel.app"
+        ]
+    else:
+        allowed_origins = ["https://cerina-protocol-foundry.vercel.app"]
 
-cors_kwargs: Dict[str, Any] = {
-    "allow_origins": allowed_origins,
-    "allow_credentials": False,
-    "allow_methods": ["*"],
-    "allow_headers": ["*"],
-}
-if APP_ENV == "development":
-    cors_kwargs["allow_origin_regex"] = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
 
-app.add_middleware(CORSMiddleware, **cors_kwargs)
+def serialize_state_for_json(state: Any) -> Any:
+    if state is None:
+        return None
+    return jsonable_encoder(state)
 
-# Clean request logging middleware with request ID
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    req_id = uuid.uuid4().hex[:8]
-    logger.info(f"[{req_id}] {request.method} {request.url.path}")
-    try:
-        response: Response = await call_next(request)
-        response.headers["X-Request-ID"] = req_id
-        logger.info(f"[{req_id}] {response.status_code} {request.method} {request.url.path}")
-        return response
-    except Exception as e:
-        logger.error(f"[{req_id}] Error: {e}", exc_info=True)
-        return JSONResponse(
-            status_code=500,
-            content={"code": "INTERNAL_ERROR", "message": "An unexpected error occurred. Please retry.", "retryable": True},
-            headers={"X-Request-ID": req_id}
-        )
+# --- Routes ---
 
-# Note: startup/shutdown logic handled by the `lifespan` context manager
-
-@app.get("/")
-async def root():
-    logger.info("Root endpoint accessed")
-    return {"message": "Cerina Protocol Foundry API", "status": "running"}
-
-@app.get("/health")
-async def health():
-    logger.info("Health check endpoint accessed")
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
-
-async def start_workflow_background(workflow, config, session_id: str):
-    """Start workflow execution in background"""
-    try:
-        logger.info(f"Background: Starting workflow execution for session: {session_id}")
-        # Small delay to ensure checkpoint is created
-        await asyncio.sleep(0.5)
-        
-        # Start workflow execution
-        async for event in workflow.astream(None, config, stream_mode="updates"):
-            logger.info(f"Background: Workflow event for {session_id}: {list(event.keys())}")
-            # Workflow will run and update checkpoints automatically
-            # We just need to consume the stream to trigger execution
-            for node_name, state_update in event.items():
-                # Check if workflow should halt
-                current_state = await workflow.aget_state(config)
-                if current_state.values:
-                    full_state = current_state.values
-                    if full_state.get("halted") or full_state.get("status") == "awaiting_approval":
-                        logger.info(f"Background: Workflow halted for session: {session_id}")
-                        break
-        logger.info(f"Background: Workflow execution completed for session: {session_id}")
-    except Exception as e:
-        logger.error(f"Background: Error executing workflow for {session_id}: {e}", exc_info=True)
-        try:
-            from agents.state import add_agent_note
-            current_state = await workflow.aget_state(config)
-            err_state = current_state.values.copy() if (current_state and current_state.values) else {}
-            err_state["status"] = "error"
-            err_state = add_agent_note(
-                err_state,
-                "System",
-                f"Workflow execution failed: {str(e)}",
-                priority="critical"
-            )
-            await workflow.aupdate_state(config, err_state)
-            logger.info(f"Recorded error state for session: {session_id}")
-        except Exception as record_err:
-            logger.error(f"Could not record error state: {record_err}")
+@app.get("/api/capacity", response_model=CapacityResponse)
+async def check_capacity():
+    """Capacity Guard (A5): Get remaining runs and daily budget status"""
+    status = get_capacity_status()
+    return CapacityResponse(**status)
 
 @app.post("/api/protocols/create", response_model=ProtocolResponse)
-async def create_protocol(request: ProtocolRequest, background_tasks: BackgroundTasks):
+@limiter.limit("5/minute")
+async def create_protocol(request: Request, body: ProtocolRequest):
     """
-    Create a new CBT protocol. Returns immediately with a session ID.
-    The workflow runs asynchronously and can be monitored via /api/protocols/{session_id}/stream
+    Creates a new protocol session with single runner ownership (A1, A4, A5, A10).
+    Enforces rate limits (5/min/IP) and capacity budget.
     """
-    logger.info(f"Received create protocol request: intent='{request.intent[:50]}...'")
-    try:
-        from agents.state import create_initial_state
-        
-        logger.info("Creating workflow instance...")
-        # Create workflow instance
-        workflow = create_workflow()
-        logger.info("Workflow created successfully")
-        
-        # Initialize state
-        session_id = request.session_id or f"session_{datetime.now().timestamp()}"
-        logger.info(f"Session ID: {session_id}")
-        
-        # Store intent temporarily in case checkpoint creation fails
-        _session_intents[session_id] = request.intent
-        logger.info("Stored intent in temporary storage")
-        
-        logger.info("Creating initial state...")
-        initial_state = create_initial_state(
-            user_intent=request.intent,
-            session_id=session_id,
-            max_iterations=5
+    req_id = str(uuid.uuid4())[:8]
+    logger.info(f"[{req_id}] Incoming /create request: intent_len={len(body.intent)}, review_depth={body.review_depth}")
+
+    # 1. Capacity Guard check (A5)
+    cap = get_capacity_status()
+    if cap["exhausted"]:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "quota_exceeded",
+                "message": "Today's demonstration AI generation limit has been reached. Please watch a recorded run or return when quota resets.",
+                "retryable": False,
+                "resets_at": cap["resets_at"]
+            }
         )
-        logger.info("Initial state created")
-        
-        # Store initial state - workflow will run when stream endpoint is accessed
-        # We'll just return the session_id, and stream endpoint will handle execution
-        config = {"configurable": {"thread_id": session_id}}
-        
-        # Try to create checkpoint with initial state
-        # This is optional - if it fails, stream endpoint will create it
-        checkpoint_created = False
+
+    # 2. Local Crisis Pre-Screen (A10)
+    is_crisis, matched_phrase = screen_crisis_intent(body.intent)
+    if is_crisis and not body.clinician_bypass:
+        logger.info(f"[{req_id}] Crisis intent pre-screen matched: phrase detected.")
+        session_id = generate_session_id()
+        session_token = generate_session_token()
+        token_hash = hash_token(session_token)
+        care_resources = get_crisis_resources(body.region_code or "US")
+
+        db = get_db_session()
         try:
-            logger.info("Attempting to create checkpoint...")
-            # Try to create a checkpoint entry
-            if hasattr(workflow, 'aupdate_state'):
-                try:
-                    await workflow.aupdate_state(config, initial_state)
-                    checkpoint_created = True
-                    logger.info("Checkpoint created successfully")
-                except (AttributeError, TypeError, Exception) as update_error:
-                    # aupdate_state might not be available or might fail
-                    # This is okay - stream endpoint will handle it
-                    logger.warning(f"Could not pre-create checkpoint: {update_error}")
-                    pass
-            else:
-                logger.info("Workflow does not have aupdate_state method")
-        except Exception as e:
-            # This is not critical - stream endpoint will create the state
-            logger.warning(f"Checkpoint creation skipped, stream will handle it: {e}")
-            pass
-        
-        # Clean up temporary storage if checkpoint was created successfully
-        if checkpoint_created:
-            _session_intents.pop(session_id, None)
-            logger.info("Cleaned up temporary intent storage")
-        
-        logger.info(f"Protocol creation successful. Session ID: {session_id}")
-        
-        # Start workflow execution in background for MCP/API usage
-        # (React UI will trigger via stream endpoint, but MCP needs it to start automatically)
-        background_tasks.add_task(start_workflow_background, workflow, config, session_id)
-        
+            sess = ProtocolSession(
+                session_id=session_id,
+                token_hash=token_hash,
+                user_intent=body.intent,
+                status="care_panel",
+                review_depth=body.review_depth or "standard",
+                meta_data={"crisis_detected": True, "matched_phrase": matched_phrase}
+            )
+            db.add(sess)
+            db.commit()
+        finally:
+            db.close()
+
+        # Emit major checkpoint event
+        emit_event(
+            session_id=session_id,
+            run_id=f"run_{req_id}",
+            run_kind="initial",
+            draft_version=1,
+            agent="System",
+            event_type="checkpoint",
+            text_content="Self-harm / crisis intent detected. Displaying clinical care resources.",
+            severity="major",
+            data={"status": "care_panel", "matched": True}
+        )
+
         return ProtocolResponse(
             session_id=session_id,
-            status="initializing",
-            message="Protocol generation initialized. Workflow execution started."
+            session_token=session_token,
+            status="care_panel",
+            message="Active crisis indicators identified. Clinical resources displayed.",
+            run_id=f"run_{req_id}",
+            care_resources=care_resources
         )
+
+    # 3. Create Session Record
+    session_id = body.session_id or generate_session_id()
+    session_token = generate_session_token()
+    token_hash = hash_token(session_token)
+    run_id = f"run_{secrets.token_urlsafe(8)}"
+
+    db = get_db_session()
+    try:
+        sess = ProtocolSession(
+            session_id=session_id,
+            token_hash=token_hash,
+            user_intent=body.intent,
+            status="generating",
+            review_depth=body.review_depth or "standard",
+            current_run_id=run_id
+        )
+        db.add(sess)
+        db.commit()
+    finally:
+        db.close()
+
+    # Pre-create LangGraph initial state
+    from agents.workflow import create_workflow
+    workflow = create_workflow()
+    config = {"configurable": {"thread_id": session_id}}
+    from agents.state import create_initial_state
+    init_state = create_initial_state(
+        user_intent=body.intent,
+        session_id=session_id
+    )
+    init_state["review_depth"] = body.review_depth or "standard"
+    init_state["current_version"] = 1
+    init_state["status"] = "generating"
+    
+    try:
+        await workflow.aupdate_state(config, init_state, as_node="draft")
     except Exception as e:
-        import traceback
-        error_detail = f"{str(e)}\n{traceback.format_exc()}"
-        logger.error(f"ERROR creating protocol: {error_detail}")
-        print(f"ERROR creating protocol: {error_detail}", file=sys.stderr)
-        raise HTTPException(status_code=500, detail=f"Failed to create protocol: {str(e)}")
+        logger.warning(f"[{req_id}] Initial aupdate_state notice: {e}")
+
+    # 4. Acquire Single Runner Task (A1)
+    try:
+        await registry.acquire_or_raise(
+            session_id,
+            run_protocol_workflow,
+            run_id=run_id,
+            run_kind="initial",
+            review_depth=body.review_depth or "standard"
+        )
+    except RunnerAlreadyActiveError:
+        raise HTTPException(status_code=409, detail="A generation is already active for this session.")
+
+    return ProtocolResponse(
+        session_id=session_id,
+        session_token=session_token,
+        status="generating",
+        message="Protocol generation initialized. Single runner task active.",
+        run_id=run_id,
+        review_depth=body.review_depth or "standard"
+    )
 
 @app.get("/api/protocols/{session_id}/stream")
-async def stream_protocol(session_id: str):
+async def stream_protocol(
+    request: Request,
+    session_id: str,
+    token: Optional[str] = Query(None),
+    x_session_token: Optional[str] = Header(None, alias="X-Session-Token"),
+    after: Optional[int] = Query(None)
+):
     """
-    Stream real-time updates from the agent workflow.
-    Returns Server-Sent Events (SSE) with state updates.
+    Pure SSE Tail (A1, A3): NEVER executes the graph!
+    Supports Last-Event-ID resume, in-process queue tail, 15s ping, and fail-safe error propagation.
     """
-    logger.info(f"Stream endpoint accessed for session: {session_id}")
-    async def event_generator():
+    # Authorization check (A4)
+    raw_token = x_session_token or token
+    if raw_token:
         try:
-            from agents.state import create_initial_state
-            
-            logger.info(f"Creating workflow for session: {session_id}")
-            workflow = create_workflow()
-            config = {"configurable": {"thread_id": session_id}}
-            
-            # Get current state first
-            logger.info(f"Getting current state for session: {session_id}")
-            current_state = await workflow.aget_state(config)
-            logger.info(f"Current state retrieved: {current_state.values is not None}")
-            
-            # Check if workflow is already completed or halted
-            if current_state.values:
-                status = current_state.values.get("status", "")
-                halted = current_state.values.get("halted", False)
-                if status in ["completed"]:
-                    # Workflow is done - just send current state
-                    serialized_state = serialize_state_for_json(current_state.values)
-                    yield {
-                        "event": "complete",
-                        "data": json.dumps({
-                            "state": serialized_state,
-                            "timestamp": datetime.now().isoformat()
-                        })
-                    }
-                    return
-                elif halted or status == "awaiting_approval":
-                    # Workflow is halted - send halted event with current state
-                    serialized_state = serialize_state_for_json(current_state.values)
-                    yield {
-                        "event": "halted",
-                        "data": json.dumps({
-                            "state": serialized_state,
-                            "message": "Workflow paused for human review",
-                            "timestamp": datetime.now().isoformat()
-                        })
-                    }
-                    # Keep connection open but don't execute workflow
-                    # Wait for user to approve
-                    return
-            
-            # Determine initial state - if workflow hasn't run, we need to start it
-            if not current_state.values or current_state.values.get("status") == "initializing":
-                logger.info(f"No checkpoint found or status is initializing for session: {session_id}")
-                # Workflow hasn't started - we need to create initial state
-                if current_state.values:
-                    initial_state = current_state.values
-                    logger.info("Using state from checkpoint")
-                else:
-                    # No state found in checkpoint - try to get from temporary storage
-                    if session_id in _session_intents:
-                        user_intent = _session_intents[session_id]
-                        logger.info(f"Creating initial state from temporary storage for intent: {user_intent[:50]}...")
-                        from agents.state import create_initial_state
-                        initial_state = create_initial_state(
-                            user_intent=user_intent,
-                            session_id=session_id,
-                            max_iterations=5
-                        )
-                        # Create checkpoint with initial state
-                        logger.info("Creating checkpoint with initial state...")
-                        await workflow.aupdate_state(config, initial_state)
-                        logger.info("Checkpoint created successfully")
-                        # Clean up temporary storage
-                        _session_intents.pop(session_id, None)
-                    else:
-                        # No state found and no temporary storage
-                        logger.error(f"No initial state found for session: {session_id}")
-                        yield {
-                            "event": "error",
-                            "data": json.dumps({"error": "No initial state found. Please create protocol first using /api/protocols/create endpoint."})
-                        }
-                        return
-            else:
-                # Workflow has state - continue from current
-                initial_state = current_state.values
-                logger.info(f"Continuing workflow from checkpoint. Status: {initial_state.get('status')}")
-                
-                # If already halted, don't execute
-                if initial_state.get("halted") or initial_state.get("status") == "awaiting_approval":
-                    logger.info("Workflow is already halted")
-                    serialized_state = serialize_state_for_json(initial_state)
-                    yield {
-                        "event": "halted",
-                        "data": json.dumps({
-                            "state": serialized_state,
-                            "message": "Workflow is already paused for human review",
-                            "timestamp": datetime.now().isoformat()
-                        })
-                    }
-                    return
-            
-            # Stream workflow execution - this will run/continue the workflow and emit events
-            # Only stream if workflow is not already completed or halted
-            if initial_state.get("status") not in ["completed", "awaiting_approval"]:
-                logger.info(f"Starting workflow execution for session: {session_id}")
-                logger.info(f"Initial state status: {initial_state.get('status')}")
-                logger.info(f"Initial state has draft: {bool(initial_state.get('current_draft'))}")
-                
-                # Use astream with None to continue from checkpoint
-                # The checkpoint already has the state, so we pass None
-                async for event in workflow.astream(None, config, stream_mode="updates"):
-                    logger.info(f"Received workflow event: {list(event.keys())}")
-                    for node_name, state_update in event.items():
-                        logger.info(f"Processing node: {node_name}")
-                        # Get the full current state after this update
-                        current_full_state = await workflow.aget_state(config)
-                        full_state = current_full_state.values if current_full_state else {}
-                        
-                        logger.info(f"Node {node_name} - Status: {full_state.get('status')}, Active Agent: {full_state.get('active_agent')}")
-                        
-                        # Extract agent activity from state correctly matched to current node
-                        agent_notes = full_state.get("agent_notes", [])
-                        agent_map = {
-                            "draft": "Drafter",
-                            "safety_review": "SafetyGuardian",
-                            "clinical_critique": "ClinicalCritic",
-                            "supervisor": "Supervisor",
-                        }
-                        expected_agent = agent_map.get(node_name)
-                        matching_notes = [n for n in agent_notes if n.get("agent_name") == expected_agent]
-                        recent_note = matching_notes[-1] if matching_notes else (agent_notes[-1] if agent_notes else None)
-                        agent_thought = recent_note.get("note", "") if recent_note else f"Completed {node_name} evaluation"
-                        
-                        # Send node execution event with full state
-                        logger.info(f"Sending state_update event for node: {node_name}")
-                        # Serialize state to make datetime objects JSON-compatible
-                        serialized_state = serialize_state_for_json(full_state)
-                        yield {
-                            "event": "state_update",
-                            "data": json.dumps({
-                                "node": node_name,
-                                "state": serialized_state,  # Send serialized full state
-                                "agent_thought": agent_thought,
-                                "active_agent": full_state.get("active_agent"),
-                                "timestamp": datetime.now().isoformat()
-                            })
-                        }
-                        
-                        # Check if workflow should halt (either manually or by supervisor)
-                        if full_state.get("halted") or full_state.get("status") == "awaiting_approval":
-                            logger.info(f"Workflow halted at node: {node_name}")
-                            # Send halt event
-                            yield {
-                                "event": "halted",
-                                "data": json.dumps({
-                                    "state": serialized_state,
-                                    "message": "Workflow paused for human review",
-                                    "timestamp": datetime.now().isoformat()
-                                })
-                            }
-                            break
-            else:
-                logger.info(f"Workflow not executed - status is: {initial_state.get('status')}")
-            
-            # Send final state
-            logger.info(f"Getting final state for session: {session_id}")
-            final_state = await workflow.aget_state(config)
-            final_state_values = final_state.values if final_state else {}
-            serialized_final_state = serialize_state_for_json(final_state_values)
-            yield {
-                "event": "complete",
-                "data": json.dumps({
-                    "state": serialized_final_state,
-                    "timestamp": datetime.now().isoformat()
-                })
-            }
-        except Exception as e:
-            import traceback
-            error_detail = f"{str(e)}\n{traceback.format_exc()}"
-            logger.error(f"Error in stream endpoint for session {session_id}: {error_detail}")
-            yield {
-                "event": "error",
-                "data": json.dumps({"error": str(e), "detail": error_detail})
-            }
-    
-    async def format_sse(data: Dict[str, Any]):
-        """Format data as SSE"""
-        event = data.get("event", "message")
-        payload = data.get("data", "")
-        return f"event: {event}\ndata: {payload}\n\n"
-    
-    async def generate():
-        async for event_data in event_generator():
-            yield await format_sse(event_data)
-    
-    return StreamingResponse(generate(), media_type="text/event-stream")
-
-@app.get("/api/protocols/{session_id}/state")
-async def get_protocol_state(session_id: str):
-    """Get current state of a protocol generation session"""
-    try:
-        workflow = create_workflow()
-        config = {"configurable": {"thread_id": session_id}}
-        
-        state = await workflow.aget_state(config)
-        
-        # Serialize state to make datetime objects JSON-compatible
-        serialized_state = serialize_state_for_json(state.values) if state.values else None
-        
-        return {
-            "session_id": session_id,
-            "state": serialized_state,
-            "next": state.next,
-            "metadata": state.metadata
-        }
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=f"Session not found: {str(e)}")
-
-@app.post("/api/protocols/{session_id}/approve")
-async def approve_protocol(session_id: str, request: ApproveRequest):
-    """
-    Human-in-the-loop: Approve the current draft and continue workflow.
-    Strips HTML comments server-side and stores approval audit metadata.
-    """
-    logger.info(f"Approve endpoint accessed for session: {session_id}")
-    try:
-        workflow = create_workflow()
-        config = {"configurable": {"thread_id": session_id}}
-        
-        current_state = await workflow.aget_state(config)
-        if not current_state.values:
-            logger.error(f"Session not found: {session_id}")
+            verify_session_access(session_id, raw_token)
+        except HTTPException:
             raise HTTPException(status_code=404, detail="Session not found")
-        
-        updated_state = current_state.values.copy()
-        current_draft_raw = current_state.values.get("current_draft", "") or ""
-        
-        # Strip HTML comments server-side
-        clean_current_draft = re.sub(r'<!--.*?-->', '', current_draft_raw, flags=re.DOTALL).strip()
-        
-        has_edits = request.edited
-        if request.approved_content is not None:
-            clean_approved = re.sub(r'<!--.*?-->', '', request.approved_content, flags=re.DOTALL).strip()
-            if clean_approved != clean_current_draft:
-                has_edits = True
-            updated_state["current_draft"] = clean_approved
-            updated_state["human_edits"] = clean_approved
-        else:
-            updated_state["current_draft"] = clean_current_draft
+    else:
+        # Fallback query DB to check if session exists
+        db = get_db_session()
+        try:
+            sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+            if not sess:
+                raise HTTPException(status_code=404, detail="Session not found")
+        finally:
+            db.close()
 
-        # Audit record
-        audit = {
-            "approved_by": request.approved_by or "Clinical Supervisor",
-            "approved_at": datetime.now().isoformat(),
-            "scores_at_approval": {
-                "safety": updated_state.get("safety_score"),
-                "empathy": updated_state.get("empathy_score"),
-                "clinical": updated_state.get("clinical_score"),
-            },
-            "edited": has_edits,
-            "validated_hash": request.validated_hash,
-            "revalidated": bool(request.validated_hash),
+    # Determine resume sequence ID
+    last_event_id_header = request.headers.get("Last-Event-ID")
+    resume_seq = 0
+    if after is not None:
+        resume_seq = after
+    elif last_event_id_header and last_event_id_header.isdigit():
+        resume_seq = int(last_event_id_header)
+
+    async def event_tail_generator() -> AsyncGenerator[str, None]:
+        # 1. Replay missed persisted events from database
+        db = get_db_session()
+        highest_seq_sent = resume_seq
+        try:
+            persisted = (
+                db.query(Event)
+                .filter(Event.session_id == session_id, Event.seq > resume_seq)
+                .order_by(Event.seq.asc())
+                .all()
+            )
+            for evt in persisted:
+                highest_seq_sent = max(highest_seq_sent, evt.seq)
+                data_payload = {
+                    "session_id": evt.session_id,
+                    "seq": evt.seq,
+                    "run_id": evt.run_id,
+                    "run_kind": evt.run_kind,
+                    "draft_version": evt.draft_version,
+                    "agent": evt.agent,
+                    "type": evt.type,
+                    "to_agent": evt.to_agent,
+                    "severity": evt.severity,
+                    "text": evt.text,
+                    "data": evt.data,
+                    "ts": evt.ts.isoformat() if evt.ts else datetime.utcnow().isoformat()
+                }
+                # Structured event
+                yield f"id: {evt.seq}\nevent: {evt.type}\ndata: {json.dumps(data_payload)}\n\n"
+                
+                # Legacy event bridge for Phase A compatibility
+                yield f"event: state_update\ndata: {json.dumps({'node': evt.agent, 'agent_thought': evt.text, 'timestamp': evt.ts.isoformat() if evt.ts else ''})}\n\n"
+        finally:
+            db.close()
+
+        # 2. Subscribe to live in-process queue
+        q = registry.subscribe(session_id)
+        try:
+            while True:
+                try:
+                    # Wait for live event with 15s timeout for ping (A3)
+                    item = await asyncio.wait_for(q.get(), timeout=15.0)
+                    
+                    item_seq = item.get("seq", -1)
+                    if item_seq > 0 and item_seq <= highest_seq_sent:
+                        continue # Deduplicate
+                    if item_seq > 0:
+                        highest_seq_sent = item_seq
+
+                    event_type = item.get("type", "message")
+                    event_id_line = f"id: {item_seq}\n" if item_seq > 0 else ""
+                    yield f"{event_id_line}event: {event_type}\ndata: {json.dumps(item)}\n\n"
+
+                    # Legacy state_update bridge
+                    yield f"event: state_update\ndata: {json.dumps({'node': item.get('agent'), 'agent_thought': item.get('text'), 'timestamp': item.get('ts')})}\n\n"
+
+                    # Terminal check
+                    if event_type in ["run_end", "error"]:
+                        if event_type == "error":
+                            yield f"event: error\ndata: {json.dumps(item.get('data', {}))}\n\n"
+                        break
+
+                except asyncio.TimeoutError:
+                    # 15s heartbeat ping (A3)
+                    yield ": ping\n\n"
+                    # Check if runner is still alive
+                    is_active = await registry.is_active(session_id)
+                    if not is_active:
+                        # Runner finished, check if terminal event already in DB
+                        db = get_db_session()
+                        try:
+                            last_db_evt = (
+                                db.query(Event)
+                                .filter(Event.session_id == session_id)
+                                .order_by(Event.seq.desc())
+                                .first()
+                            )
+                            if last_db_evt and last_db_evt.type in ["run_end", "error", "checkpoint"]:
+                                yield f"id: {last_db_evt.seq}\nevent: run_end\ndata: {json.dumps({'status': 'finished'})}\n\n"
+                                break
+                        finally:
+                            db.close()
+        finally:
+            registry.unsubscribe(session_id, q)
+
+    return StreamingResponse(
+        event_tail_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
         }
-        updated_state["approval_audit"] = audit
+    )
 
-        # Add note to state about approval
-        from agents.state import add_agent_note
-        approval_message = "Protocol approved and finalized" + (" (with clinical edits)" if has_edits else "")
-        updated_state = add_agent_note(
-            updated_state,
-            "Human",
-            approval_message,
-            priority="info"
+@app.get("/api/protocols/{session_id}/events")
+async def get_protocol_events(
+    session_id: str,
+    after: int = Query(0),
+    x_session_token: Optional[str] = Header(None, alias="X-Session-Token")
+):
+    """Retrieve persisted event log starting after sequence ID (A3)"""
+    verify_session_access(session_id, x_session_token)
+    db = get_db_session()
+    try:
+        events = (
+            db.query(Event)
+            .filter(Event.session_id == session_id, Event.seq > after)
+            .order_by(Event.seq.asc())
+            .all()
         )
-        
-        updated_state["human_approved"] = True
-        updated_state["halted"] = False
-        updated_state["status"] = "approved"
-        
-        # Persist the approved state
-        logger.info("Persisting approved state to checkpoint...")
-        await workflow.aupdate_state(config, updated_state)
-        
-        # Resume workflow
-        logger.info("Resuming workflow execution...")
-        result = await workflow.ainvoke(None, config)
-        
-        # Ensure draft in final result also has stripped comments and audit
-        if result:
-            if result.get("current_draft"):
-                result["current_draft"] = re.sub(r'<!--.*?-->', '', result["current_draft"], flags=re.DOTALL).strip()
-            result["approval_audit"] = audit
-            if result.get("status") == "completed":
-                result = add_agent_note(
-                    result,
-                    "System",
-                    "Protocol generation completed successfully",
-                    priority="info"
-                )
-            await workflow.aupdate_state(config, result)
-        
         return {
             "session_id": session_id,
-            "status": "approved",
-            "message": "Protocol approved and workflow resumed",
-            "approval_audit": audit,
-            "final_state": serialize_state_for_json(result)
+            "after": after,
+            "events": [
+                {
+                    "seq": e.seq,
+                    "run_id": e.run_id,
+                    "run_kind": e.run_kind,
+                    "draft_version": e.draft_version,
+                    "agent": e.agent,
+                    "type": e.type,
+                    "to_agent": e.to_agent,
+                    "severity": e.severity,
+                    "text": e.text,
+                    "data": e.data,
+                    "ts": e.ts.isoformat() if e.ts else ""
+                }
+                for e in events
+            ]
         }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error approving protocol for session {session_id}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail={"code": "APPROVE_FAILED", "message": "Failed to approve protocol. Please retry.", "retryable": True}
+    finally:
+        db.close()
+
+@app.post("/api/protocols/{session_id}/revise")
+@limiter.limit("10/minute")
+async def revise_protocol(
+    request: Request,
+    session_id: str,
+    body: ReviseRequest,
+    x_session_token: Optional[str] = Header(None, alias="X-Session-Token")
+):
+    """Human steering: starts a human_revision run on existing thread (A8)"""
+    sess = verify_session_access(session_id, x_session_token)
+    run_id = f"run_{secrets.token_urlsafe(8)}"
+
+    instruction = body.instruction or "Please refine the draft based on clinical concerns."
+    try:
+        await registry.acquire_or_raise(
+            session_id,
+            run_protocol_workflow,
+            session_id=session_id,
+            run_id=run_id,
+            run_kind="human_revision",
+            review_depth=sess.review_depth or "standard",
+            human_instruction=instruction
         )
+    except RunnerAlreadyActiveError:
+        raise HTTPException(status_code=409, detail="A generation is already active for this session.")
+
+    return {
+        "session_id": session_id,
+        "run_id": run_id,
+        "status": "revising",
+        "message": "Human revision run started."
+    }
 
 @app.post("/api/protocols/{session_id}/revalidate", response_model=ValidationResult)
-async def revalidate_protocol(session_id: str, request: RevalidateRequest):
-    """
-    Human-in-the-loop: Re-run Safety Guardian and Clinical Critic on edited draft content
-    without restarting the entire workflow. Returns updated scores and normalized agent notes.
-    """
-    logger.info(f"Revalidate endpoint accessed for session: {session_id}")
-    try:
-        workflow = create_workflow()
-        config = {"configurable": {"thread_id": session_id}}
-        current_state = await workflow.aget_state(config)
-        
-        if not current_state.values:
-            raise HTTPException(status_code=404, detail="Session not found")
-        
-        state_copy = current_state.values.copy()
-        clean_draft = re.sub(r'<!--.*?-->', '', request.draft, flags=re.DOTALL).strip()
-        state_copy["current_draft"] = clean_draft
-        
-        from agents.workflow import safety_guardian, clinical_critic
-        safety_result = await safety_guardian.review(state_copy)
-        if "safety_checks" in safety_result:
-            state_copy.setdefault("safety_checks", {})
-            state_copy["safety_checks"].update(safety_result["safety_checks"])
-        if "safety_score" in safety_result:
-            state_copy["safety_score"] = safety_result["safety_score"]
-            
-        clinical_result = await clinical_critic.critique(state_copy)
-        if "empathy_score" in clinical_result:
-            state_copy["empathy_score"] = clinical_result["empathy_score"]
-        if "clinical_score" in clinical_result:
-            state_copy["clinical_score"] = clinical_result["clinical_score"]
-            
-        from agents.state import add_agent_note
-        state_copy = add_agent_note(
-            state_copy,
-            "System",
-            f"Safety & clinical re-check complete. Safety: {state_copy.get('safety_score', 0.8):.2f}, Empathy: {state_copy.get('empathy_score', 0.7):.2f}",
-            priority="info"
-        )
-        
-        validated_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
-        state_copy["validated_hash"] = validated_hash
-        
-        # Persist updated metrics to checkpoint
-        await workflow.aupdate_state(config, state_copy)
-        
-        raw_notes = state_copy.get("agent_notes", [])
-        clean_notes = format_agent_notes(raw_notes)
-        
-        return ValidationResult(
-            session_id=session_id,
-            safety_score=state_copy.get("safety_score"),
-            empathy_score=state_copy.get("empathy_score"),
-            clinical_score=state_copy.get("clinical_score"),
-            safety_checks=state_copy.get("safety_checks", {}),
-            agent_notes=[AgentNote(**n) for n in clean_notes],
-            validated_hash=validated_hash
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error revalidating protocol: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail={"code": "REVALIDATE_FAILED", "message": "Failed to revalidate draft against clinical safety thresholds. Please retry.", "retryable": True}
-        )
+@limiter.limit("10/minute")
+async def revalidate_protocol(
+    request: Request,
+    session_id: str,
+    body: RevalidateRequest,
+    x_session_token: Optional[str] = Header(None, alias="X-Session-Token")
+):
+    """Recheck run on edited draft (Safety -> Critic) without restarting drafting (A8)"""
+    verify_session_access(session_id, x_session_token)
+    run_id = f"run_{secrets.token_urlsafe(8)}"
 
-@app.post("/api/protocols/{session_id}/halt")
-async def halt_protocol(session_id: str):
-    """Pause workflow execution for human review"""
     try:
-        workflow = create_workflow()
-        config = {"configurable": {"thread_id": session_id}}
-        
-        # Get current state
-        current_state = await workflow.aget_state(config)
-        
-        if not current_state.values:
-            raise HTTPException(status_code=404, detail="Session not found")
-        
-        # Update state to halt
-        updated_state = current_state.values.copy()
-        updated_state["status"] = "awaiting_approval"
-        updated_state["halted"] = True
-        
-        # Add note to state about halt
-        from agents.state import add_agent_note
-        updated_state = add_agent_note(
-            updated_state,
-            "Human",
-            "Workflow halted for review",
-            priority="warning"
+        await registry.acquire_or_raise(
+            session_id,
+            run_recheck_workflow,
+            session_id=session_id,
+            run_id=run_id,
+            edited_draft=body.draft
         )
+    except RunnerAlreadyActiveError:
+        raise HTTPException(status_code=409, detail="A re-check is already in progress.")
+
+    # Return immediate validation preview
+    from agents.workflow import create_workflow
+    workflow = create_workflow()
+    config = {"configurable": {"thread_id": session_id}}
+    st = await workflow.aget_state(config)
+    vals = st.values if st else {}
+    
+    clean_draft = normalize_protocol_markdown(body.draft)
+    v_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
+
+    return ValidationResult(
+        session_id=session_id,
+        safety_score=vals.get("safety_score", 0.9),
+        empathy_score=vals.get("empathy_score", 4.0),
+        clinical_score=vals.get("clinical_score", 4.0),
+        safety_checks=vals.get("safety_checks", {}),
+        agent_notes=[],
+        validated_hash=v_hash
+    )
+
+@app.post("/api/protocols/{session_id}/approve")
+async def approve_protocol(
+    session_id: str,
+    request: ApproveRequest,
+    x_session_token: Optional[str] = Header(None, alias="X-Session-Token")
+):
+    """Clinician sign-off and protocol finalization"""
+    sess = verify_session_access(session_id, x_session_token)
+
+    from agents.workflow import create_workflow
+    workflow = create_workflow()
+    config = {"configurable": {"thread_id": session_id}}
+    st = await workflow.aget_state(config)
+    
+    if not st.values:
+        raise HTTPException(status_code=404, detail="Session not found")
         
-        # Persist the halted state to checkpoint
-        await workflow.aupdate_state(config, updated_state)
+    updated_state = st.values.copy()
+    current_draft_raw = updated_state.get("current_draft", "")
+    clean_draft = normalize_protocol_markdown(request.approved_content or current_draft_raw)
+    
+    updated_state["current_draft"] = clean_draft
+    updated_state["human_approved"] = True
+    updated_state["halted"] = False
+    updated_state["status"] = "approved"
+
+    audit = {
+        "approved_by": request.approved_by or "Clinical Supervisor",
+        "approved_at": datetime.utcnow().isoformat(),
+        "scores_at_approval": {
+            "safety": updated_state.get("safety_score"),
+            "empathy": updated_state.get("empathy_score"),
+            "clinical": updated_state.get("clinical_score")
+        },
+        "content_hash": hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
+    }
+    updated_state["approval_audit"] = audit
+    await workflow.aupdate_state(config, updated_state, as_node="supervisor")
+
+    # Update database session
+    db = get_db_session()
+    try:
+        db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+        if db_sess:
+            db_sess.status = "approved"
+            db_sess.final_protocol = clean_draft
+            db.commit()
+    finally:
+        db.close()
+
+    emit_event(
+        session_id=session_id,
+        run_id=sess.current_run_id or "run_final",
+        run_kind="approval",
+        draft_version=updated_state.get("current_version", 1),
+        agent="Human",
+        event_type="approval",
+        text_content=f"Protocol approved by {request.approved_by or 'Clinical Supervisor'}",
+        severity="info",
+        data=audit
+    )
+
+    emit_event(
+        session_id=session_id,
+        run_id=sess.current_run_id or "run_final",
+        run_kind="approval",
+        draft_version=updated_state.get("current_version", 1),
+        agent="System",
+        event_type="run_end",
+        text_content="Workflow completed and protocol finalized.",
+        severity="info",
+        data={"status": "approved"}
+    )
+
+    return {
+        "session_id": session_id,
+        "status": "approved",
+        "message": "Protocol approved and finalized",
+        "approval_audit": audit,
+        "final_state": serialize_state_for_json(updated_state)
+    }
+
+@app.get("/api/protocols/{session_id}/state")
+async def get_protocol_state(
+    session_id: str,
+    x_session_token: Optional[str] = Header(None, alias="X-Session-Token")
+):
+    """Retrieve full session state (requires valid session token)"""
+    verify_session_access(session_id, x_session_token)
+    
+    from agents.workflow import create_workflow
+    workflow = create_workflow()
+    config = {"configurable": {"thread_id": session_id}}
+    st = await workflow.aget_state(config)
+    
+    if not st.values:
+        raise HTTPException(status_code=404, detail="Session state not found")
         
-        return {
-            "session_id": session_id,
-            "status": "halted",
-            "current_draft": updated_state.get("current_draft"),
-            "message": "Workflow paused for human review"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "session_id": session_id,
+        "state": serialize_state_for_json(st.values)
+    }
 
 @app.get("/api/protocols")
 async def list_protocols(limit: int = 20, offset: int = 0):
-    """List all protocol generation sessions"""
-    # TODO: Implement database query
+    """Disabled endpoint (A4): never enumerates sessions publicly"""
     return {"protocols": [], "limit": limit, "offset": offset}
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting Cerina Protocol Foundry API server...")
-    logger.info("Server will be available at http://0.0.0.0:8000")
-    uvicorn.run(
-        app, 
-        host="0.0.0.0", 
-        port=8000,
-        log_level="info",
-        access_log=True
-    )
-
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

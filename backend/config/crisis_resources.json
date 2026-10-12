@@ -1,0 +1,39 @@
+{
+  "regions": {
+    "US": {
+      "country": "United States",
+      "name": "988 Suicide & Crisis Lifeline",
+      "phone": "988",
+      "text": "988",
+      "website": "https://988lifeline.org",
+      "hours": "24/7, Free & Confidential"
+    },
+    "IN": {
+      "country": "India",
+      "name": "Tele-MANAS (National Tele Mental Health Programme)",
+      "phone": "14416",
+      "alt_phone": "1800-891-4416",
+      "website": "https://telemanas.mohfw.gov.in",
+      "hours": "24/7, Free, Multilingual"
+    },
+    "GB": {
+      "country": "United Kingdom",
+      "name": "Samaritans",
+      "phone": "116 123",
+      "website": "https://www.samaritans.org",
+      "hours": "24/7, Free & Confidential"
+    },
+    "IE": {
+      "country": "Ireland",
+      "name": "Samaritans Ireland",
+      "phone": "116 123",
+      "website": "https://www.samaritans.org/ireland/samaritans-ireland/",
+      "hours": "24/7, Free & Confidential"
+    }
+  },
+  "fallback": {
+    "name": "Find A Helpline (Global)",
+    "website": "https://findahelpline.com",
+    "description": "Free, confidential crisis support services in over 130 countries."
+  }
+}
