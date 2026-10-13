@@ -242,7 +242,7 @@ async def create_protocol(request: Request, body: ProtocolRequest):
         session_id=session_id
     )
     init_state["review_depth"] = body.review_depth or "standard"
-    init_state["current_version"] = 1
+    init_state["current_version"] = 0
     init_state["status"] = "generating"
     
     try:
@@ -613,7 +613,23 @@ async def get_protocol_state(
     config = {"configurable": {"thread_id": session_id}}
     st = await workflow.aget_state(config)
     
-    if not st.values:
+    if not st or not st.values:
+        db = get_db_session()
+        try:
+            sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+            if sess and sess.current_draft:
+                return {
+                    "session_id": session_id,
+                    "state": {
+                        "session_id": session_id,
+                        "user_intent": sess.user_intent,
+                        "status": sess.status,
+                        "current_draft": sess.current_draft,
+                        "current_version": 1
+                    }
+                }
+        finally:
+            db.close()
         raise HTTPException(status_code=404, detail="Session state not found")
         
     return {

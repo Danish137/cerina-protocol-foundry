@@ -110,7 +110,7 @@ def emit_event(
             "severity": severity,
             "text": text_content,
             "data": data,
-            "ts": ts_now.isoformat()
+            "ts": ts_now.isoformat() + "Z"
         }
         registry.broadcast(session_id, payload)
         return payload
@@ -153,7 +153,7 @@ def emit_event(
             "severity": severity,
             "text": text_content,
             "data": data,
-            "ts": ts_now.isoformat()
+            "ts": ts_now.isoformat() + "Z"
         }
         registry.broadcast(session_id, payload)
         return payload
@@ -218,176 +218,80 @@ async def run_protocol_workflow(
             to_agent="Drafter"
         )
 
-    # Developer override: FORCE_REVISION
-    force_revision = os.getenv("FORCE_REVISION", "0") == "1"
-
-    node_agents = {
-        "draft": "Drafter",
-        "safety_review": "SafetyGuardian",
-        "clinical_critique": "ClinicalCritic",
-        "supervisor": "Supervisor"
-    }
+    state["session_id"] = session_id
+    state["run_id"] = run_id
+    state["run_kind"] = run_kind
+    state["review_depth"] = review_depth
+    if not human_instruction:
+        try:
+            await workflow.aupdate_state(config, state, as_node="draft")
+        except Exception:
+            pass
 
     try:
-        async for event in workflow.astream(None, config, stream_mode="updates"):
-            for node_name, state_update in event.items():
-                agent_name = node_agents.get(node_name, "System")
-                t_start = time.time()
-                
-                # Emit node_start (A2)
+        async for _ in workflow.astream(None, config, stream_mode="updates"):
+            # Check state after each graph node update
+            st = await workflow.aget_state(config)
+            curr_values = st.values if st else {}
+            curr_draft = curr_values.get("current_draft", "")
+            dver = curr_values.get("current_version", draft_version)
+
+            if curr_values.get("status") == "error":
+                return
+
+            if curr_values.get("halted") or curr_values.get("status") in ["awaiting_approval", "halted"]:
                 emit_event(
                     session_id=session_id,
                     run_id=run_id,
                     run_kind=run_kind,
-                    draft_version=draft_version,
-                    agent=agent_name,
-                    event_type="node_start",
-                    text_content=f"{agent_name} started {node_name}",
+                    draft_version=dver,
+                    agent="System",
+                    event_type="checkpoint",
+                    text_content="Protocol paused for clinician review and sign-off.",
                     severity="info",
-                    data={"node": node_name}
+                    data={"status": "awaiting_approval", "draft": curr_draft, "version": dver}
                 )
-
-                # Fetch updated state
-                st = await workflow.aget_state(config)
-                curr_values = st.values if st else {}
-                latency_ms = round((time.time() - t_start) * 1000, 2)
-
-                # Node-specific structured event handling
-                if node_name == "draft":
-                    raw_draft = curr_values.get("current_draft", "")
-                    normalized_draft = normalize_protocol_markdown(raw_draft)
-                    curr_values["current_draft"] = normalized_draft
-                    await workflow.aupdate_state(config, {"current_draft": normalized_draft}, as_node="draft")
-                    
-                    emit_event(
-                        session_id=session_id,
-                        run_id=run_id,
-                        run_kind=run_kind,
-                        draft_version=draft_version,
-                        agent=agent_name,
-                        event_type="message",
-                        text_content=f"Created draft version {draft_version}",
-                        severity="info",
-                        to_agent="SafetyGuardian"
-                    )
-
-                elif node_name == "safety_review":
-                    s_score = curr_values.get("safety_score", 0.0)
-                    s_checks = curr_values.get("safety_checks", {})
-                    s_source = curr_values.get("score_source", "llm")
-                    emit_event(
-                        session_id=session_id,
-                        run_id=run_id,
-                        run_kind=run_kind,
-                        draft_version=draft_version,
-                        agent=agent_name,
-                        event_type="score",
-                        text_content=f"Safety check: {s_score:.2f} ({s_source})",
-                        severity="critical" if s_score < 0.8 else "info",
-                        data={
-                            "metric": "safety",
-                            "score": s_score,
-                            "score_source": s_source,
-                            "checks": s_checks,
-                            "unavailable": (s_source == "unavailable")
-                        }
-                    )
-
-                elif node_name == "clinical_critique":
-                    emp_score = curr_values.get("empathy_score", 0.0)
-                    clin_score = curr_values.get("clinical_score", 0.0)
-                    c_source = curr_values.get("score_source", "llm")
-                    emit_event(
-                        session_id=session_id,
-                        run_id=run_id,
-                        run_kind=run_kind,
-                        draft_version=draft_version,
-                        agent=agent_name,
-                        event_type="score",
-                        text_content=f"Empathy: {emp_score:.1f}/5, Clinical fidelity: {clin_score:.1f}/5",
-                        severity="warning" if (emp_score < 3.5 or clin_score < 3.5) else "info",
-                        data={
-                            "metric": "clinical",
-                            "empathy_score": emp_score,
-                            "clinical_score": clin_score,
-                            "score_source": c_source,
-                            "unavailable": (c_source == "unavailable")
-                        }
-                    )
-
-                elif node_name == "supervisor":
-                    status = curr_values.get("status", "")
-                    halted = curr_values.get("halted", False)
-                    route = "halt" if (halted or status == "awaiting_approval") else ("revise" if "needs_revision" in status else "pass")
-                    
-                    reason = "Quality thresholds met. Ready for human review."
-                    if route == "revise":
-                        reason = f"Draft requires revision (iteration {curr_values.get('iteration_count', 1)})."
-                    elif route == "halt":
-                        reason = "Workflow completed or reached safety threshold. Paused for clinician sign-off."
-
-                    emit_event(
-                        session_id=session_id,
-                        run_id=run_id,
-                        run_kind=run_kind,
-                        draft_version=draft_version,
-                        agent=agent_name,
-                        event_type="decision",
-                        text_content=f"Supervisor decision: {route}. {reason}",
-                        severity="warning" if route == "revise" else "info",
-                        data={"route": route, "reason": reason}
-                    )
-
-                # Emit node_end (A2)
                 emit_event(
                     session_id=session_id,
                     run_id=run_id,
                     run_kind=run_kind,
-                    draft_version=draft_version,
-                    agent=agent_name,
-                    event_type="node_end",
-                    text_content=f"{agent_name} completed {node_name} in {latency_ms}ms",
+                    draft_version=dver,
+                    agent="System",
+                    event_type="run_end",
+                    text_content="Run finished: awaiting human approval.",
                     severity="info",
-                    data={"node": node_name, "latency_ms": latency_ms}
+                    data={"status": "awaiting_approval", "draft": curr_draft, "version": dver}
                 )
 
-                # Check if paused at checkpoint for human review
-                if curr_values.get("halted") or curr_values.get("status") in ["awaiting_approval", "halted"]:
-                    emit_event(
-                        session_id=session_id,
-                        run_id=run_id,
-                        run_kind=run_kind,
-                        draft_version=draft_version,
-                        agent="System",
-                        event_type="checkpoint",
-                        text_content="Protocol paused for clinician review and sign-off.",
-                        severity="info",
-                        data={"status": "awaiting_approval"}
-                    )
-                    emit_event(
-                        session_id=session_id,
-                        run_id=run_id,
-                        run_kind=run_kind,
-                        draft_version=draft_version,
-                        agent="System",
-                        event_type="run_end",
-                        text_content="Run finished: awaiting human approval.",
-                        severity="info",
-                        data={"status": "awaiting_approval"}
-                    )
-                    return
+                # Persist to protocol_sessions DB
+                db = get_db_session()
+                try:
+                    db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+                    if db_sess:
+                        db_sess.current_draft = curr_draft
+                        db_sess.status = "awaiting_approval"
+                        db.commit()
+                except Exception:
+                    db.rollback()
+                finally:
+                    db.close()
+                return
 
-        # If loop completed to terminal state
+        # If loop reached terminal state
+        st = await workflow.aget_state(config)
+        curr_values = st.values if st else {}
+        curr_draft = curr_values.get("current_draft", "")
+        dver = curr_values.get("current_version", draft_version)
         emit_event(
             session_id=session_id,
             run_id=run_id,
             run_kind=run_kind,
-            draft_version=draft_version,
+            draft_version=dver,
             agent="System",
             event_type="run_end",
             text_content="Workflow completed successfully.",
             severity="info",
-            data={"status": "completed"}
+            data={"status": "completed", "draft": curr_draft, "version": dver}
         )
 
     except Exception as e:
@@ -534,5 +438,5 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
         event_type="run_end",
         text_content="Re-check completed. Ready for approval.",
         severity="info",
-        data={"status": "awaiting_approval"}
+        data={"status": "awaiting_approval", "draft": clean_draft, "version": draft_version}
     )

@@ -315,7 +315,9 @@ class SupervisorAgent:
             }
             
         if meets_safety and meets_empathy and meets_clinical:
-            reason = f"Quality thresholds met (Safety {safety_score:.2f}, Empathy {empathy_score:.1f}, Clinical {clinical_score:.1f}). Ready for human review."
+            checks_passed = sum(1 for v in state.get("safety_checks", {}).values() if v)
+            checks_total = max(len(state.get("safety_checks", {})), 5)
+            reason = f"Empathy {empathy_score:.1f}/5 \u2265 {thresholds['min_empathy_score']}, Fidelity {clinical_score:.1f}/5 \u2265 {thresholds['min_clinical_score']}, Safety {checks_passed}/{checks_total} \u2192 human review"
             state = add_agent_note(state, self.name, reason, priority="info")
             return {
                 "next_agent": "HALT",

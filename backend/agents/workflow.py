@@ -65,67 +65,336 @@ def get_checkpointer():
     
     return _checkpointer
 
+import time
+from normalizer import normalize_protocol_markdown
+from database import get_db_session, ProtocolSession
+
 async def draft_node(state: ProtocolState) -> ProtocolState:
-    """Node: Drafter creates/revises draft"""
-    result = await drafter.draft(state)
-    
-    # Update state with draft
-    state["current_draft"] = result.get("current_draft", state.get("current_draft"))
-    state["active_agent"] = result.get("active_agent", "Drafter")
-    state["status"] = result.get("status", "drafting")
-    state["iteration_count"] += 1
-    
-    # Add draft to history
-    if state["current_draft"]:
-        state = add_draft_version(
-            state,
-            state["current_draft"],
-            "Drafter"
+    """Node: Drafter creates/revises draft with real event lifecycle and empty-draft guard (P0-1, P0-2)"""
+    from runner import emit_event
+    sid = state.get("session_id", "default")
+    rid = state.get("run_id") or f"run_{sid}"
+    rkind = state.get("run_kind", "initial")
+    dver = state.get("current_version", 1)
+
+    t0 = time.perf_counter()
+    normalized_draft = ""
+
+    # Emit node_start immediately at node entry
+    emit_event(
+        session_id=sid,
+        run_id=rid,
+        run_kind=rkind,
+        draft_version=dver,
+        agent="Drafter",
+        event_type="node_start",
+        text_content="Synthesizing structured CBT protocol...",
+        severity="info",
+        data={"node": "draft"}
+    )
+
+    try:
+        result = await drafter.draft(state)
+        raw_draft = result.get("current_draft", "")
+        normalized_draft = normalize_protocol_markdown(raw_draft)
+
+        # Integrity Guard: if draft is empty after normalization, fail closed
+        if not normalized_draft or not normalized_draft.strip():
+            logger_msg = "Draft generation returned empty content."
+            emit_event(
+                session_id=sid,
+                run_id=rid,
+                run_kind=rkind,
+                draft_version=dver,
+                agent="Drafter",
+                event_type="error",
+                text_content=logger_msg,
+                severity="critical",
+                data={"code": "empty_draft", "message": logger_msg, "retryable": True}
+            )
+            state["status"] = "error"
+            state["halted"] = True
+            return state
+
+        # Update state with valid normalized draft
+        state["current_draft"] = normalized_draft
+        state["active_agent"] = "Drafter"
+        state["status"] = "drafting"
+        state["iteration_count"] = state.get("iteration_count", 0) + 1
+
+        state = add_draft_version(state, normalized_draft, "Drafter")
+
+        # Emit dedicated draft event (P0-1)
+        emit_event(
+            session_id=sid,
+            run_id=rid,
+            run_kind=rkind,
+            draft_version=dver,
+            agent="Drafter",
+            event_type="draft",
+            text_content=f"Created draft version {dver}",
+            severity="info",
+            data={"draft": normalized_draft, "version": dver}
         )
-    
-    return state
+
+        # Emit message event with draft attached
+        emit_event(
+            session_id=sid,
+            run_id=rid,
+            run_kind=rkind,
+            draft_version=dver,
+            agent="Drafter",
+            event_type="message",
+            text_content=f"Draft version {dver} generated with structured clinical hierarchy",
+            severity="info",
+            to_agent="SafetyGuardian",
+            data={"draft": normalized_draft, "version": dver}
+        )
+
+        # Synchronously persist draft to protocol_sessions DB table
+        db = get_db_session()
+        try:
+            db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid).first()
+            if db_sess:
+                db_sess.current_draft = normalized_draft
+                db_sess.status = "reviewing"
+                db.commit()
+        except Exception as db_err:
+            db.rollback()
+        finally:
+            db.close()
+
+        return state
+    finally:
+        latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+        emit_event(
+            session_id=sid,
+            run_id=rid,
+            run_kind=rkind,
+            draft_version=dver,
+            agent="Drafter",
+            event_type="node_end",
+            text_content=f"Drafter completed draft in {latency_ms}ms",
+            severity="info",
+            data={"node": "draft", "latency_ms": latency_ms, "draft": normalized_draft, "version": dver}
+        )
 
 async def safety_review_node(state: ProtocolState) -> ProtocolState:
-    """Node: Safety Guardian reviews for safety issues"""
-    result = await safety_guardian.review(state)
-    
-    # Update safety metrics
-    if "safety_checks" in result:
-        state["safety_checks"].update(result["safety_checks"])
-    if "safety_score" in result:
-        state["safety_score"] = result["safety_score"]
-    state["active_agent"] = "SafetyGuardian"
-    state["status"] = result.get("status", "reviewing")
-    
-    return state
+    """Node: Safety Guardian reviews with in-node event lifecycle (P0-2)"""
+    from runner import emit_event
+    sid = state.get("session_id", "default")
+    rid = state.get("run_id") or f"run_{sid}"
+    rkind = state.get("run_kind", "initial")
+    dver = state.get("current_version", 1)
+
+    t0 = time.perf_counter()
+
+    emit_event(
+        session_id=sid,
+        run_id=rid,
+        run_kind=rkind,
+        draft_version=dver,
+        agent="SafetyGuardian",
+        event_type="node_start",
+        text_content="Auditing contraindications & risk factors...",
+        severity="info",
+        data={"node": "safety_review"}
+    )
+
+    try:
+        result = await safety_guardian.review(state)
+
+        if "safety_checks" in result:
+            state["safety_checks"].update(result["safety_checks"])
+        if "safety_score" in result:
+            state["safety_score"] = result["safety_score"]
+        if "score_source" in result:
+            state["score_source"] = result["score_source"]
+        if "unverified" in result:
+            state["unverified"] = result["unverified"]
+
+        state["active_agent"] = "SafetyGuardian"
+        state["status"] = result.get("status", "reviewing")
+
+        s_score = state.get("safety_score", 0.0)
+        s_checks = state.get("safety_checks", {})
+        s_source = state.get("score_source", "llm")
+        checks_passed = sum(1 for v in s_checks.values() if v)
+        checks_total = max(len(s_checks), 5)
+
+        emit_event(
+            session_id=sid,
+            run_id=rid,
+            run_kind=rkind,
+            draft_version=dver,
+            agent="SafetyGuardian",
+            event_type="score",
+            text_content=f"Safety checks passed: {checks_passed}/{checks_total} ({s_source})",
+            severity="critical" if s_score < 0.8 else "info",
+            data={
+                "metric": "safety",
+                "score": s_score,
+                "checks_passed": checks_passed,
+                "checks_total": checks_total,
+                "score_source": s_source,
+                "checks": s_checks,
+                "unavailable": (s_source == "unavailable")
+            }
+        )
+
+        return state
+    finally:
+        latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+        emit_event(
+            session_id=sid,
+            run_id=rid,
+            run_kind=rkind,
+            draft_version=dver,
+            agent="SafetyGuardian",
+            event_type="node_end",
+            text_content=f"SafetyGuardian completed review in {latency_ms}ms",
+            severity="info",
+            data={"node": "safety_review", "latency_ms": latency_ms}
+        )
 
 async def clinical_critique_node(state: ProtocolState) -> ProtocolState:
-    """Node: Clinical Critic evaluates quality"""
-    result = await clinical_critic.critique(state)
-    
-    # Update quality metrics
-    if "empathy_score" in result:
-        state["empathy_score"] = result["empathy_score"]
-    if "clinical_score" in result:
-        state["clinical_score"] = result["clinical_score"]
-    state["active_agent"] = "ClinicalCritic"
-    state["status"] = result.get("status", "critiquing")
-    
-    return state
+    """Node: Clinical Critic evaluates with in-node event lifecycle (P0-2)"""
+    from runner import emit_event
+    sid = state.get("session_id", "default")
+    rid = state.get("run_id") or f"run_{sid}"
+    rkind = state.get("run_kind", "initial")
+    dver = state.get("current_version", 1)
+
+    t0 = time.perf_counter()
+
+    emit_event(
+        session_id=sid,
+        run_id=rid,
+        run_kind=rkind,
+        draft_version=dver,
+        agent="ClinicalCritic",
+        event_type="node_start",
+        text_content="Evaluating therapeutic empathy & CBT fidelity...",
+        severity="info",
+        data={"node": "clinical_critique"}
+    )
+
+    try:
+        result = await clinical_critic.critique(state)
+
+        if "empathy_score" in result:
+            state["empathy_score"] = result["empathy_score"]
+        if "clinical_score" in result:
+            state["clinical_score"] = result["clinical_score"]
+        if "score_source" in result:
+            state["score_source"] = result["score_source"]
+        if "unverified" in result:
+            state["unverified"] = result["unverified"]
+
+        state["active_agent"] = "ClinicalCritic"
+        state["status"] = result.get("status", "critiquing")
+
+        emp_score = state.get("empathy_score", 0.0)
+        clin_score = state.get("clinical_score", 0.0)
+        c_source = state.get("score_source", "llm")
+
+        emit_event(
+            session_id=sid,
+            run_id=rid,
+            run_kind=rkind,
+            draft_version=dver,
+            agent="ClinicalCritic",
+            event_type="score",
+            text_content=f"Empathy: {emp_score:.1f}/5, Clinical fidelity: {clin_score:.1f}/5 ({c_source})",
+            severity="warning" if (emp_score < 3.5 or clin_score < 3.5) else "info",
+            data={
+                "metric": "clinical",
+                "empathy_score": emp_score,
+                "clinical_score": clin_score,
+                "score_source": c_source,
+                "unavailable": (c_source == "unavailable")
+            }
+        )
+
+        return state
+    finally:
+        latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+        emit_event(
+            session_id=sid,
+            run_id=rid,
+            run_kind=rkind,
+            draft_version=dver,
+            agent="ClinicalCritic",
+            event_type="node_end",
+            text_content=f"ClinicalCritic completed critique in {latency_ms}ms",
+            severity="info",
+            data={"node": "clinical_critique", "latency_ms": latency_ms}
+        )
 
 async def supervisor_node(state: ProtocolState) -> ProtocolState:
-    """Node: Supervisor decides next action"""
-    result = await supervisor.decide(state)
-    
-    state["active_agent"] = "Supervisor"
-    state["status"] = result.get("status", "deciding")
-    
-    # Handle halt condition
-    if result.get("halted") or result.get("next_agent") == "HALT" or result.get("status") in ["awaiting_approval", "ready_for_review", "awaiting_review"]:
-        state["halted"] = True
-        state["status"] = "awaiting_approval"
-    
-    return state
+    """Node: Supervisor decides next action with in-node event lifecycle (P0-2, P1-2)"""
+    from runner import emit_event
+    sid = state.get("session_id", "default")
+    rid = state.get("run_id") or f"run_{sid}"
+    rkind = state.get("run_kind", "initial")
+    dver = state.get("current_version", 1)
+
+    t0 = time.perf_counter()
+
+    emit_event(
+        session_id=sid,
+        run_id=rid,
+        run_kind=rkind,
+        draft_version=dver,
+        agent="Supervisor",
+        event_type="node_start",
+        text_content="Evaluating clinical rubrics & determining routing...",
+        severity="info",
+        data={"node": "supervisor"}
+    )
+
+    try:
+        result = await supervisor.decide(state)
+
+        state["active_agent"] = "Supervisor"
+        state["status"] = result.get("status", "deciding")
+
+        is_halt = result.get("halted") or result.get("next_agent") == "HALT" or result.get("status") in ["awaiting_approval", "ready_for_review", "awaiting_review"]
+        if is_halt:
+            state["halted"] = True
+            state["status"] = "awaiting_approval"
+
+        route = "human" if is_halt else ("revise" if result.get("next_agent") == "Drafter" else "halt")
+        reason = result.get("reason", "Routing decision finalized.")
+
+        # Supervisor decision event (A7, P1-2)
+        emit_event(
+            session_id=sid,
+            run_id=rid,
+            run_kind=rkind,
+            draft_version=dver,
+            agent="Supervisor",
+            event_type="decision",
+            text_content=f"Supervisor decision: {reason}",
+            severity="info" if is_halt else "warning",
+            data={"route": route, "reason": reason}
+        )
+
+        return state
+    finally:
+        latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+        emit_event(
+            session_id=sid,
+            run_id=rid,
+            run_kind=rkind,
+            draft_version=dver,
+            agent="Supervisor",
+            event_type="node_end",
+            text_content=f"Supervisor completed in {latency_ms}ms",
+            severity="info",
+            data={"node": "supervisor", "latency_ms": latency_ms}
+        )
+
 
 def should_continue(state: ProtocolState) -> Literal["draft", "safety_review", "clinical_critique", "supervisor", "halt", "end"]:
     """
