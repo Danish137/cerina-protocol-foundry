@@ -122,11 +122,13 @@ def add_draft_version(
     empathy_score: Optional[float] = None,
     clinical_score: Optional[float] = None
 ) -> ProtocolState:
-    """Helper to add a new draft version to history"""
+    """Helper to add a new draft version to history (derived from history length: v1, v2, v3...)"""
+    history = state.setdefault("draft_history", [])
+    new_version = len(history) + 1
     new_draft = ProtocolDraft(
         content=content,
-        version=state["current_version"] + 1,
-        iteration=state["iteration_count"],
+        version=new_version,
+        iteration=state.get("iteration_count", 0),
         created_by=created_by,
         timestamp=datetime.now(),
         safety_score=safety_score,
@@ -134,8 +136,8 @@ def add_draft_version(
         clinical_score=clinical_score,
         feedback=[]
     )
-    state["draft_history"].append(new_draft)
-    state["current_version"] = new_draft["version"]
+    history.append(new_draft)
+    state["current_version"] = new_version
     state["current_draft"] = content
     state["last_update"] = datetime.now()
     return state

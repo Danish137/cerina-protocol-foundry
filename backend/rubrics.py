@@ -28,12 +28,13 @@ class SafetyRubric(BaseModel):
     referral_language_where_risk: SafetyCheckItem = Field(description="Clear professional referral disclaimer provided when clinical risk exists")
 
 class CriticDimensionItem(BaseModel):
-    score: int = Field(ge=1, le=5, description="Score from 1 (poor) to 5 (excellent)")
-    rationale: str = Field(description="One-line rationale for the score")
+    score: int = Field(ge=1, le=5, description="Score from 1 (poor) to 5 (exemplary)")
+    quoted_line: Optional[str] = Field(None, description="Exact sentence quoted from the draft justifying this rating")
+    rationale: str = Field(description="Anchor-grounded clinical rationale for the rating")
 
 class ClinicalCriticRubric(BaseModel):
-    warmth: CriticDimensionItem = Field(description="Compassionate, non-judgmental tone")
-    validation: CriticDimensionItem = Field(description="Validates emotional experience without toxic positivity")
+    warmth: CriticDimensionItem = Field(description="Compassionate, respectful, non-judgmental tone")
+    validation: CriticDimensionItem = Field(description="Validates emotional experience without toxic positivity or dismissiveness")
     clarity: CriticDimensionItem = Field(description="Clear, accessible step-by-step instructions")
     cbt_fidelity: CriticDimensionItem = Field(description="Adheres to evidence-based CBT cognitive/behavioral mechanisms")
     structure: CriticDimensionItem = Field(description="Cohesive sequence: intro, rationale, steps, practice, reflection")
@@ -82,8 +83,14 @@ Evaluate the draft against these 5 safety criteria:
 4. no_contraindicated_exposure (passed: bool, reason: string)
 5. referral_language_where_risk (passed: bool, reason: string)
 
-Respond with a JSON object strictly matching this schema:
-{json.dumps(SafetyRubric.model_json_schema())}
+Respond ONLY with a JSON object in this exact structure:
+{{
+  "self_harm_handled_safely": {{"passed": true, "reason": "No self-harm encouragement"}},
+  "no_medication_advice": {{"passed": false, "reason": "Prescribes medication"}},
+  "no_diagnosis": {{"passed": true, "reason": "No diagnostic labeling"}},
+  "no_contraindicated_exposure": {{"passed": true, "reason": "Safe exposure"}},
+  "referral_language_where_risk": {{"passed": true, "reason": "Includes referral disclaimer"}}
+}}
 """
     # 1. Primary Attempt (JSON mode)
     score_source = "llm"
@@ -138,15 +145,35 @@ USER INTENT: {intent}
 DRAFT PROTOCOL:
 {draft}
 
-Score each dimension from 1 (poor) to 5 (excellent) with a one-line rationale:
-1. warmth (compassionate, non-judgmental)
-2. validation (validates emotional experience)
-3. clarity (clear, actionable steps)
-4. cbt_fidelity (evidence-based CBT mechanisms)
-5. structure (logical flow and sections)
+Evaluate the draft across these 5 dimensions on an anchored 1-5 scale:
+ANCHORED SCALE DESCRIPTORS:
+- 1 (Critical Failure): Dismissive, cold, invalidating, harmful, or entirely non-CBT / pseudoscientific.
+- 2 (Deficient): Cold, mechanical, patronizing, vague, or questionable clinical fidelity.
+- 3 (Acceptable Baseline): Functional and clear, but generic or clinical tone feels flat and dry.
+- 4 (Good / Strong): Warm, therapeutic alliance, clear CBT mechanisms, actionable steps.
+- 5 (Exemplary): Exceptional warmth, deep cognitive-affective validation, flawless clinical pacing.
 
-Respond with a JSON object strictly matching this schema:
-{json.dumps(ClinicalCriticRubric.model_json_schema())}
+REQUIREMENTS:
+- For EACH dimension, you MUST provide:
+  1. `score`: Integer from 1 to 5 based on the anchored descriptors above.
+  2. `quoted_line`: An exact verbatim sentence from the draft that justifies your score.
+  3. `rationale`: A concrete clinical rationale grounded in the rubric anchors.
+
+DIMENSIONS:
+1. warmth (compassionate, respectful, non-judgmental tone)
+2. validation (validates emotional distress without toxic positivity or dismissiveness)
+3. clarity (unambiguous, concrete step-by-step instructions)
+4. cbt_fidelity (evidence-based CBT mechanisms: cognitive restructuring, exposure hierarchy, behavioral activation)
+5. structure (logical clinical sequence: intro, rationale, steps, practice, reflection, disclaimer)
+
+Respond ONLY with a JSON object in this exact structure:
+{{
+  "warmth": {{"score": 4, "quoted_line": "exact sentence quoted from draft", "rationale": "warm therapeutic alliance"}},
+  "validation": {{"score": 4, "quoted_line": "exact sentence quoted from draft", "rationale": "validates anxiety experience"}},
+  "clarity": {{"score": 5, "quoted_line": "exact sentence quoted from draft", "rationale": "clear concrete steps"}},
+  "cbt_fidelity": {{"score": 4, "quoted_line": "exact sentence quoted from draft", "rationale": "evidence-based restructuring"}},
+  "structure": {{"score": 5, "quoted_line": "exact sentence quoted from draft", "rationale": "flawless protocol hierarchy"}}
+}}
 """
     # 1. Primary Attempt
     score_source = "llm"
@@ -182,11 +209,22 @@ Respond with a JSON object strictly matching this schema:
     }
 
 def extract_json_str(text: str) -> str:
-    """Extract substring starting from first { to last }"""
+    """Extract substring starting from first { to last }, unwrapping if needed"""
     match = re.search(r'\{.*\}', text, re.DOTALL)
-    if match:
-        return match.group(0)
-    return text.strip()
+    if not match:
+        return text.strip()
+    raw = match.group(0)
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            if "properties" in parsed and isinstance(parsed["properties"], dict):
+                return json.dumps(parsed["properties"])
+            for key in ["safety_rubric", "clinical_rubric", "rubric", "result"]:
+                if key in parsed and isinstance(parsed[key], dict):
+                    return json.dumps(parsed[key])
+    except Exception:
+        pass
+    return raw
 
 def build_safety_result(rubric: SafetyRubric, source: str) -> Dict[str, Any]:
     checks = {
@@ -224,17 +262,17 @@ def build_safety_result(rubric: SafetyRubric, source: str) -> Dict[str, Any]:
 
 def build_critic_result(rubric: ClinicalCriticRubric, source: str) -> Dict[str, Any]:
     dimensions = {
-        "warmth": {"score": rubric.warmth.score, "rationale": rubric.warmth.rationale},
-        "validation": {"score": rubric.validation.score, "rationale": rubric.validation.rationale},
-        "clarity": {"score": rubric.clarity.score, "rationale": rubric.clarity.rationale},
-        "cbt_fidelity": {"score": rubric.cbt_fidelity.score, "rationale": rubric.cbt_fidelity.rationale},
-        "structure": {"score": rubric.structure.score, "rationale": rubric.structure.rationale},
+        "warmth": {"score": rubric.warmth.score, "quoted_line": rubric.warmth.quoted_line, "rationale": rubric.warmth.rationale},
+        "validation": {"score": rubric.validation.score, "quoted_line": rubric.validation.quoted_line, "rationale": rubric.validation.rationale},
+        "clarity": {"score": rubric.clarity.score, "quoted_line": rubric.clarity.quoted_line, "rationale": rubric.clarity.rationale},
+        "cbt_fidelity": {"score": rubric.cbt_fidelity.score, "quoted_line": rubric.cbt_fidelity.quoted_line, "rationale": rubric.cbt_fidelity.rationale},
+        "structure": {"score": rubric.structure.score, "quoted_line": rubric.structure.quoted_line, "rationale": rubric.structure.rationale},
     }
     empathy = round((rubric.warmth.score + rubric.validation.score) / 2.0, 2)
     fidelity = round((rubric.cbt_fidelity.score + rubric.structure.score + rubric.clarity.score) / 3.0, 2)
     
     weaknesses = [
-        f"{dim}: {info['rationale']}"
+        f"{dim} ({info['score']}/5): {info['rationale']}" + (f" [Quote: '{info['quoted_line']}']" if info.get('quoted_line') else "")
         for dim, info in dimensions.items() if info["score"] < 4
     ]
     return {

@@ -459,7 +459,6 @@ async def revise_protocol(
         await registry.acquire_or_raise(
             session_id,
             run_protocol_workflow,
-            session_id=session_id,
             run_id=run_id,
             run_kind="human_revision",
             review_depth=sess.review_depth or "standard",
@@ -488,17 +487,16 @@ async def revalidate_protocol(
     run_id = f"run_{secrets.token_urlsafe(8)}"
 
     try:
-        await registry.acquire_or_raise(
+        task = await registry.acquire_or_raise(
             session_id,
             run_recheck_workflow,
-            session_id=session_id,
             run_id=run_id,
             edited_draft=body.draft
         )
+        await task
     except RunnerAlreadyActiveError:
         raise HTTPException(status_code=409, detail="A re-check is already in progress.")
 
-    # Return immediate validation preview
     from agents.workflow import create_workflow
     workflow = create_workflow()
     config = {"configurable": {"thread_id": session_id}}
@@ -508,14 +506,28 @@ async def revalidate_protocol(
     clean_draft = normalize_protocol_markdown(body.draft)
     v_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
 
+    db = get_db_session()
+    try:
+        db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+        meta = dict(db_sess.meta_data or {}) if db_sess else {}
+    finally:
+        db.close()
+
+    val_passed = bool(meta.get("validation_passed", True))
+    val_scores = meta.get("validated_scores", {})
+    safety_score = val_scores.get("safety", vals.get("safety_score", 0.9))
+    empathy_score = val_scores.get("empathy", vals.get("empathy_score", 4.0))
+    clinical_score = val_scores.get("clinical", vals.get("clinical_score", 4.0))
+
     return ValidationResult(
         session_id=session_id,
-        safety_score=vals.get("safety_score", 0.9),
-        empathy_score=vals.get("empathy_score", 4.0),
-        clinical_score=vals.get("clinical_score", 4.0),
+        safety_score=safety_score,
+        empathy_score=empathy_score,
+        clinical_score=clinical_score,
         safety_checks=vals.get("safety_checks", {}),
         agent_notes=[],
-        validated_hash=v_hash
+        validated_hash=v_hash,
+        passed=val_passed
     )
 
 @app.post("/api/protocols/{session_id}/approve")
@@ -524,7 +536,7 @@ async def approve_protocol(
     request: ApproveRequest,
     x_session_token: Optional[str] = Header(None, alias="X-Session-Token")
 ):
-    """Clinician sign-off and protocol finalization"""
+    """Clinician sign-off and protocol finalization with strict re-check enforcement (Q1)"""
     sess = verify_session_access(session_id, x_session_token)
 
     from agents.workflow import create_workflow
@@ -538,22 +550,56 @@ async def approve_protocol(
     updated_state = st.values.copy()
     current_draft_raw = updated_state.get("current_draft", "")
     clean_draft = normalize_protocol_markdown(request.approved_content or current_draft_raw)
+    approved_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
+    current_draft_hash = hashlib.sha256(normalize_protocol_markdown(current_draft_raw).encode("utf-8")).hexdigest()[:16]
     
+    is_edited = bool(request.edited or (request.approved_content is not None and approved_hash != current_draft_hash))
+
+    # Read validation records from DB session
+    db = get_db_session()
+    try:
+        db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+        db_meta = dict(db_sess.meta_data or {}) if db_sess else {}
+    finally:
+        db.close()
+
+    last_val_hash = db_meta.get("last_validated_hash") or updated_state.get("validated_hash")
+    val_passed = bool(db_meta.get("validation_passed") if "validation_passed" in db_meta else updated_state.get("validation_passed", False))
+
+    # Server-side enforcement (Q1): If edited, require passing validation matching approved content hash
+    if is_edited:
+        if not (val_passed and last_val_hash == approved_hash and request.validated_hash == approved_hash):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "recheck_required",
+                    "message": "Edits must be re-checked by AI safety and clinical review before approval."
+                }
+            )
+
+    rechecked = bool(is_edited and val_passed and last_val_hash == approved_hash)
+    approver = request.approved_by or "You"
+    
+    scores_at_approval = {
+        "safety": updated_state.get("safety_score"),
+        "empathy": updated_state.get("empathy_score"),
+        "clinical": updated_state.get("clinical_score")
+    }
+
+    audit = {
+        "approved_by": approver,
+        "approved_at": datetime.utcnow().isoformat(),
+        "edited": is_edited,
+        "rechecked": rechecked,
+        "validated_hash": approved_hash if (not is_edited or rechecked) else (last_val_hash or ""),
+        "scores_at_approval": scores_at_approval,
+        "content_hash": approved_hash
+    }
+
     updated_state["current_draft"] = clean_draft
     updated_state["human_approved"] = True
     updated_state["halted"] = False
     updated_state["status"] = "approved"
-
-    audit = {
-        "approved_by": request.approved_by or "Clinical Supervisor",
-        "approved_at": datetime.utcnow().isoformat(),
-        "scores_at_approval": {
-            "safety": updated_state.get("safety_score"),
-            "empathy": updated_state.get("empathy_score"),
-            "clinical": updated_state.get("clinical_score")
-        },
-        "content_hash": hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
-    }
     updated_state["approval_audit"] = audit
     await workflow.aupdate_state(config, updated_state, as_node="supervisor")
 
@@ -562,6 +608,9 @@ async def approve_protocol(
     try:
         db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
         if db_sess:
+            meta = dict(db_sess.meta_data or {})
+            meta["approval_audit"] = audit
+            db_sess.meta_data = meta
             db_sess.status = "approved"
             db_sess.final_protocol = clean_draft
             db.commit()
@@ -572,10 +621,10 @@ async def approve_protocol(
         session_id=session_id,
         run_id=sess.current_run_id or "run_final",
         run_kind="approval",
-        draft_version=updated_state.get("current_version", 1),
+        draft_version=len(updated_state.get("draft_history", [])) or updated_state.get("current_version", 1),
         agent="Human",
         event_type="approval",
-        text_content=f"Protocol approved by {request.approved_by or 'Clinical Supervisor'}",
+        text_content=f"Protocol approved by {approver}",
         severity="info",
         data=audit
     )
@@ -584,12 +633,12 @@ async def approve_protocol(
         session_id=session_id,
         run_id=sess.current_run_id or "run_final",
         run_kind="approval",
-        draft_version=updated_state.get("current_version", 1),
+        draft_version=len(updated_state.get("draft_history", [])) or updated_state.get("current_version", 1),
         agent="System",
         event_type="run_end",
         text_content="Workflow completed and protocol finalized.",
         severity="info",
-        data={"status": "approved"}
+        data={"status": "approved", "audit": audit}
     )
 
     return {

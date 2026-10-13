@@ -45,6 +45,7 @@ interface DocumentViewerProps {
   lastEventTs?: string
   isReplay?: boolean
   hasRevisedRun?: boolean
+  v1Draft?: string
   onDraftChange: (text: string) => void
   onStartEditing: () => void
   onSaveEditsAndApprove: () => void
@@ -68,6 +69,7 @@ export default function DocumentViewer({
   lastEventTs,
   isReplay = false,
   hasRevisedRun = false,
+  v1Draft = '',
   onDraftChange,
   onStartEditing,
   onSaveEditsAndApprove,
@@ -669,8 +671,13 @@ export default function DocumentViewer({
           {!isApproved && (
             <button
               type="button"
+              disabled={phase === 'generating'}
               onClick={onStartEditing}
-              className="px-3 py-1.5 rounded-lg bg-white hover:bg-[#F2EFE8] border border-[#E8E4DA] text-xs font-semibold text-[#18221E] transition-colors flex items-center gap-1.5"
+              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 ${
+                phase === 'generating'
+                  ? 'bg-[#FAF8F5] text-[#88978F] border-[#E8E4DA] cursor-not-allowed opacity-60'
+                  : 'bg-white hover:bg-[#F2EFE8] border-[#E8E4DA] text-[#18221E] transition-colors'
+              }`}
             >
               <Edit3 className="w-3.5 h-3.5 text-[#55635C]" />
               <span>Edit draft</span>
@@ -712,8 +719,8 @@ export default function DocumentViewer({
         />
       </div>
 
-      {/* Revision Visibility Card (C6) */}
-      {draftVersion >= 2 && revisionSummaries.length > 0 && (
+      {/* Revision Visibility Card (C6, Round 4) */}
+      {(draftVersion >= 2 || hasRevisedRun) && (
         <div className="mx-6 mt-4 rounded-xl border border-[#F6E0B5] bg-[#FDF6E2] p-3 text-xs text-[#8C4A26] shrink-0">
           <div className="flex items-center justify-between">
             <button
@@ -721,7 +728,7 @@ export default function DocumentViewer({
               onClick={() => setRevisionCardExpanded((prev) => !prev)}
               className="flex items-center gap-2 font-semibold hover:underline"
             >
-              <span>Revised after review · {revisionSummaries.length} changes</span>
+              <span>{revisionSummaries.length > 0 ? `Revised after review · ${revisionSummaries.length} changes` : 'Revised after your request'}</span>
               {revisionCardExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
             <button
@@ -792,6 +799,14 @@ export default function DocumentViewer({
           <span>AI-generated protocol draft for clinician review — not a substitute for professional clinical care.</span>
           <span className="font-mono text-[11px] text-[#55635C]">CERINA CLINICAL FOUNDRY</span>
         </div>
+
+        {/* Diff Modal in Read-Only Mode (v1 vs v2) */}
+        <DiffModal
+          isOpen={showDiffModal}
+          onOpenChange={setShowDiffModal}
+          originalDraft={v1Draft || draft}
+          editedDraft={draft}
+        />
       </div>
     </div>
   )

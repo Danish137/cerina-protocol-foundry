@@ -24,28 +24,34 @@ from security import record_llm_call
 load_dotenv()
 logger = logging.getLogger("cerina.agents")
 
-def get_llm():
-    """Get the LLM instance supporting OpenRouter, ChatAnywhere, or direct OpenAI"""
+def get_llm(role: str = "general"):
+    """Get the LLM instance supporting pinned writer/judge models or general fallback"""
     api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise ValueError("OPENAI_API_KEY not found in environment.")
     
     api_key = api_key.strip(' "\'')
     base_url = os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
-    model = os.getenv("OPENAI_MODEL", "openrouter/free")
+    
+    if role == "writer":
+        model = os.getenv("OPENAI_WRITER_MODEL") or os.getenv("OPENAI_MODEL", "openrouter/free")
+    elif role == "judge":
+        model = os.getenv("OPENAI_JUDGE_MODEL") or os.getenv("OPENAI_MODEL", "openrouter/free")
+    else:
+        model = os.getenv("OPENAI_MODEL", "openrouter/free")
     
     return ChatOpenAI(
         api_key=api_key,
         base_url=base_url,
         model=model,
-        temperature=0.7
+        temperature=0.7 if role == "writer" else 0.2
     )
 
 class DrafterAgent:
     """Creates structured CBT exercise drafts using an explicit markdown template (A9)"""
     
     def __init__(self):
-        self.llm = get_llm()
+        self.llm = get_llm(role="writer")
         self.name = "Drafter"
     
     async def draft(self, state: ProtocolState) -> Dict[str, Any]:
@@ -149,7 +155,7 @@ class SafetyGuardianAgent:
     """Validates content using 5-point fail-closed rubric (A6)"""
     
     def __init__(self):
-        self.llm = get_llm()
+        self.llm = get_llm(role="judge")
         self.name = "SafetyGuardian"
     
     async def review(self, state: ProtocolState) -> Dict[str, Any]:
@@ -163,10 +169,11 @@ class SafetyGuardianAgent:
         # Evaluate using rubric (A6)
         eval_result = await evaluate_safety_rubric(self.llm, draft, intent)
         latency_ms = (time.time() - t0) * 1000
+        serving_model = getattr(self.llm, "model_name", os.getenv("OPENAI_JUDGE_MODEL", "judge_model"))
         
         record_llm_call(
             session_id=state.get("session_id"),
-            model=getattr(self.llm, "model_name", "openrouter/free"),
+            model=serving_model,
             call_type="safety",
             latency_ms=latency_ms
         )
@@ -190,7 +197,7 @@ class SafetyGuardianAgent:
             state = add_agent_note(
                 state,
                 self.name,
-                f"Safety check passed ({eval_result['passed_checks']}/5 checks, score {safety_score:.2f}) [{score_source}]",
+                f"Safety check passed ({eval_result['passed_checks']}/5 checks, score {safety_score:.2f}) [{score_source} via {serving_model}]",
                 priority="info"
             )
             
@@ -198,6 +205,7 @@ class SafetyGuardianAgent:
             "safety_checks": eval_result.get("checks", {}),
             "safety_score": safety_score,
             "score_source": score_source,
+            "model": serving_model,
             "unverified": eval_result.get("unverified", False),
             "status": "reviewed"
         }
@@ -206,7 +214,7 @@ class ClinicalCriticAgent:
     """Evaluates clinical appropriateness, tone, and empathy using 5-dimension rubric (A6)"""
     
     def __init__(self):
-        self.llm = get_llm()
+        self.llm = get_llm(role="judge")
         self.name = "ClinicalCritic"
     
     async def critique(self, state: ProtocolState) -> Dict[str, Any]:
@@ -216,13 +224,14 @@ class ClinicalCriticAgent:
             
         intent = state.get("user_intent", "")
         t0 = time.time()
+        serving_model = getattr(self.llm, "model_name", os.getenv("OPENAI_JUDGE_MODEL", "judge_model"))
         
         eval_result = await evaluate_critic_rubric(self.llm, draft, intent)
         latency_ms = (time.time() - t0) * 1000
         
         record_llm_call(
             session_id=state.get("session_id"),
-            model=getattr(self.llm, "model_name", "openrouter/free"),
+            model=serving_model,
             call_type="critic",
             latency_ms=latency_ms
         )
@@ -245,7 +254,7 @@ class ClinicalCriticAgent:
             state = add_agent_note(
                 state,
                 self.name,
-                f"Clinical critique passed. Empathy: {empathy_score:.1f}/5, Fidelity: {clinical_score:.1f}/5 [{score_source}]",
+                f"Clinical critique passed. Empathy: {empathy_score:.1f}/5, Fidelity: {clinical_score:.1f}/5 [{score_source} via {serving_model}]",
                 priority="info"
             )
             
@@ -253,6 +262,7 @@ class ClinicalCriticAgent:
             "empathy_score": empathy_score,
             "clinical_score": clinical_score,
             "score_source": score_source,
+            "model": serving_model,
             "unverified": eval_result.get("unverified", False),
             "status": "critiqued"
         }

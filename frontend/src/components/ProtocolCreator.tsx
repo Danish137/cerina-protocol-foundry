@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowRight, Loader2, Bookmark, Sparkles, HelpCircle, ShieldAlert, PlayCircle } from 'lucide-react'
+import { ArrowRight, Loader2, Bookmark, Sparkles, ShieldAlert, PlayCircle } from 'lucide-react'
 import axios from 'axios'
 import API_BASE_URL from '../config'
 import { useToast } from './Toast'
@@ -43,7 +43,7 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
   const { showToast } = useToast()
   const [intent, setIntent] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
-  const [reviewDepth, setReviewDepth] = useState<'standard' | 'thorough'>('standard')
+  const reviewDepth: 'standard' | 'thorough' = 'standard'
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [capacity, setCapacity] = useState<CapacityStatus | null>(null)
@@ -167,11 +167,11 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
           </div>
         </div>
 
-        {/* Capacity Chip (B4) */}
-        {capacity && (
+        {/* Capacity Chip (Round 4: show only when <= 5) */}
+        {capacity && capacity.remaining_runs_estimate <= 5 && (
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF8F5] border border-[#E8E4DA] text-xs font-medium text-[#55635C]">
-            <span className="w-2 h-2 rounded-full bg-[#244F3B]"></span>
-            <span>Live runs left today: {capacity.remaining_runs_estimate}</span>
+            <span className="w-2 h-2 rounded-full bg-[#B45309]"></span>
+            <span>Approx. {capacity.remaining_runs_estimate} live runs left today</span>
           </div>
         )}
       </div>
@@ -239,35 +239,6 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
         {/* Review Depth Toggle (B4) & Submit Button */}
         <div className="pt-3 border-t border-[#F0ECE3] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-medium text-[#55635C]">Review Depth:</span>
-            <div className="inline-flex rounded-lg border border-[#E8E4DA] p-0.5 bg-[#FAF8F5]">
-              <button
-                type="button"
-                onClick={() => setReviewDepth('standard')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                  reviewDepth === 'standard' ? 'bg-white shadow-xs text-[#244F3B] font-semibold' : 'text-[#7C8B82]'
-                }`}
-                title="Standard clinical safety & critique thresholds"
-              >
-                Standard
-              </button>
-              <button
-                type="button"
-                onClick={() => setReviewDepth('thorough')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                  reviewDepth === 'thorough' ? 'bg-white shadow-xs text-[#244F3B] font-semibold' : 'text-[#7C8B82]'
-                }`}
-                title="Stricter thresholds; enforces at least one revision if any concerns exist (uses more daily capacity)"
-              >
-                Thorough
-              </button>
-            </div>
-            <div className="group relative cursor-pointer text-[#A0ACA5] hover:text-[#55635C]">
-              <HelpCircle className="w-3.5 h-3.5" />
-              <div className="hidden group-hover:block absolute bottom-full mb-1 left-0 w-52 p-2 bg-[#1F2923] text-white text-[11px] rounded shadow-lg z-20">
-                Thorough mode runs deeper evaluation and triggers at least one revision loop if concerns are found.
-              </div>
-            </div>
           </div>
 
           <div className="flex items-center gap-3">

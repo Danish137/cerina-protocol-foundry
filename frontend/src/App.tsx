@@ -38,7 +38,7 @@ function AppContent() {
   const [editedDraft, setEditedDraft] = useState<string>('')
   const [initialDraftBeforeEdit, setInitialDraftBeforeEdit] = useState<string>('')
   const [validationStatus, setValidationStatus] = useState<'none' | 'checking' | 'passed' | 'failed' | 'stale'>('none')
-  const [lastValidatedHash, setLastValidatedHash] = useState<string | null>(null)
+  const [, setLastValidatedHash] = useState<string | null>(null)
   const [approvalTime, setApprovalTime] = useState<string | undefined>(undefined)
   const [isRevisionRequested, setIsRevisionRequested] = useState<boolean>(false)
 
@@ -73,14 +73,17 @@ function AppContent() {
   }, [phase, initialDraftBeforeEdit, editedDraft])
 
   // Connect SSE Stream with ProtocolStreamClient (B1)
-  const connectStream = useCallback((sessionId: string, token: string) => {
+  const connectStream = useCallback((sessionId: string, token: string, fromSeq?: number) => {
     if (streamClientRef.current) {
       streamClientRef.current.stop()
     }
 
+    const maxSeq = fromSeq !== undefined ? fromSeq : (state.events.length > 0 ? Math.max(...state.events.map((e) => e.seq || 0)) : 0)
+
     const client = new ProtocolStreamClient({
       sessionId,
       sessionToken: token,
+      lastEventId: maxSeq,
       onEvent: (event: ProtocolEvent) => {
         dispatch({ type: 'ADD_EVENT', event })
 
@@ -399,49 +402,64 @@ function AppContent() {
     }
   }
 
-  // Save edits and approve
+  // Save edits and approve (Round 4: Re-check & approve with live events)
   const handleSaveEditsAndApprove = async () => {
     if (!state.sessionId || !state.sessionToken) return
 
     dispatch({ type: 'SET_UI_MODE', mode: 'approving' })
     try {
+      showToast('Re-checking your edits…', 'info')
+
+      // 1. Run revalidation first
+      const revalRes = await axios.post(
+        `${API_BASE_URL}/api/protocols/${state.sessionId}/revalidate`,
+        { draft: editedDraft },
+        { headers: { 'X-Session-Token': state.sessionToken } }
+      )
+      const valData = revalRes.data
+      if (!valData.passed) {
+        dispatch({ type: 'SET_UI_MODE', mode: 'editing' })
+        showToast('Safety check did not pass for edited draft', 'error')
+        return
+      }
+
+      const valHash = valData.validated_hash
+
+      // 2. Approve with validated hash and "You" attribution
       const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
-      const res = await axios.post(
+      await axios.post(
         `${API_BASE_URL}/api/protocols/${state.sessionId}/approve`,
         {
           approved_content: editedDraft,
-          approved_by: 'Clinical Supervisor',
+          approved_by: 'You',
           edited: true,
-          validated_hash: lastValidatedHash || 'EDITED'
+          validated_hash: valHash
         },
         { headers: { 'X-Session-Token': state.sessionToken } }
       )
 
       setApprovalTime(now)
       dispatch({ type: 'SET_DRAFT', draft: editedDraft })
-      dispatch({ type: 'ADD_EVENT', event: {
-        session_id: state.sessionId,
-        seq: state.events.length + 1,
-        run_id: state.activeRunId || 'approval',
-        run_kind: 'approval',
-        draft_version: state.draftVersion,
-        agent: 'Human',
-        type: 'approval',
-        severity: 'info',
-        text: 'Protocol approved and locked by Clinical Supervisor.',
-        data: {
-          approved_by: 'Clinical Supervisor',
-          approved_at: now,
-          content_hash: res.data?.approval_audit?.content_hash
-        },
-        ts: new Date().toISOString()
-      }})
       dispatch({ type: 'SET_UI_MODE', mode: 'default' })
       updateSessionStatus(state.sessionId, 'approved', editedDraft)
       showToast('Protocol approved & locked with edits', 'success')
+
+      // 3. Fetch real events from backend
+      try {
+        const evtRes = await axios.get(
+          `${API_BASE_URL}/api/protocols/${state.sessionId}/events?after=0`,
+          { headers: { 'X-Session-Token': state.sessionToken } }
+        )
+        if (evtRes.data?.events) {
+          dispatch({ type: 'BATCH_EVENTS', events: evtRes.data.events })
+        }
+      } catch (e) {
+        console.warn('Could not fetch events after approval:', e)
+      }
     } catch (err: any) {
       dispatch({ type: 'SET_UI_MODE', mode: 'editing' })
-      showToast('Approval request failed', 'error')
+      const msg = err.response?.data?.detail?.message || err.response?.data?.detail || 'Approval request failed'
+      showToast(msg, 'error')
     }
   }
 
@@ -452,10 +470,10 @@ function AppContent() {
     dispatch({ type: 'SET_UI_MODE', mode: 'approving' })
     try {
       const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
-      const res = await axios.post(
+      await axios.post(
         `${API_BASE_URL}/api/protocols/${state.sessionId}/approve`,
         {
-          approved_by: 'Clinical Supervisor',
+          approved_by: 'You',
           edited: false,
           validated_hash: 'BASELINE'
         },
@@ -463,26 +481,22 @@ function AppContent() {
       )
 
       setApprovalTime(now)
-      dispatch({ type: 'ADD_EVENT', event: {
-        session_id: state.sessionId,
-        seq: state.events.length + 1,
-        run_id: state.activeRunId || 'approval',
-        run_kind: 'approval',
-        draft_version: state.draftVersion,
-        agent: 'Human',
-        type: 'approval',
-        severity: 'info',
-        text: 'Protocol approved and locked by Clinical Supervisor.',
-        data: {
-          approved_by: 'Clinical Supervisor',
-          approved_at: now,
-          content_hash: res.data?.approval_audit?.content_hash
-        },
-        ts: new Date().toISOString()
-      }})
       dispatch({ type: 'SET_UI_MODE', mode: 'default' })
       updateSessionStatus(state.sessionId, 'approved')
       showToast('Protocol approved & locked', 'success')
+
+      // Fetch real events from backend
+      try {
+        const evtRes = await axios.get(
+          `${API_BASE_URL}/api/protocols/${state.sessionId}/events?after=0`,
+          { headers: { 'X-Session-Token': state.sessionToken } }
+        )
+        if (evtRes.data?.events) {
+          dispatch({ type: 'BATCH_EVENTS', events: evtRes.data.events })
+        }
+      } catch (e) {
+        console.warn('Could not fetch events after approval:', e)
+      }
     } catch (err: any) {
       dispatch({ type: 'SET_UI_MODE', mode: 'default' })
       showToast('Approval request failed', 'error')
@@ -493,6 +507,7 @@ function AppContent() {
   const handleRequestRevision = async (instruction?: string, concernIds?: string[]) => {
     if (!state.sessionId || !state.sessionToken) return
     setIsRevisionRequested(true)
+    const currentMaxSeq = state.events.reduce((max, e) => Math.max(max, e.seq || 0), 0)
 
     try {
       await axios.post(
@@ -504,6 +519,7 @@ function AppContent() {
         { headers: { 'X-Session-Token': state.sessionToken } }
       )
       showToast('Revision requested · agents working', 'info')
+      connectStream(state.sessionId, state.sessionToken, currentMaxSeq)
     } catch (err: any) {
       setIsRevisionRequested(false)
       showToast('Failed to trigger revision run', 'error')
@@ -842,7 +858,8 @@ function AppContent() {
                       activeStageText={activeStageText}
                       lastEventTs={lastEventTs}
                       isReplay={state.uiState.isReplay}
-                      hasRevisedRun={state.events.some((e) => e.run_kind === 'revision')}
+                      hasRevisedRun={state.events.some((e) => e.run_kind === 'revision' || e.run_kind === 'human_revision')}
+                      v1Draft={state.events.find((e) => e.type === 'draft' && e.draft_version === 1)?.data?.draft || ''}
                       scrollerRef={scrollerRef}
                       onDraftChange={handleDraftChange}
                       onStartEditing={handleStartEditing}

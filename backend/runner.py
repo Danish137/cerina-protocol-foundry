@@ -14,6 +14,7 @@ import os
 from datetime import datetime
 from typing import Dict, List, Optional, Any, AsyncGenerator
 
+import hashlib
 from sqlalchemy import text
 from database import get_db_session, Event, ProtocolSession, LLMUsage
 from normalizer import normalize_protocol_markdown
@@ -28,10 +29,19 @@ class RunnerRegistry:
     def __init__(self):
         self._active_tasks: Dict[str, asyncio.Task] = {}
         self._subscribers: Dict[str, List[asyncio.Queue]] = {}
-        self._lock = asyncio.Lock()
+        self._lock: Optional[asyncio.Lock] = None
+
+    def _get_lock(self) -> asyncio.Lock:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if self._lock is None or (loop and getattr(self._lock, "_loop", None) not in (None, loop)):
+            self._lock = asyncio.Lock()
+        return self._lock
 
     async def is_active(self, session_id: str) -> bool:
-        async with self._lock:
+        async with self._get_lock():
             task = self._active_tasks.get(session_id)
             if task and not task.done():
                 return True
@@ -40,7 +50,7 @@ class RunnerRegistry:
             return False
 
     async def acquire_or_raise(self, session_id: str, task_factory, *args, **kwargs) -> asyncio.Task:
-        async with self._lock:
+        async with self._get_lock():
             existing = self._active_tasks.get(session_id)
             if existing and not existing.done():
                 raise RunnerAlreadyActiveError(f"Session {session_id} already has an active runner task.")
@@ -53,6 +63,9 @@ class RunnerRegistry:
                     del self._active_tasks[session_id]
             task.add_done_callback(_cleanup)
             return task
+
+    def get_task(self, session_id: str) -> Optional[asyncio.Task]:
+        return self._active_tasks.get(session_id)
 
     def subscribe(self, session_id: str) -> asyncio.Queue:
         q = asyncio.Queue(maxsize=100)
@@ -374,7 +387,7 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
         event_type="score",
         text_content=f"Safety score after edits: {s_score:.2f}",
         severity="critical" if s_score < 0.8 else "info",
-        data={"metric": "safety", "score": s_score, "checks": s_res.get("safety_checks", {})}
+        data={"metric": "safety", "score": s_score, "checks": s_res.get("safety_checks", {}), "model": s_res.get("model", "judge_model")}
     )
     emit_event(
         session_id=session_id,
@@ -410,7 +423,7 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
         event_type="score",
         text_content=f"Empathy: {emp:.1f}/5, Clinical fidelity: {fid:.1f}/5",
         severity="info",
-        data={"metric": "clinical", "empathy_score": emp, "clinical_score": fid}
+        data={"metric": "clinical", "empathy_score": emp, "clinical_score": fid, "model": c_res.get("model", "judge_model")}
     )
     emit_event(
         session_id=session_id,
@@ -424,10 +437,33 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
     )
 
     # Update state
+    v_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
+    val_passed = bool(s_score >= 0.8 and emp >= 3.5 and fid >= 3.5)
     state["safety_score"] = s_score
     state["empathy_score"] = emp
     state["clinical_score"] = fid
+    state["current_draft"] = clean_draft
+    state["validated_hash"] = v_hash
+    state["validation_passed"] = val_passed
     await workflow.aupdate_state(config, state, as_node="supervisor")
+
+    # Persist validated metadata in DB session
+    db = get_db_session()
+    try:
+        db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+        if db_sess:
+            meta = dict(db_sess.meta_data or {})
+            meta["last_validated_hash"] = v_hash
+            meta["validation_passed"] = val_passed
+            meta["validated_scores"] = {"safety": s_score, "empathy": emp, "clinical": fid}
+            db_sess.meta_data = meta
+            db_sess.current_draft = clean_draft
+            db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to persist validation metadata in DB: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
     emit_event(
         session_id=session_id,
@@ -438,5 +474,11 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
         event_type="run_end",
         text_content="Re-check completed. Ready for approval.",
         severity="info",
-        data={"status": "awaiting_approval", "draft": clean_draft, "version": draft_version}
+        data={
+            "status": "awaiting_approval",
+            "draft": clean_draft,
+            "version": draft_version,
+            "validated_hash": v_hash,
+            "passed": val_passed
+        }
     )

@@ -57,10 +57,10 @@ export default function TimelineSheet({
       const first = sorted[0]
       const last = sorted[sorted.length - 1]
 
-      let kindLabel = 'Initial draft'
-      if (first.run_kind === 'revision') kindLabel = `AI revision`
+      let kindLabel = 'Drafting & reviewing'
+      if (first.run_kind === 'revision') kindLabel = 'Refinement & review'
+      else if (first.run_kind === 'human_revision') kindLabel = 'Revised after your request'
       else if (first.run_kind === 'recheck') kindLabel = 'Re-check after edits'
-      else if (first.run_kind === 'human_revision') kindLabel = 'Human revision run'
       else if (first.run_kind === 'approval') kindLabel = 'Approval'
 
       // Calculate run duration
@@ -76,7 +76,7 @@ export default function TimelineSheet({
 
       result.push({
         runId: rid,
-        title: `Run ${runIndex} · ${kindLabel}${durationText ? ` · ${durationText}` : ''}`,
+        title: `${kindLabel}${durationText ? ` · ${durationText}` : ''}`,
         kind: first.run_kind,
         events: sorted,
         startTime: first.ts,

@@ -282,8 +282,10 @@ export function ClinicalPdfDoc({
             <Text style={styles.brandSubtitle}>Clinical CBT Protocol Specification</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ fontSize: 8, color: '#244F3B', fontWeight: 'bold' }}>
-              Human Approval Gate Passed ✓
+            <Text style={{ fontSize: 8, color: (!audit?.edited || (audit?.rechecked && audit?.validated_hash === contentHash)) ? '#244F3B' : '#B45309', fontWeight: 'bold' }}>
+              {(!audit?.edited || (audit?.rechecked && audit?.validated_hash === contentHash))
+                ? 'AI review passed ✓'
+                : 'Edited after AI review — not re-checked'}
             </Text>
             <Text style={{ fontSize: 7.5, color: '#55635C' }}>
               Draft by AI · {reviewRunsCount} review run{reviewRunsCount > 1 ? 's' : ''}
@@ -293,14 +295,12 @@ export function ClinicalPdfDoc({
 
         {/* Approval & Audit Block (Phase E) */}
         <View style={styles.auditBox} wrap={false}>
-          {audit?.approved_by && (
-            <View style={styles.auditRow}>
-              <Text style={styles.auditLabel}>Approved by:</Text>
-              <Text style={styles.auditValue}>{audit.approved_by}</Text>
-              <Text style={styles.auditLabel}>Sign-off Timestamp:</Text>
-              <Text style={styles.auditValue}>{approvedDate}</Text>
-            </View>
-          )}
+          <View style={styles.auditRow}>
+            <Text style={styles.auditLabel}>Approved by:</Text>
+            <Text style={styles.auditValue}>{audit?.approved_by || 'You'}</Text>
+            <Text style={styles.auditLabel}>Sign-off Timestamp:</Text>
+            <Text style={styles.auditValue}>{approvedDate}</Text>
+          </View>
 
           {clinicalGoal && (
             <View style={styles.auditRow}>

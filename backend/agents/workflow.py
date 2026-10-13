@@ -75,7 +75,8 @@ async def draft_node(state: ProtocolState) -> ProtocolState:
     sid = state.get("session_id", "default")
     rid = state.get("run_id") or f"run_{sid}"
     rkind = state.get("run_kind", "initial")
-    dver = state.get("current_version", 1)
+    # Derive draft version from history length (v1, v2, v3) per requirement 4
+    dver = len(state.get("draft_history", [])) + 1
 
     t0 = time.perf_counter()
     normalized_draft = ""
@@ -123,6 +124,8 @@ async def draft_node(state: ProtocolState) -> ProtocolState:
         state["iteration_count"] = state.get("iteration_count", 0) + 1
 
         state = add_draft_version(state, normalized_draft, "Drafter")
+        dver = state["current_version"]
+        rev_summary = result.get("revision_summary", [])
 
         # Emit dedicated draft event (P0-1)
         emit_event(
@@ -134,7 +137,7 @@ async def draft_node(state: ProtocolState) -> ProtocolState:
             event_type="draft",
             text_content=f"Created draft version {dver}",
             severity="info",
-            data={"draft": normalized_draft, "version": dver}
+            data={"draft": normalized_draft, "version": dver, "revision_summary": rev_summary}
         )
 
         # Emit message event with draft attached
@@ -148,7 +151,7 @@ async def draft_node(state: ProtocolState) -> ProtocolState:
             text_content=f"Draft version {dver} generated with structured clinical hierarchy",
             severity="info",
             to_agent="SafetyGuardian",
-            data={"draft": normalized_draft, "version": dver}
+            data={"draft": normalized_draft, "version": dver, "revision_summary": rev_summary}
         )
 
         # Synchronously persist draft to protocol_sessions DB table
@@ -238,6 +241,7 @@ async def safety_review_node(state: ProtocolState) -> ProtocolState:
                 "checks_total": checks_total,
                 "score_source": s_source,
                 "checks": s_checks,
+                "model": result.get("model", "judge_model"),
                 "unavailable": (s_source == "unavailable")
             }
         )
@@ -312,6 +316,7 @@ async def clinical_critique_node(state: ProtocolState) -> ProtocolState:
                 "empathy_score": emp_score,
                 "clinical_score": clin_score,
                 "score_source": c_source,
+                "model": result.get("model", "judge_model"),
                 "unavailable": (c_source == "unavailable")
             }
         )
@@ -521,8 +526,17 @@ async def init_checkpointer_async():
     checkpointer is available for `StateGraph` async methods.
     """
     global _checkpointer
+    current_loop = asyncio.get_running_loop()
     if _checkpointer is not None and AsyncSqliteSaver is not None and isinstance(_checkpointer, AsyncSqliteSaver):
-        return _checkpointer
+        lock_loop = getattr(_checkpointer.lock, "_loop", None) if hasattr(_checkpointer, "lock") else None
+        if lock_loop == current_loop:
+            return _checkpointer
+        try:
+            if hasattr(_checkpointer, "conn") and _checkpointer.conn:
+                await _checkpointer.conn.close()
+        except Exception:
+            pass
+        _checkpointer = None
 
     if AsyncSqliteSaver is None:
         raise RuntimeError("AsyncSqliteSaver is not installed. Install aiosqlite and langgraph with async support.")
@@ -548,6 +562,12 @@ async def close_checkpointer_async():
     global _checkpointer
     if _checkpointer is None:
         return
+    try:
+        if hasattr(_checkpointer, "conn") and _checkpointer.conn:
+            await _checkpointer.conn.close()
+    except Exception:
+        pass
+    _checkpointer = None
     try:
         if AsyncSqliteSaver is not None and isinstance(_checkpointer, AsyncSqliteSaver):
             await _checkpointer.conn.close()

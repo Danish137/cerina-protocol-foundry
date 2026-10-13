@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text, DateTime, Float, JSON,
-    UniqueConstraint, Index
+    UniqueConstraint, Index, text
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -90,6 +90,8 @@ class AgentActivity(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     state_snapshot = Column(JSON, nullable=True)
 
+from sqlalchemy.pool import NullPool
+
 # Database setup
 engine = None
 SessionLocal = None
@@ -97,6 +99,8 @@ SessionLocal = None
 def init_db():
     """Initialize database connection and create tables"""
     global engine, SessionLocal
+    if engine is not None and SessionLocal is not None:
+        return engine, SessionLocal
     
     db_url = os.getenv("DATABASE_URL", "sqlite:///./cerina_foundry.db")
     
@@ -107,11 +111,21 @@ def init_db():
             os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else ".", exist_ok=True)
         engine = create_engine(
             db_url,
-            connect_args={"check_same_thread": False} if "sqlite" in db_url else {}
+            poolclass=NullPool,
+            connect_args={"check_same_thread": False, "timeout": 30.0}
         )
     else:
         engine = create_engine(db_url)
     
+    # Enable WAL mode for SQLite
+    if "sqlite" in db_url:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("PRAGMA journal_mode=WAL;"))
+                conn.commit()
+        except Exception:
+            pass
+
     # Create tables
     Base.metadata.create_all(bind=engine)
 

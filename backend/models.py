@@ -50,7 +50,7 @@ class ApproveRequest(BaseModel):
     approved_content: Optional[str] = Field(None, description="Optional edited content to replace the draft")
     edited: bool = Field(False, description="True if clinician made modifications")
     validated_hash: Optional[str] = Field(None, description="Hash of the revalidated content")
-    approved_by: Optional[str] = Field("Clinical Supervisor", description="Identifier of the approving clinician")
+    approved_by: Optional[str] = Field("You", description="Identifier of the approving clinician")
 
 class RevalidateRequest(BaseModel):
     draft: str = Field(..., description="The edited CBT protocol draft to revalidate")
@@ -63,6 +63,7 @@ class ValidationResult(BaseModel):
     safety_checks: Dict[str, bool] = Field(default_factory=dict)
     agent_notes: List[AgentNote] = Field(default_factory=list)
     validated_hash: Optional[str] = None
+    passed: bool = Field(True, description="True if validation passed quality thresholds")
 
 class CapacityResponse(BaseModel):
     daily_budget: int
