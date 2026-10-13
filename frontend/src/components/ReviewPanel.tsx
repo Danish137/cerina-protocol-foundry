@@ -44,7 +44,7 @@ export default function ReviewPanel({ state, onApplySuggestion }: ReviewPanelPro
   // Parse reviewer suggestions from agent_notes
   const suggestions: ReviewerSuggestion[] = []
   if (state?.agent_notes) {
-    state.agent_notes.forEach((note, idx) => {
+    state.agent_notes.forEach((note: any, idx: number) => {
       const rawText = note.note || ''
       if (
         rawText.includes('IMPROVEMENT NEEDED:') ||

@@ -4,6 +4,10 @@ import remarkGfm from 'remark-gfm'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from 'tiptap-markdown'
+import { Table } from '@tiptap/extension-table'
+import { TableRow } from '@tiptap/extension-table-row'
+import { TableCell } from '@tiptap/extension-table-cell'
+import { TableHeader } from '@tiptap/extension-table-header'
 import * as Diff from 'diff'
 import {
   Download,
@@ -23,33 +27,53 @@ import {
 } from 'lucide-react'
 import { Phase } from '../types'
 import DiffModal from './DiffModal'
+import { RevisionSummaryItem } from '../types'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 
 interface DocumentViewerProps {
   phase: Phase
   draft: string
   editedDraft: string
+  streamingTokens?: string
+  draftVersion?: number
+  hasUserEdits?: boolean
+  revisionSummaries?: RevisionSummaryItem[]
   isSafetyCriticRunning?: boolean
   elapsedSeconds?: number
   sessionId?: string
+  activeStageText?: string
+  lastEventTs?: string
+  isReplay?: boolean
+  hasRevisedRun?: boolean
   onDraftChange: (text: string) => void
   onStartEditing: () => void
   onSaveEditsAndApprove: () => void
   onDiscardEdits: () => void
   onExportPdf: () => void
+  scrollerRef?: React.RefObject<HTMLDivElement | null>
 }
 
 export default function DocumentViewer({
   phase,
   draft,
   editedDraft,
+  streamingTokens = '',
+  draftVersion = 1,
+  hasUserEdits = false,
+  revisionSummaries = [],
   isSafetyCriticRunning = false,
   elapsedSeconds = 0,
   sessionId,
+  activeStageText,
+  lastEventTs,
+  isReplay = false,
+  hasRevisedRun = false,
   onDraftChange,
   onStartEditing,
   onSaveEditsAndApprove,
   onDiscardEdits,
   onExportPdf,
+  scrollerRef: externalScrollerRef,
 }: DocumentViewerProps) {
   // Default to Split view on wide displays >=1536px, Rich Editor otherwise
   const [editorViewMode, setEditorViewMode] = useState<'rich' | 'markdown' | 'split'>(() => {
@@ -57,9 +81,11 @@ export default function DocumentViewer({
   })
   const [readingProgress, setReadingProgress] = useState(0)
   const [showDiffModal, setShowDiffModal] = useState(false)
+  const [revisionCardExpanded, setRevisionCardExpanded] = useState(false)
   const [restoredSessionAlert, setRestoredSessionAlert] = useState(false)
+  const internalScrollerRef = useRef<HTMLDivElement>(null)
+  const scrollerRef = externalScrollerRef || internalScrollerRef
 
-  const scrollerRef = useRef<HTMLDivElement>(null)
   const splitLeftRef = useRef<HTMLDivElement>(null)
   const splitRightRef = useRef<HTMLDivElement>(null)
   const isSyncingScroll = useRef(false)
@@ -68,10 +94,37 @@ export default function DocumentViewer({
   const isApproved = phase === 'approved'
   const hasDraft = Boolean(draft || editedDraft)
 
-  // Rotating stage messages during initial generation when no draft exists
-  const rotatingStages = ['Drafting clinical structure…', 'Screening safety guidelines…', 'Evaluating therapeutic empathy…']
-  const stageIndex = Math.floor(elapsedSeconds / 3) % rotatingStages.length
-  const currentStageText = rotatingStages[stageIndex]
+  // Extract real H1 title from protocol markdown (P2)
+  const realH1 = useMemo(() => {
+    const text = draft || editedDraft || ''
+    const match = text.match(/^#\s+(.+)$/m)
+    return match ? match[1].trim() : 'CBT Protocol Specification'
+  }, [draft, editedDraft])
+
+  // Real stage text from latest unmatched node_start (P0-2)
+  const currentStageText = activeStageText || 'Starting…'
+
+  // Live waiting-on-model timer computed client-side from last event ts (P0-2)
+  const [secondsSinceLastEvent, setSecondsSinceLastEvent] = useState(0)
+  useEffect(() => {
+    if (phase !== 'generating') {
+      setSecondsSinceLastEvent(0)
+      return
+    }
+    const updateTime = () => {
+      if (lastEventTs) {
+        const lastMs = new Date(lastEventTs).getTime()
+        if (!isNaN(lastMs)) {
+          setSecondsSinceLastEvent(Math.max(0, Math.floor((Date.now() - lastMs) / 1000)))
+          return
+        }
+      }
+      setSecondsSinceLastEvent(elapsedSeconds)
+    }
+    updateTime()
+    const timer = setInterval(updateTime, 1000)
+    return () => clearInterval(timer)
+  }, [phase, lastEventTs, elapsedSeconds])
 
   // Word-level diff calculation
   const wordDiff = useMemo(() => {
@@ -109,6 +162,12 @@ export default function DocumentViewer({
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
       }),
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
       Markdown,
     ],
     content: editedDraft || draft || '',
@@ -193,8 +252,34 @@ export default function DocumentViewer({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isEditing, onSaveEditsAndApprove, onDiscardEdits])
 
-  // 1. Initial Generating state with NO draft yet
+  // 1. Initial Generating state (C5: progressive token streaming or stage card)
   if (!hasDraft && phase === 'generating') {
+    if (streamingTokens && streamingTokens.trim().length > 0) {
+      const wordCount = streamingTokens.trim().split(/\s+/).filter(Boolean).length
+      return (
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label="Progressive protocol drafting"
+          className="h-full overflow-y-auto bg-white border border-[#E8E4DA] rounded-2xl shadow-2xs overscroll-contain focus:outline-none p-6 sm:p-10 relative flex flex-col"
+        >
+          <div className="flex items-center justify-between pb-3 mb-4 border-b border-[#F0ECE3]">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#244F3B]">
+              <Sparkles className="w-4 h-4 animate-spin" />
+              <span>Writing… {wordCount} words</span>
+            </div>
+            <span className="text-[11px] font-mono text-[#7C8B82]">{formatTime(elapsedSeconds)}</span>
+          </div>
+          <article className="max-w-[68ch] mx-auto prose prose-stone cerina-prose text-[17px] leading-[1.7] focus:outline-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {streamingTokens}
+            </ReactMarkdown>
+            <span className="inline-block w-1.5 h-4 bg-[#244F3B] animate-pulse ml-0.5 align-middle" />
+          </article>
+        </div>
+      )
+    }
+
     return (
       <div
         tabIndex={0}
@@ -219,11 +304,24 @@ export default function DocumentViewer({
               </p>
             </div>
           </div>
-          <div className="inline-flex items-center gap-1.5 font-mono text-xs px-3 py-1 rounded-full bg-[#FAF8F5] border border-[#E8E4DA] text-[#55635C]">
-            <Clock className="w-3.5 h-3.5" />
-            <span>{formatTime(elapsedSeconds)}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono text-[#8C5921] bg-[#FEF9EE] border border-[#F7E1B5] px-2.5 py-0.5 rounded-full">
+              Waiting on model · {formatTime(secondsSinceLastEvent)}
+            </span>
+            <div className="inline-flex items-center gap-1.5 font-mono text-xs px-3 py-1 rounded-full bg-[#FAF8F5] border border-[#E8E4DA] text-[#55635C]">
+              <Clock className="w-3.5 h-3.5" />
+              <span>{formatTime(elapsedSeconds)}</span>
+            </div>
           </div>
         </div>
+
+        {/* Provider queue / delay banner if >20s */}
+        {secondsSinceLastEvent > 20 && (
+          <div className="p-2.5 rounded-xl bg-[#FEF9EE] border border-[#F7E1B5] text-xs text-[#8C5921] flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5 text-[#D4882C] animate-pulse shrink-0" />
+            <span>Upstream provider queue or rate-limiting in progress ({secondsSinceLastEvent}s elapsed). Retrying automatically…</span>
+          </div>
+        )}
 
         {/* Shimmering skeleton bars */}
         <div className="space-y-6 max-w-xl mx-auto w-full my-auto animate-pulse">
@@ -241,7 +339,7 @@ export default function DocumentViewer({
         </div>
 
         <p className="text-center text-xs text-[#7E8F87]">
-          Multidisciplinary agents are collaborating. Draft will render immediately upon synthesis.
+          Agents are collaborating. Draft will render immediately upon synthesis.
         </p>
       </div>
     )
@@ -256,12 +354,18 @@ export default function DocumentViewer({
         {/* Sticky Toolbar in Edit Mode */}
         <div className="px-5 py-3 border-b border-[#E8E4DA] bg-white flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2">
-            <span className="font-serif text-sm font-bold text-[#18221E]">
-              Clinician Editor
+            <span className="font-serif text-sm font-bold text-[#18221E] truncate max-w-xs" title={realH1}>
+              {realH1}
             </span>
-            <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-[#FFF8F0] text-[#8C5921] border border-[#F7E1B5]">
-              Editing · unsaved changes {wordDiff.added > 0 || wordDiff.removed > 0 ? `(+${wordDiff.added} −${wordDiff.removed} words)` : ''}
-            </span>
+            {hasUserEdits ? (
+              <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-[#FFF8F0] text-[#8C5921] border border-[#F7E1B5] whitespace-nowrap">
+                Editing · unsaved changes {wordDiff.added > 0 || wordDiff.removed > 0 ? `(+${wordDiff.added} −${wordDiff.removed} words)` : ''}
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-[#FAF8F5] text-[#55635C] border border-[#E8E4DA] whitespace-nowrap">
+                v{draftVersion} · Clinician Editor
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -499,40 +603,63 @@ export default function DocumentViewer({
 
   return (
     <div
-      ref={scrollerRef}
+      ref={scrollerRef as any}
       onScroll={handleOutermostScroll}
       tabIndex={0}
       role="region"
       aria-label="Protocol Document"
       className="h-full overflow-y-auto bg-white border border-[#E8E4DA] rounded-2xl shadow-2xs overscroll-contain focus:outline-none scrollbar-thin relative flex flex-col"
     >
-      {/* Sticky Document Toolbar */}
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-xs border-b border-[#E8E4DA] px-6 py-3.5 flex items-center justify-between gap-3 shrink-0">
+      {/* Sticky Document Toolbar (D1: Fully Opaque bg-white, alpha = 1) */}
+      <div id="document-toolbar" className="sticky top-0 z-20 bg-white border-b border-[#E8E4DA] px-6 py-3.5 flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-[#FAF8F5] border border-[#E8E4DA] flex items-center justify-center text-[#244F3B] shrink-0">
             <FileText className="w-4 h-4" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-serif text-sm font-bold text-[#18221E] truncate">
-                CBT Exercise Specification
+              <span className="font-serif text-sm font-bold text-[#18221E] truncate max-w-[280px] sm:max-w-md" title={realH1}>
+                {realH1}
               </span>
-              {isApproved ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#EBF3EE] text-[#244F3B] border border-[#CDE0D4] flex items-center gap-1 shrink-0">
-                  <CheckCircle2 className="w-3 h-3" />
-                  <span>Approved & Locked</span>
-                </span>
-              ) : isSafetyCriticRunning ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FEF9EE] text-[#8C5921] border border-[#F7E1B5] flex items-center gap-1 shrink-0">
-                  <Clock className="w-3 h-3 animate-spin" />
-                  <span>Review in progress</span>
-                </span>
-              ) : (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FAF8F5] text-[#55635C] border border-[#E8E4DA] flex items-center gap-1 shrink-0">
-                  <Clock className="w-3 h-3 text-[#D4882C]" />
-                  <span>Draft v1 · Awaiting approval</span>
-                </span>
-              )}
+              <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-[#FAF8F5] border border-[#E8E4DA] text-[#18221E] shrink-0 whitespace-nowrap">
+                v{draftVersion}
+              </span>
+
+              {/* Single status chip, never wraps (P2) */}
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 shrink-0 whitespace-nowrap ${
+                  isApproved
+                    ? 'bg-[#EBF3EE] text-[#244F3B] border border-[#CDE0D4]'
+                    : isSafetyCriticRunning
+                    ? 'bg-[#FEF9EE] text-[#8C5921] border border-[#F7E1B5]'
+                    : !isReplay && hasUserEdits
+                    ? 'bg-[#EBF3EE] text-[#244F3B] border border-[#C2DBCB]'
+                    : hasRevisedRun
+                    ? 'bg-[#FDF6E2] text-[#8C4A26] border border-[#F6E0B5]'
+                    : 'bg-[#FAF8F5] text-[#55635C] border border-[#E8E4DA]'
+                }`}
+              >
+                {isApproved ? (
+                  <>
+                    <CheckCircle2 className="w-3 h-3 text-[#244F3B]" />
+                    <span>Approved & Locked</span>
+                  </>
+                ) : isSafetyCriticRunning ? (
+                  <>
+                    <Clock className="w-3 h-3 animate-spin text-[#8C5921]" />
+                    <span>Review in progress</span>
+                  </>
+                ) : !isReplay && hasUserEdits ? (
+                  <span>Edited by you</span>
+                ) : hasRevisedRun ? (
+                  <span>AI-revised</span>
+                ) : (
+                  <>
+                    <Clock className="w-3 h-3 text-[#D4882C]" />
+                    <span>Awaiting your review</span>
+                  </>
+                )}
+              </span>
             </div>
           </div>
         </div>
@@ -585,6 +712,44 @@ export default function DocumentViewer({
         />
       </div>
 
+      {/* Revision Visibility Card (C6) */}
+      {draftVersion >= 2 && revisionSummaries.length > 0 && (
+        <div className="mx-6 mt-4 rounded-xl border border-[#F6E0B5] bg-[#FDF6E2] p-3 text-xs text-[#8C4A26] shrink-0">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setRevisionCardExpanded((prev) => !prev)}
+              className="flex items-center gap-2 font-semibold hover:underline"
+            >
+              <span>Revised after review · {revisionSummaries.length} changes</span>
+              {revisionCardExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDiffModal(true)}
+              className="px-2.5 py-1 rounded-md bg-white border border-[#F6E0B5] font-semibold hover:bg-[#FAF8F5] shadow-2xs"
+            >
+              View changes
+            </button>
+          </div>
+          {revisionCardExpanded && (
+            <div className="mt-2 pt-2 border-t border-[#F6E0B5]/60 space-y-1.5 font-sans">
+              {revisionSummaries.map((item, idx) => (
+                <div key={idx} className="flex items-start gap-1.5 text-[11px]">
+                  <span className="font-bold">•</span>
+                  <div>
+                    <span className="font-medium text-[#18221E]">{item.change}</span>
+                    {item.responding_to && (
+                      <span className="text-[#8C4A26] block text-[10px]">← responding to: {item.responding_to}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* In-Flight Review Banner (When draft exists but critics still running) */}
       {isSafetyCriticRunning && (
         <div className="mx-6 mt-4 p-3 rounded-xl bg-[#FAF8F5] border border-[#CDE0D4] flex items-center gap-2.5 text-xs text-[#244F3B] shrink-0">
@@ -598,7 +763,26 @@ export default function DocumentViewer({
       {/* Document Prose Body (Capped at 68ch for optimal clinical readability) */}
       <div className="flex-1 p-6 sm:p-10">
         <article className="max-w-[68ch] mx-auto prose prose-stone cerina-prose text-[17px] leading-[1.7] focus:outline-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              p: ({ children }) => {
+                const text = React.Children.toArray(children).join('')
+                const match = text.match(/\{\{write-in:(\d+)\}\}/)
+                if (match) {
+                  const count = parseInt(match[1], 10) || 1
+                  return (
+                    <div className="my-3 space-y-2">
+                      {Array.from({ length: count }).map((_, i) => (
+                        <div key={i} className="cerina-write-in-line" />
+                      ))}
+                    </div>
+                  )
+                }
+                return <p>{children}</p>
+              }
+            }}
+          >
             {displayContent || '*Waiting for agent draft generation…*'}
           </ReactMarkdown>
         </article>

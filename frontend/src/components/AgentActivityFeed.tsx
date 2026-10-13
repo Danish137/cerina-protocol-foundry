@@ -18,7 +18,9 @@ interface AgentActivityFeedProps {
 
 function getRelativeTime(timestamp: string): string {
   try {
-    const date = new Date(timestamp)
+    if (!timestamp) return ''
+    const raw = timestamp.endsWith('Z') || timestamp.includes('+') ? timestamp : `${timestamp}Z`
+    const date = new Date(raw)
     const diffSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000))
     if (diffSeconds < 5) return 'just now'
     if (diffSeconds < 60) return `${diffSeconds}s ago`

@@ -1,17 +1,72 @@
-export type Phase = 'idle' | 'generating' | 'review' | 'editing' | 'approving' | 'approved'
+export type Phase =
+  | 'idle'
+  | 'generating'
+  | 'review'
+  | 'editing'
+  | 'approving'
+  | 'approved'
+  | 'care_panel'
+  | 'quota_exhausted'
 
-export type ValidationStatus = 'none' | 'stale' | 'checking' | 'passed' | 'failed'
+export type EventType =
+  | 'node_start'
+  | 'node_end'
+  | 'token'
+  | 'message'
+  | 'draft'
+  | 'score'
+  | 'decision'
+  | 'checkpoint'
+  | 'human_action'
+  | 'approval'
+  | 'run_end'
+  | 'error'
 
-export interface AgentNote {
-  agent_id: string
-  severity: 'suggestion' | 'warning' | 'critical' | 'info'
-  message: string
-  created_at?: string
-  // Compatibility
-  agent_name?: string
-  note?: string
-  priority?: 'info' | 'warning' | 'critical'
-  timestamp?: string
+export type EventSeverity = 'info' | 'warning' | 'major' | 'critical'
+
+export interface ProtocolEvent {
+  session_id: string
+  seq: number
+  run_id: string
+  run_kind: 'initial' | 'revision' | 'recheck' | 'human_revision' | 'approval'
+  draft_version: number
+  agent: 'Drafter' | 'SafetyGuardian' | 'ClinicalCritic' | 'Supervisor' | 'Human' | 'System'
+  type: EventType
+  to_agent?: string
+  severity: EventSeverity
+  text: string
+  data: Record<string, any>
+  ts: string
+}
+
+export interface StoredSession {
+  id: string
+  token: string
+  intent: string
+  status: string
+  updated_at: string
+  review_depth?: 'standard' | 'thorough'
+  draft?: string
+}
+
+export interface ScoreData {
+  safety_score?: number
+  safety_checks?: Record<string, boolean>
+  passed_checks?: number
+  total_checks?: number
+  empathy_score?: number
+  clinical_score?: number
+  dimensions?: Record<string, { score: number; rationale: string }>
+  score_source?: 'llm' | 'retry' | 'unavailable'
+  unavailable?: boolean
+  delta_safety?: number
+  delta_empathy?: number
+  delta_clinical?: number
+}
+
+export interface RevisionSummaryItem {
+  change: string
+  responding_to: string
 }
 
 export interface ApprovalAudit {
@@ -22,72 +77,32 @@ export interface ApprovalAudit {
     empathy?: number
     clinical?: number
   }
-  edited: boolean
+  content_hash?: string
   validated_hash?: string
-  revalidated: boolean
+  edited?: boolean
 }
 
-export interface ProtocolDraftItem {
-  content: string
-  version: number
-  iteration?: number
-  timestamp?: string
-  safety_score?: number
-  empathy_score?: number
-  clinical_score?: number
-}
-
-export interface ProtocolState {
-  session_id: string
-  user_intent: string
-  status: string
-  current_draft?: string
-  draft_history?: ProtocolDraftItem[]
-  current_version?: number
-  iteration_count?: number
-  max_iterations?: number
-  safety_score?: number
-  empathy_score?: number
-  clinical_score?: number
-  safety_checks?: Record<string, boolean>
-  halted?: boolean
-  human_approved?: boolean
-  human_edits?: string
-  active_agent?: string
-  agent_notes?: AgentNote[]
-  start_time?: string
-  last_update?: string
-  approval_audit?: ApprovalAudit
-  validated_hash?: string
-}
-
-export interface ReviewerSuggestion {
-  id: string
-  agentId: string
-  agentLabel: string
-  message: string
-  severity: 'suggestion' | 'warning' | 'critical'
-  createdAt?: string
-  isAddressed?: boolean
-  isDismissed?: boolean
-  // Backward compatibility
-  agent?: string
-  text?: string
-  priority?: string
-}
-
-export type StepState = 'completed' | 'current' | 'upcoming'
+export type ValidationStatus = 'none' | 'checking' | 'passed' | 'failed' | 'stale'
 
 export interface StepConfig {
   number: number
   title: string
   subtitle: string
-  state: StepState
+  state: 'completed' | 'current' | 'upcoming'
 }
 
-export interface UIState {
-  mode: 'default' | 'editing' | 'approving'
-  hasOptimisticStart: boolean
+export interface ReviewerSuggestion {
+  id: string
+  agentId?: string
+  agent?: string
+  agentLabel?: string
+  message?: string
+  text?: string
+  priority?: 'info' | 'warning' | 'critical'
+  severity?: 'suggestion' | 'warning' | 'critical'
+  createdAt?: string
+  isAddressed?: boolean
+  isDismissed?: boolean
 }
 
 export interface AgentActivity {
@@ -95,6 +110,96 @@ export interface AgentActivity {
   agent: string
   action: string
   timestamp: string
-  reasoning?: string
-  priority?: 'info' | 'warning' | 'critical'
+  priority: 'info' | 'warning' | 'critical'
+}
+
+export interface ProtocolState {
+  session_id: string
+  user_intent: string
+  current_draft?: string
+  current_version?: number
+  draft_history?: any[]
+  safety_score?: number
+  empathy_score?: number
+  clinical_score?: number
+  safety_checks?: Record<string, boolean>
+  agent_notes?: any[]
+  status?: string
+  active_agent?: string
+  max_iterations?: number
+  iteration_count?: number
+  validated_hash?: string
+  human_approved?: boolean
+  halted?: boolean
+  approval_audit?: ApprovalAudit
+}
+
+export interface CareResourceRegion {
+  country: string
+  name: string
+  phone: string
+  alt_phone?: string
+  text?: string
+  website: string
+  hours: string
+}
+
+export interface CareResources {
+  region: CareResourceRegion
+  fallback: {
+    name: string
+    website: string
+    description?: string
+  }
+  all_regions?: Record<string, CareResourceRegion>
+}
+
+export interface CapacityStatus {
+  daily_budget: number
+  calls_used: number
+  remaining_calls: number
+  remaining_runs_estimate: number
+  resets_at: string
+  exhausted: boolean
+}
+
+export type NodeStatus = 'idle' | 'working' | 'done' | 'concern' | 'waiting'
+
+export interface PipelineNodeState {
+  id: 'drafter' | 'safety' | 'critic' | 'supervisor' | 'human'
+  name: string
+  status: NodeStatus
+  statusLine: string
+  metricPill?: string
+  durationMs?: number
+  startedAt?: number
+  waitingSince?: number
+}
+
+export interface UIState {
+  mode: 'default' | 'editing' | 'approving'
+  underTheHood: boolean
+  timelineFilter: 'all' | 'concerns' | 'decisions'
+  selectedAgentFilter?: string
+  isReplay?: boolean
+}
+
+export interface ReducerState {
+  sessionId: string | null
+  sessionToken: string | null
+  userIntent: string
+  reviewDepth: 'standard' | 'thorough'
+  events: ProtocolEvent[]
+  draft: string
+  streamingTokenBuffer: string
+  draftVersion: number
+  phase: Phase
+  uiState: UIState
+  scores: ScoreData
+  previousScores?: ScoreData
+  activeRunId: string | null
+  revisionSummaries: RevisionSummaryItem[]
+  approvalAudit?: ApprovalAudit
+  careResources?: CareResources
+  errorInfo?: { code: string; message: string; retryable: boolean }
 }

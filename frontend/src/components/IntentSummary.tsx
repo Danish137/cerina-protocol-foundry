@@ -80,7 +80,7 @@ export default function IntentSummary({
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-2 min-w-0">
             <Bookmark className="w-3.5 h-3.5 text-[#244F3B] shrink-0 mt-0.5" />
-            <p className="text-xs text-[#18221E] font-medium line-clamp-3 leading-relaxed">
+            <p className="text-xs text-[#18221E] font-medium line-clamp-2 leading-relaxed">
               "{intent}"
             </p>
           </div>

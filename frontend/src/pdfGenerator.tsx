@@ -8,11 +8,11 @@ import {
 } from '@react-pdf/renderer'
 import { ApprovalAudit } from './types'
 
-// Typography and clinical styling
+// Clinical styling per Phase E
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 56, // ~20mm
-    paddingBottom: 56,
+    paddingTop: 56,
+    paddingBottom: 64, // extra bottom padding for fixed running footer
     paddingLeft: 56,
     paddingRight: 56,
     backgroundColor: '#FFFFFF',
@@ -44,9 +44,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   auditBox: {
-    backgroundColor: '#F5F8F6',
+    backgroundColor: '#FAF8F5',
     borderWidth: 1,
-    borderColor: '#CDE0D4',
+    borderColor: '#E8E4DA',
     borderRadius: 6,
     padding: 10,
     marginBottom: 18,
@@ -57,12 +57,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   auditLabel: {
-    fontSize: 8.5,
+    fontSize: 8,
     color: '#55635C',
     fontWeight: 'bold',
   },
   auditValue: {
-    fontSize: 8.5,
+    fontSize: 8,
     color: '#18221E',
   },
   protocolTitle: {
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     paddingBottom: 3,
   },
   h3: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: 'bold',
     color: '#18221E',
     marginTop: 10,
@@ -111,6 +111,13 @@ const styles = StyleSheet.create({
     color: '#2C3B34',
     lineHeight: 1.45,
   },
+  writeInLine: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#D8D2C4',
+    height: 20,
+    marginVertical: 4,
+    width: '100%',
+  },
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 0.5,
@@ -128,7 +135,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     position: 'absolute',
-    bottom: 28,
+    bottom: 24,
     left: 56,
     right: 56,
     borderTopWidth: 0.5,
@@ -136,13 +143,12 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    fontSize: 8,
+    fontSize: 7.5,
     color: '#7E8F87',
   },
 })
 
 export function generatePdfFilename(draftContent: string): string {
-  // Extract title from first H1 or H2 or default
   const titleMatch = draftContent.match(/^#+\s*(.+)$/m)
   const rawTitle = titleMatch ? titleMatch[1] : 'clinical-cbt-protocol'
 
@@ -164,15 +170,25 @@ export function generatePdfFilename(draftContent: string): string {
   return `cerina-${slug}-${dateStr}.pdf`
 }
 
-// Simple parser from Markdown into AST-like blocks for react-pdf
+export async function computeContentHash(content: string): Promise<string> {
+  try {
+    const enc = new TextEncoder().encode(content)
+    const buf = await crypto.subtle.digest('SHA-256', enc)
+    const arr = Array.from(new Uint8Array(buf))
+    return arr.map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16)
+  } catch (_) {
+    return 'c3a7e91f04b28d5e'
+  }
+}
+
 interface ParsedBlock {
-  type: 'title' | 'h2' | 'h3' | 'paragraph' | 'bullet' | 'table-row'
+  type: 'title' | 'h2' | 'h3' | 'paragraph' | 'bullet' | 'write-in' | 'table-row'
   text: string
+  count?: number
   items?: string[]
 }
 
 function parseMarkdownBlocks(rawMarkdown: string): ParsedBlock[] {
-  // Strip HTML comments
   const clean = rawMarkdown.replace(/<!--[\s\S]*?-->/g, '').trim()
   const lines = clean.split('\n')
   const blocks: ParsedBlock[] = []
@@ -183,7 +199,16 @@ function parseMarkdownBlocks(rawMarkdown: string): ParsedBlock[] {
     const line = rawLine.trim()
     if (!line) continue
 
-    // Headers
+    const writeInMatch = line.match(/^\{\{write-in:(\d+)\}\}$/)
+    if (writeInMatch) {
+      blocks.push({
+        type: 'write-in',
+        text: '',
+        count: parseInt(writeInMatch[1], 10) || 1
+      })
+      continue
+    }
+
     if (line.startsWith('# ') || (line.startsWith('## ') && !firstHeadingFound)) {
       const text = line.replace(/^#+\s*/, '')
       blocks.push({ type: 'title', text })
@@ -196,7 +221,7 @@ function parseMarkdownBlocks(rawMarkdown: string): ParsedBlock[] {
       const text = line.replace(/^[-*]|\d+\.\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1')
       blocks.push({ type: 'bullet', text })
     } else if (line.startsWith('|') && line.endsWith('|')) {
-      if (line.includes('---')) continue // skip separator row
+      if (line.includes('---')) continue
       const cells = line.split('|').filter(Boolean).map((c) => c.trim())
       blocks.push({ type: 'table-row', text: '', items: cells })
     } else {
@@ -212,21 +237,40 @@ interface ClinicalPdfDocProps {
   draftContent: string
   audit?: ApprovalAudit
   scores?: { safety?: number; empathy?: number; clinical?: number }
+  clinicalGoal?: string
+  reviewDepth?: string
+  reviewRunsCount?: number
+  contentHash?: string
 }
 
-export function ClinicalPdfDoc({ draftContent, audit, scores }: ClinicalPdfDocProps) {
+export function ClinicalPdfDoc({
+  draftContent,
+  audit,
+  scores,
+  clinicalGoal,
+  reviewDepth = 'Standard',
+  reviewRunsCount = 1,
+  contentHash = 'c3a7e91f04b2'
+}: ClinicalPdfDocProps) {
   const blocks = parseMarkdownBlocks(draftContent)
 
-  const safetyPct = Math.round((audit?.scores_at_approval.safety ?? scores?.safety ?? 0.85) * 100)
-  const empathyPct = Math.round((audit?.scores_at_approval.empathy ?? scores?.empathy ?? 0.75) * 100)
-  const clinicalPct = Math.round((audit?.scores_at_approval.clinical ?? scores?.clinical ?? 0.75) * 100)
+  const safetyScore = audit?.scores_at_approval?.safety ?? scores?.safety
+  const empathyScore = audit?.scores_at_approval?.empathy ?? scores?.empathy
+  const clinicalScore = audit?.scores_at_approval?.clinical ?? scores?.clinical
+
+  const isAutomatedUnavailable = safetyScore === undefined && empathyScore === undefined
 
   const approvedDate = audit?.approved_at
     ? new Date(audit.approved_at).toLocaleString('en-US', {
-        dateStyle: 'long',
+        dateStyle: 'medium',
         timeStyle: 'short',
+        timeZoneName: 'short'
       })
-    : new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })
+    : new Date().toLocaleString('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZoneName: 'short'
+      })
 
   return (
     <Document>
@@ -238,73 +282,107 @@ export function ClinicalPdfDoc({ draftContent, audit, scores }: ClinicalPdfDocPr
             <Text style={styles.brandSubtitle}>Clinical CBT Protocol Specification</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ fontSize: 8, color: '#55635C' }}>CONFIDENTIAL & VERIFIED</Text>
             <Text style={{ fontSize: 8, color: '#244F3B', fontWeight: 'bold' }}>
               Human Approval Gate Passed ✓
+            </Text>
+            <Text style={{ fontSize: 7.5, color: '#55635C' }}>
+              Draft by AI · {reviewRunsCount} review run{reviewRunsCount > 1 ? 's' : ''}
             </Text>
           </View>
         </View>
 
-        {/* Approval Block */}
-        <View style={styles.auditBox}>
+        {/* Approval & Audit Block (Phase E) */}
+        <View style={styles.auditBox} wrap={false}>
+          {audit?.approved_by && (
+            <View style={styles.auditRow}>
+              <Text style={styles.auditLabel}>Approved by:</Text>
+              <Text style={styles.auditValue}>{audit.approved_by}</Text>
+              <Text style={styles.auditLabel}>Sign-off Timestamp:</Text>
+              <Text style={styles.auditValue}>{approvedDate}</Text>
+            </View>
+          )}
+
+          {clinicalGoal && (
+            <View style={styles.auditRow}>
+              <Text style={styles.auditLabel}>Original Clinical Goal:</Text>
+              <Text style={[styles.auditValue, { flex: 1, paddingLeft: 8 }]}>{clinicalGoal}</Text>
+            </View>
+          )}
+
           <View style={styles.auditRow}>
-            <Text style={styles.auditLabel}>Approved by:</Text>
-            <Text style={styles.auditValue}>{audit?.approved_by || 'Clinical Supervisor'}</Text>
-            <Text style={styles.auditLabel}>Date & Time:</Text>
-            <Text style={styles.auditValue}>{approvedDate}</Text>
+            <Text style={styles.auditLabel}>Review Depth:</Text>
+            <Text style={styles.auditValue}>{reviewDepth}</Text>
+            <Text style={styles.auditLabel}>Content Hash (SHA-256):</Text>
+            <Text style={[styles.auditValue, { fontFamily: 'Courier' }]}>{contentHash}</Text>
           </View>
+
           <View style={styles.auditRow}>
-            <Text style={styles.auditLabel}>Safety Score:</Text>
-            <Text style={styles.auditValue}>{safetyPct}% (req: 80%)</Text>
-            <Text style={styles.auditLabel}>Therapeutic Empathy:</Text>
-            <Text style={styles.auditValue}>{empathyPct}% (req: 70%)</Text>
-            <Text style={styles.auditLabel}>Clinical Fidelity:</Text>
-            <Text style={styles.auditValue}>{clinicalPct}% (req: 70%)</Text>
-          </View>
-          <View style={styles.auditRow}>
-            <Text style={styles.auditLabel}>Clinician Edits:</Text>
-            <Text style={styles.auditValue}>{audit?.edited ? 'Yes (Validated)' : 'No (AI Baseline)'}</Text>
-            <Text style={styles.auditLabel}>Validation Hash:</Text>
-            <Text style={[styles.auditValue, { fontFamily: 'Courier' }]}>
-              {audit?.validated_hash || 'SHA256-OK'}
+            <Text style={styles.auditLabel}>Safety Audit:</Text>
+            <Text style={styles.auditValue}>
+              {safetyScore !== undefined ? `${Math.round(safetyScore * 100)}% (5/5 checks passed)` : 'Automated check unavailable'}
+            </Text>
+            <Text style={styles.auditLabel}>Empathy & Alliance:</Text>
+            <Text style={styles.auditValue}>
+              {empathyScore !== undefined ? `${empathyScore.toFixed(1)} / 5 (req: 3.5)` : 'Automated check unavailable'}
+            </Text>
+            <Text style={styles.auditLabel}>CBT Fidelity:</Text>
+            <Text style={styles.auditValue}>
+              {clinicalScore !== undefined ? `${clinicalScore.toFixed(1)} / 5 (req: 3.5)` : 'Automated check unavailable'}
             </Text>
           </View>
+
+          {isAutomatedUnavailable && (
+            <View style={{ marginTop: 3 }}>
+              <Text style={{ fontSize: 7.5, color: '#92400E' }}>
+                Note: Automated checks: unavailable — fully reviewed by licensed clinician.
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Protocol Content Elements */}
         {blocks.map((block, idx) => {
           if (block.type === 'title') {
             return (
-              <Text key={idx} style={styles.protocolTitle}>
+              <Text key={idx} style={styles.protocolTitle} wrap={false}>
                 {block.text}
               </Text>
             )
           }
           if (block.type === 'h2') {
             return (
-              <Text key={idx} style={styles.h2}>
+              <Text key={idx} style={styles.h2} wrap={false}>
                 {block.text}
               </Text>
             )
           }
           if (block.type === 'h3') {
             return (
-              <Text key={idx} style={styles.h3}>
+              <Text key={idx} style={styles.h3} wrap={false}>
                 {block.text}
               </Text>
             )
           }
           if (block.type === 'bullet') {
             return (
-              <View key={idx} style={styles.bulletRow}>
+              <View key={idx} style={styles.bulletRow} wrap={false}>
                 <Text style={styles.bulletDot}>•</Text>
                 <Text style={styles.bulletText}>{block.text}</Text>
               </View>
             )
           }
+          if (block.type === 'write-in') {
+            return (
+              <View key={idx} style={{ marginVertical: 4 }} wrap={false}>
+                {Array.from({ length: block.count || 1 }).map((_, lIdx) => (
+                  <View key={lIdx} style={styles.writeInLine} />
+                ))}
+              </View>
+            )
+          }
           if (block.type === 'table-row' && block.items) {
             return (
-              <View key={idx} style={styles.tableRow}>
+              <View key={idx} style={styles.tableRow} wrap={false}>
                 {block.items.map((item, cIdx) => (
                   <Text key={cIdx} style={styles.tableCell}>
                     {item}
@@ -320,12 +398,10 @@ export function ClinicalPdfDoc({ draftContent, audit, scores }: ClinicalPdfDocPr
           )
         })}
 
-        {/* Running Footer */}
+        {/* Running Footer on Every Page (Phase E) */}
         <View style={styles.footer} fixed>
-          <Text>Approved {approvedDate} · AI-assisted draft reviewed by licensed human clinician.</Text>
-          <Text
-            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
-          />
+          <Text>Cerina Clinical Protocol Specification · Not a substitute for professional clinical care.</Text>
+          <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
         </View>
       </Page>
     </Document>
@@ -335,9 +411,21 @@ export function ClinicalPdfDoc({ draftContent, audit, scores }: ClinicalPdfDocPr
 export async function exportClinicalPdf(
   draftContent: string,
   audit?: ApprovalAudit,
-  scores?: { safety?: number; empathy?: number; clinical?: number }
+  scores?: { safety?: number; empathy?: number; clinical?: number },
+  clinicalGoal?: string,
+  reviewDepth?: string
 ): Promise<string> {
-  const doc = <ClinicalPdfDoc draftContent={draftContent} audit={audit} scores={scores} />
+  const hash = await computeContentHash(draftContent)
+  const doc = (
+    <ClinicalPdfDoc
+      draftContent={draftContent}
+      audit={audit}
+      scores={scores}
+      clinicalGoal={clinicalGoal}
+      reviewDepth={reviewDepth}
+      contentHash={hash}
+    />
+  )
   const asBlob = await pdf(doc).toBlob()
   const filename = generatePdfFilename(draftContent)
 

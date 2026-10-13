@@ -5,88 +5,250 @@ import API_BASE_URL from './config'
 import Header from './components/Header'
 import ProtocolCreator from './components/ProtocolCreator'
 import IntentSummary from './components/IntentSummary'
-import AgentRoster from './components/AgentRoster'
-import ReviewSummary from './components/ReviewSummary'
+import AgentPipeline from './components/AgentPipeline'
+import LiveAgentFeed from './components/LiveAgentFeed'
+import ScoreMeters from './components/ScoreMeters'
+import TimelineSheet from './components/TimelineSheet'
+import Outline from './components/Outline'
 import DocumentViewer from './components/DocumentViewer'
 import ActionPanel from './components/ActionPanel'
+import CarePanel from './components/CarePanel'
 import { ToastProvider, useToast } from './components/Toast'
-import { appReducer, derivePhase, AppState } from './stateReducer'
-import { ReviewerSuggestion } from './types'
-import { normalizeAgentId, getAgent } from './agents'
+import { protocolReducer, initialReducerState } from './state/protocolReducer'
+import { ProtocolStreamClient } from './services/sseClient'
+import {
+  saveSession,
+  getSession,
+  updateSessionStatus,
+  getAutoResumeSession
+} from './services/sessionStorage'
+import { StoredSession, ProtocolEvent } from './types'
 import { exportClinicalPdf } from './pdfGenerator'
-import { Activity, FileText } from 'lucide-react'
-import { LogEntry } from './components/ActivityLogSheet'
-
-const initialAppState: AppState = {
-  protocolState: null,
-  activeSessionId: null,
-  uiMode: 'idle',
-  editedDraft: '',
-  initialDraftBeforeEdit: '',
-  validationStatus: 'none',
-  lastValidatedHash: null,
-  approvalTime: undefined,
-  addressedSuggestions: {},
-  dismissedSuggestions: {},
-  hasOptimisticStart: false,
-}
+import { Activity, FileText, CheckCircle2, AlertCircle } from 'lucide-react'
 
 function AppContent() {
   const { showToast } = useToast()
   const shouldReduceMotion = useReducedMotion()
 
-  // Pure Reducer + Derived Phase (Section 3)
-  const [state, dispatch] = useReducer(appReducer, initialAppState)
-  const phase = derivePhase(state.protocolState, state.uiMode)
+  // Protocol Reducer (B1)
+  const [state, dispatch] = useReducer(protocolReducer, initialReducerState)
+  const phase = state.phase
 
-  // Mobile navigation tab (<1024px)
+  // Edit mode local state
+  const [editedDraft, setEditedDraft] = useState<string>('')
+  const [initialDraftBeforeEdit, setInitialDraftBeforeEdit] = useState<string>('')
+  const [validationStatus, setValidationStatus] = useState<'none' | 'checking' | 'passed' | 'failed' | 'stale'>('none')
+  const [lastValidatedHash, setLastValidatedHash] = useState<string | null>(null)
+  const [approvalTime, setApprovalTime] = useState<string | undefined>(undefined)
+  const [isRevisionRequested, setIsRevisionRequested] = useState<boolean>(false)
+
+  // Sheet & UI view states
+  const [isTimelineOpen, setIsTimelineOpen] = useState<boolean>(false)
   const [mobileTab, setMobileTab] = useState<'document' | 'review'>('document')
-
-  // Timers and fallback polling refs
+  const [resumeBanner, setResumeBanner] = useState<string | null>(null)
+  const [browserMismatchAlert, setBrowserMismatchAlert] = useState<boolean>(false)
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0)
+
+  // Stream client & timer refs
+  const streamClientRef = useRef<ProtocolStreamClient | null>(null)
   const timerRef = useRef<number | null>(null)
-  const sseRef = useRef<EventSource | null>(null)
-  const lastSseEventTime = useRef<number>(Date.now())
-  const pollingBackoffMs = useRef<number>(2000)
-  const abortControllerRef = useRef<AbortController | null>(null)
+  const scrollerRef = useRef<HTMLDivElement>(null)
 
-  // Document Heading Scroll target
-  const handleHeadingClick = (headingText: string) => {
-    const headings = document.querySelectorAll('article h1, article h2, article h3')
-    for (const el of headings) {
-      if (el.textContent?.includes(headingText)) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        break
-      }
-    }
-  }
-
-  // Restore session from localStorage on initial mount
+  // Sync draft from state into editedDraft when entering edit mode or when new draft arrives
   useEffect(() => {
-    const savedId = localStorage.getItem('cerina_active_session_id')
-    if (savedId) {
-      // Restore addressed/dismissed
-      try {
-        const addr = sessionStorage.getItem(`cerina_addressed_${savedId}`)
-        const dism = sessionStorage.getItem(`cerina_dismissed_${savedId}`)
-        if (addr) state.addressedSuggestions = JSON.parse(addr)
-        if (dism) state.dismissedSuggestions = JSON.parse(dism)
-      } catch (_) {}
+    if (state.draft && !editedDraft) {
+      setEditedDraft(state.draft)
+      setInitialDraftBeforeEdit(state.draft)
+    }
+  }, [state.draft])
 
-      fetch(`${API_BASE_URL}/api/protocols/${savedId}/state`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.state) {
-            dispatch({ type: 'APPLY_SNAPSHOT', state: data.state })
-          }
-        })
-        .catch((err) => {
-          console.warn('Could not restore session:', err)
-        })
+  // Word diff calculation for ActionPanel
+  const { wordsAdded, wordsRemoved } = useMemo(() => {
+    if (phase !== 'editing' || !initialDraftBeforeEdit) return { wordsAdded: 0, wordsRemoved: 0 }
+    const origWords = initialDraftBeforeEdit.trim().split(/\s+/).filter(Boolean)
+    const newWords = editedDraft.trim().split(/\s+/).filter(Boolean)
+    const added = Math.max(0, newWords.length - origWords.length)
+    const removed = Math.max(0, origWords.length - newWords.length)
+    return { wordsAdded: added, wordsRemoved: removed }
+  }, [phase, initialDraftBeforeEdit, editedDraft])
+
+  // Connect SSE Stream with ProtocolStreamClient (B1)
+  const connectStream = useCallback((sessionId: string, token: string) => {
+    if (streamClientRef.current) {
+      streamClientRef.current.stop()
+    }
+
+    const client = new ProtocolStreamClient({
+      sessionId,
+      sessionToken: token,
+      onEvent: (event: ProtocolEvent) => {
+        dispatch({ type: 'ADD_EVENT', event })
+
+        // Synchronize canonical draft on draft event, Drafter node_end, checkpoint, or run_end (P0-1)
+        if ((event.type === 'draft' || (event.type === 'node_end' && event.agent === 'Drafter') || event.type === 'checkpoint' || event.type === 'run_end') && event.data?.draft) {
+          dispatch({ type: 'SET_DRAFT', draft: event.data.draft, version: event.draft_version || event.data.version || 1 })
+          setEditedDraft(event.data.draft)
+          setInitialDraftBeforeEdit(event.data.draft)
+        }
+
+        // On checkpoint, update session storage
+        if (event.type === 'checkpoint') {
+          updateSessionStatus(sessionId, event.data?.status || 'review')
+        }
+
+        // On approval, update session storage
+        if (event.type === 'approval') {
+          updateSessionStatus(sessionId, 'approved')
+        }
+      },
+      onToken: (tok: string) => {
+        dispatch({ type: 'APPEND_TOKEN', token: tok })
+      },
+      onError: (err) => {
+        dispatch({ type: 'SET_ERROR', code: err.code, message: err.message, retryable: err.retryable })
+        if (err.code === 'QUOTA_EXCEEDED') {
+          showToast('Daily demonstration quota reached.', 'error')
+        }
+      },
+      onRunEnd: () => {
+        setIsRevisionRequested(false)
+        // Refetch state from backend to guarantee latest draft sync (P0-1)
+        axios
+          .get(`${API_BASE_URL}/api/protocols/${sessionId}/state`, {
+            headers: { 'X-Session-Token': token }
+          })
+          .then((res) => {
+            if (res.data?.state) {
+              dispatch({ type: 'SET_SNAPSHOT', snapshot: res.data.state })
+              if (res.data.state.current_draft) {
+                setEditedDraft(res.data.state.current_draft)
+                setInitialDraftBeforeEdit(res.data.state.current_draft)
+              }
+            }
+          })
+          .catch((err) => console.warn('Could not refetch state on run_end:', err))
+      }
+    })
+
+    streamClientRef.current = client
+    client.start()
+  }, [showToast])
+
+  // Persist under the hood toggle in localStorage (P1-4)
+  useEffect(() => {
+    const saved = localStorage.getItem('cerina_under_the_hood')
+    if (saved === 'true' && !state.uiState.underTheHood) {
+      dispatch({ type: 'TOGGLE_UNDER_THE_HOOD' })
     }
   }, [])
 
-  // Browser tab title update based on phase
+  useEffect(() => {
+    localStorage.setItem('cerina_under_the_hood', String(state.uiState.underTheHood))
+  }, [state.uiState.underTheHood])
+
+  // Active stage from latest unmatched node_start (P0-2)
+  const activeStageText = useMemo(() => {
+    if (!state.events || state.events.length === 0) return 'Starting…'
+    const starts = state.events.filter((e) => e.type === 'node_start')
+    const ends = state.events.filter((e) => e.type === 'node_end')
+    for (let i = starts.length - 1; i >= 0; i--) {
+      const st = starts[i]
+      const matchingEnd = ends.find((en) => en.agent === st.agent && en.seq > st.seq)
+      if (!matchingEnd) {
+        if (st.agent === 'Drafter') return 'Drafting clinical structure…'
+        if (st.agent === 'SafetyGuardian') return 'Auditing safety guidelines…'
+        if (st.agent === 'ClinicalCritic') return 'Evaluating empathy & fidelity…'
+        if (st.agent === 'Supervisor') return 'Synthesizing rubric decisions…'
+        return st.text || 'Processing…'
+      }
+    }
+    return 'Starting…'
+  }, [state.events])
+
+  const lastEventTs = useMemo(() => {
+    if (!state.events || state.events.length === 0) return undefined
+    return state.events[state.events.length - 1].ts
+  }, [state.events])
+
+  // Stop stream when leaving or resetting
+  useEffect(() => {
+    return () => {
+      if (streamClientRef.current) {
+        streamClientRef.current.stop()
+      }
+    }
+  }, [])
+
+  // Auto-resume & URL query (?s=<id>) handler (B2)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const sParam = urlParams.get('s')
+
+    if (sParam) {
+      const stored = getSession(sParam)
+      if (stored && stored.token) {
+        // Known session in this browser
+        dispatch({
+          type: 'SET_SESSION',
+          sessionId: stored.id,
+          token: stored.token,
+          intent: stored.intent,
+          reviewDepth: stored.review_depth
+        })
+
+        // Fetch state snapshot
+        axios
+          .get(`${API_BASE_URL}/api/protocols/${stored.id}/state`, {
+            headers: { 'X-Session-Token': stored.token }
+          })
+          .then((res) => {
+            if (res.data?.state) {
+              dispatch({ type: 'SET_SNAPSHOT', snapshot: res.data.state })
+            }
+          })
+          .catch((err) => console.warn('Could not restore snapshot:', err))
+
+        // Connect SSE stream
+        connectStream(stored.id, stored.token)
+
+        const timeStr = new Date(stored.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        setResumeBanner(`Resumed your session from ${timeStr}`)
+      } else {
+        // Unknown session token in this browser (B2)
+        setBrowserMismatchAlert(true)
+      }
+    } else {
+      // Clean idle check: auto-resume only unfinished session (<24h)
+      const auto = getAutoResumeSession()
+      if (auto && auto.token) {
+        window.history.replaceState(null, '', `?s=${auto.id}`)
+        dispatch({
+          type: 'SET_SESSION',
+          sessionId: auto.id,
+          token: auto.token,
+          intent: auto.intent,
+          reviewDepth: auto.review_depth
+        })
+
+        axios
+          .get(`${API_BASE_URL}/api/protocols/${auto.id}/state`, {
+            headers: { 'X-Session-Token': auto.token }
+          })
+          .then((res) => {
+            if (res.data?.state) {
+              dispatch({ type: 'SET_SNAPSHOT', snapshot: res.data.state })
+            }
+          })
+          .catch((err) => console.warn('Could not restore snapshot:', err))
+
+        connectStream(auto.id, auto.token)
+        const timeStr = new Date(auto.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        setResumeBanner(`Resumed your session from ${timeStr}`)
+      }
+    }
+  }, [connectStream])
+
+  // Browser title management
   useEffect(() => {
     if (phase === 'review') {
       document.title = '● Review needed — Cerina'
@@ -116,314 +278,241 @@ function AppContent() {
     }
   }, [phase])
 
-  // Word diff calculation
-  const { wordsAdded, wordsRemoved } = useMemo(() => {
-    if (phase !== 'editing' || !state.initialDraftBeforeEdit) return { wordsAdded: 0, wordsRemoved: 0 }
-    const origWords = state.initialDraftBeforeEdit.trim().split(/\s+/).filter(Boolean)
-    const newWords = state.editedDraft.trim().split(/\s+/).filter(Boolean)
-    const added = Math.max(0, newWords.length - origWords.length)
-    const removed = Math.max(0, origWords.length - newWords.length)
-    return { wordsAdded: added, wordsRemoved: removed }
-  }, [phase, state.initialDraftBeforeEdit, state.editedDraft])
+  // Session start handler (B2, B4)
+  const handleSessionStart = ({
+    sessionId,
+    sessionToken,
+    status,
+    intent,
+    reviewDepth,
+    careResources
+  }: {
+    sessionId: string
+    sessionToken: string
+    status: string
+    intent: string
+    reviewDepth: 'standard' | 'thorough'
+    careResources?: any
+  }) => {
+    // Save to localStorage recent 5 sessions
+    saveSession({
+      id: sessionId,
+      token: sessionToken,
+      intent,
+      status,
+      updated_at: new Date().toISOString(),
+      review_depth: reviewDepth
+    })
 
-  // Suggestions conversion with normalized severity (Section 4 & 5)
-  const suggestions: ReviewerSuggestion[] = useMemo(() => {
-    const notes = state.protocolState?.agent_notes || []
-    return notes
-      .filter((n) => {
-        const msg = n.message || n.note || ''
-        return msg.length > 5
-      })
-      .map((n, idx) => {
-        const agentId = normalizeAgentId(n.agent_id || n.agent_name)
-        const agentCfg = getAgent(agentId)
-        const rawMsg = (n.message || n.note || '').replace(/^IMPROVEMENT NEEDED:\s*/i, '').trim()
-        const id = `sug_${idx}_${rawMsg.slice(0, 16)}`
+    // Update URL query ?s=<id>
+    window.history.replaceState(null, '', `?s=${sessionId}`)
 
-        // Severity: Default "suggestion", "warning" only if score within 5pts of threshold, "critical" for safety
-        let sev: 'suggestion' | 'warning' | 'critical' = 'suggestion'
-        if (
-          agentId === 'safety_guardian' &&
-          ((state.protocolState?.safety_score ?? 1) < 0.8 ||
-            rawMsg.toLowerCase().includes('contraindication') ||
-            rawMsg.toLowerCase().includes('critical'))
-        ) {
-          sev = 'critical'
-        } else if (
-          (state.protocolState?.safety_score !== undefined && state.protocolState.safety_score < 0.85) ||
-          (state.protocolState?.empathy_score !== undefined && state.protocolState.empathy_score < 0.75) ||
-          (state.protocolState?.clinical_score !== undefined && state.protocolState.clinical_score < 0.75)
-        ) {
-          sev = 'warning'
-        }
+    dispatch({
+      type: 'SET_SESSION',
+      sessionId,
+      token: sessionToken,
+      intent,
+      reviewDepth
+    })
 
-        return {
-          id,
-          agentId,
-          agentLabel: agentCfg.label,
-          message: rawMsg,
-          severity: sev,
-          createdAt: n.created_at || n.timestamp,
-          isAddressed: Boolean(state.addressedSuggestions[id]),
-          isDismissed: Boolean(state.dismissedSuggestions[id]),
-        }
-      })
-  }, [state.protocolState, state.addressedSuggestions, state.dismissedSuggestions])
-
-  // Activity logs newest-first (Section 1 & 4)
-  const activityLogs: LogEntry[] = useMemo(() => {
-    const notes = state.protocolState?.agent_notes || []
-    return notes
-      .map((n, idx) => {
-        const agentId = normalizeAgentId(n.agent_id || n.agent_name)
-        const agentCfg = getAgent(agentId)
-        const cleanMsg = (n.message || n.note || '').replace(/^IMPROVEMENT NEEDED:\s*/i, '').trim()
-        const prio: 'info' | 'warning' | 'critical' =
-          n.severity === 'critical' ? 'critical' : n.severity === 'warning' ? 'warning' : 'info'
-        return {
-          id: `log_${idx}`,
-          agent: agentCfg.label,
-          action: cleanMsg,
-          timestamp: n.created_at || n.timestamp || 'Just now',
-          priority: prio,
-        }
-      })
-      .reverse()
-  }, [state.protocolState?.agent_notes])
-
-  // Fallback Polling Function (Section 3)
-  const pollServerState = useCallback(async () => {
-    const sid = state.activeSessionId || state.protocolState?.session_id
-    if (!sid) return
-
-    abortControllerRef.current?.abort()
-    abortControllerRef.current = new AbortController()
-
-    try {
-      const res = await axios.get(`${API_BASE_URL}/api/protocols/${sid}/state`, {
-        signal: abortControllerRef.current.signal,
-      })
-      if (res.data?.state) {
-        lastSseEventTime.current = Date.now()
-        dispatch({ type: 'APPLY_SNAPSHOT', state: res.data.state })
-      }
-    } catch (err: any) {
-      if (axios.isCancel(err)) return
-      console.warn('Fallback poll error:', err.message)
-    }
-  }, [state.activeSessionId, state.protocolState?.session_id])
-
-  // SSE Stream Management & Silence Detection
-  useEffect(() => {
-    const sid = state.activeSessionId || state.protocolState?.session_id
-    if (!sid || phase === 'approved' || phase === 'idle') return
-
-    const sseUrl = `${API_BASE_URL}/api/protocols/${sid}/stream`
-    const es = new EventSource(sseUrl)
-    sseRef.current = es
-    lastSseEventTime.current = Date.now()
-
-    const handleSnapshot = (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data.state) {
-          lastSseEventTime.current = Date.now()
-          pollingBackoffMs.current = 2000
-          dispatch({ type: 'APPLY_SNAPSHOT', state: data.state })
-        }
-      } catch (err) {
-        console.error('Error handling SSE event:', err)
-      }
+    if (careResources) {
+      dispatch({ type: 'SET_CARE_PANEL', careResources })
     }
 
-    es.addEventListener('state_update', handleSnapshot)
-    es.addEventListener('halted', handleSnapshot)
-    es.addEventListener('complete', handleSnapshot)
-
-    es.onerror = () => {
-      es.close()
-      // Immediately schedule fallback poll on error
-      pollServerState()
-    }
-
-    // 10s Silence Checker & Backoff Fallback (Section 3)
-    const silenceInterval = window.setInterval(() => {
-      const elapsedSilence = Date.now() - lastSseEventTime.current
-      if (elapsedSilence >= 10000 && phase === 'generating') {
-        pollServerState()
-        pollingBackoffMs.current = Math.min(8000, pollingBackoffMs.current * 2)
-      }
-    }, pollingBackoffMs.current)
-
-    // Visibility change resync (Section 3)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        pollServerState()
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      es.close()
-      clearInterval(silenceInterval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [state.activeSessionId, state.protocolState?.session_id, phase, pollServerState])
-
-  // Session start handler with Optimistic Transition (Section 2)
-  const handleSessionStart = async ({ sessionId, intent }: { sessionId: string; status: string; intent: string }) => {
-    localStorage.setItem('cerina_active_session_id', sessionId)
-    dispatch({ type: 'START_CREATE', sessionId, intent })
-
-    try {
-      // Trigger initial poll immediately
-      const res = await axios.get(`${API_BASE_URL}/api/protocols/${sessionId}/state`)
-      if (res.data?.state) {
-        dispatch({ type: 'APPLY_SNAPSHOT', state: res.data.state })
-      }
-    } catch (err: any) {
-      console.warn('Initial session sync failed, fallback polling will retry:', err)
+    if (status !== 'care_panel') {
+      connectStream(sessionId, sessionToken)
     }
   }
 
-  // Edit Handlers
+  // Resume a recent session from menu or idle banner
+  const handleSelectRecentSession = (stored: StoredSession) => {
+    window.history.replaceState(null, '', `?s=${stored.id}`)
+    dispatch({
+      type: 'SET_SESSION',
+      sessionId: stored.id,
+      token: stored.token,
+      intent: stored.intent,
+      reviewDepth: stored.review_depth
+    })
+
+    axios
+      .get(`${API_BASE_URL}/api/protocols/${stored.id}/state`, {
+        headers: { 'X-Session-Token': stored.token }
+      })
+      .then((res) => {
+        if (res.data?.state) {
+          dispatch({ type: 'SET_SNAPSHOT', snapshot: res.data.state })
+        }
+      })
+      .catch((err) => console.warn('Could not restore snapshot:', err))
+
+    connectStream(stored.id, stored.token)
+    const timeStr = new Date(stored.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    setResumeBanner(`Resumed your session from ${timeStr}`)
+  }
+
+  // Edit actions
   const handleStartEditing = () => {
-    dispatch({ type: 'ENTER_EDIT' })
+    setEditedDraft(state.draft)
+    setInitialDraftBeforeEdit(state.draft)
+    dispatch({ type: 'SET_UI_MODE', mode: 'editing' })
     showToast('Entered clinician edit mode', 'info')
   }
 
   const handleDiscardEdits = () => {
-    dispatch({ type: 'DISCARD_EDIT' })
-    showToast('Unsaved edits discarded', 'info')
+    setEditedDraft(initialDraftBeforeEdit)
+    dispatch({ type: 'SET_UI_MODE', mode: 'default' })
+    showToast('Edits discarded', 'info')
   }
 
   const handleDraftChange = (newText: string) => {
-    dispatch({ type: 'UPDATE_EDITED_DRAFT', draft: newText })
+    setEditedDraft(newText)
+    if (validationStatus !== 'stale') {
+      setValidationStatus('stale')
+    }
   }
 
-  // Revalidate only (Section 7)
+  // Revalidate only (A8)
   const handleRevalidateOnly = async () => {
-    const sid = state.activeSessionId || state.protocolState?.session_id
-    if (!sid) return
-    dispatch({ type: 'START_VALIDATING' })
+    if (!state.sessionId || !state.sessionToken) return
+    setValidationStatus('checking')
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/protocols/${sid}/revalidate`, {
-        draft: state.editedDraft,
-      })
-      const data = response.data
+      const res = await axios.post(
+        `${API_BASE_URL}/api/protocols/${state.sessionId}/revalidate`,
+        { draft: editedDraft },
+        { headers: { 'X-Session-Token': state.sessionToken } }
+      )
+      const data = res.data
       const passes = data.safety_score >= 0.8 && data.empathy_score >= 0.7 && data.clinical_score >= 0.7
-
       if (passes) {
-        dispatch({
-          type: 'VALIDATION_SUCCESS',
-          hash: data.validated_hash || 'OK',
-          safetyScore: data.safety_score,
-          empathyScore: data.empathy_score,
-          clinicalScore: data.clinical_score,
-        })
+        setValidationStatus('passed')
+        setLastValidatedHash(data.validated_hash || 'OK')
         showToast('Safety check passed for updated draft', 'success')
       } else {
-        dispatch({ type: 'VALIDATION_FAILED' })
-        const failedMetrics: string[] = []
-        if (data.safety_score < 0.8) failedMetrics.push('Safety')
-        if (data.empathy_score < 0.7) failedMetrics.push('Empathy')
-        if (data.clinical_score < 0.7) failedMetrics.push('Clinical Fidelity')
-        showToast(`Validation below required threshold in: ${failedMetrics.join(', ')}`, 'error')
+        setValidationStatus('failed')
+        showToast('Validation below required threshold', 'error')
       }
     } catch (err: any) {
-      dispatch({ type: 'VALIDATION_FAILED' })
-      const friendlyMsg = err.response?.data?.message || err.response?.data?.detail || 'Validation service temporarily unavailable'
-      showToast(friendlyMsg, 'error')
+      setValidationStatus('failed')
+      showToast('Validation request failed', 'error')
     }
   }
 
-  // Approve handlers (Section 7)
-  const handleApprove = async () => {
-    const sid = state.activeSessionId || state.protocolState?.session_id
-    if (!sid) return
-    dispatch({ type: 'START_APPROVING' })
-
-    try {
-      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      await axios.post(`${API_BASE_URL}/api/protocols/${sid}/approve`, {
-        approved_by: 'Clinical Supervisor',
-        edited: false,
-        validated_hash: state.lastValidatedHash || 'BASELINE',
-      })
-
-      dispatch({ type: 'APPROVE_SUCCESS', time: now })
-      showToast('Protocol approved & locked', 'success')
-      pollServerState()
-    } catch (err: any) {
-      dispatch({ type: 'APPROVE_FAILED' })
-      const friendlyMsg = err.response?.data?.message || err.response?.data?.detail || 'Approval request failed'
-      showToast(friendlyMsg, 'error')
-    }
-  }
-
+  // Save edits and approve
   const handleSaveEditsAndApprove = async () => {
-    const sid = state.activeSessionId || state.protocolState?.session_id
-    if (!sid) return
+    if (!state.sessionId || !state.sessionToken) return
 
-    // If edits are stale or unvalidated, revalidate first per Section 7
-    if (state.validationStatus === 'stale' || state.validationStatus === 'none') {
-      dispatch({ type: 'START_VALIDATING' })
-      try {
-        const valRes = await axios.post(`${API_BASE_URL}/api/protocols/${sid}/revalidate`, {
-          draft: state.editedDraft,
-        })
-        const valData = valRes.data
-        const passes = valData.safety_score >= 0.8 && valData.empathy_score >= 0.7 && valData.clinical_score >= 0.7
-
-        if (!passes) {
-          dispatch({ type: 'VALIDATION_FAILED' })
-          const failedMetrics: string[] = []
-          if (valData.safety_score < 0.8) failedMetrics.push('Safety')
-          if (valData.empathy_score < 0.7) failedMetrics.push('Empathy')
-          if (valData.clinical_score < 0.7) failedMetrics.push('Clinical Fidelity')
-          showToast(`Cannot approve: ${failedMetrics.join(', ')} failed validation`, 'error')
-          return
-        }
-
-        dispatch({
-          type: 'VALIDATION_SUCCESS',
-          hash: valData.validated_hash || 'OK',
-          safetyScore: valData.safety_score,
-          empathyScore: valData.empathy_score,
-          clinicalScore: valData.clinical_score,
-        })
-      } catch (err: any) {
-        dispatch({ type: 'VALIDATION_FAILED' })
-        const friendlyMsg = err.response?.data?.message || err.response?.data?.detail || 'Revalidation failed'
-        showToast(friendlyMsg, 'error')
-        return
-      }
-    }
-
-    dispatch({ type: 'START_APPROVING' })
+    dispatch({ type: 'SET_UI_MODE', mode: 'approving' })
     try {
-      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      await axios.post(`${API_BASE_URL}/api/protocols/${sid}/approve`, {
-        approved_content: state.editedDraft,
-        approved_by: 'Clinical Supervisor',
-        edited: true,
-        validated_hash: state.lastValidatedHash || 'EDITED-OK',
-      })
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
+      const res = await axios.post(
+        `${API_BASE_URL}/api/protocols/${state.sessionId}/approve`,
+        {
+          approved_content: editedDraft,
+          approved_by: 'Clinical Supervisor',
+          edited: true,
+          validated_hash: lastValidatedHash || 'EDITED'
+        },
+        { headers: { 'X-Session-Token': state.sessionToken } }
+      )
 
-      dispatch({ type: 'APPROVE_SUCCESS', time: now })
-      showToast('Protocol validated and approved with edits', 'success')
-      pollServerState()
+      setApprovalTime(now)
+      dispatch({ type: 'SET_DRAFT', draft: editedDraft })
+      dispatch({ type: 'ADD_EVENT', event: {
+        session_id: state.sessionId,
+        seq: state.events.length + 1,
+        run_id: state.activeRunId || 'approval',
+        run_kind: 'approval',
+        draft_version: state.draftVersion,
+        agent: 'Human',
+        type: 'approval',
+        severity: 'info',
+        text: 'Protocol approved and locked by Clinical Supervisor.',
+        data: {
+          approved_by: 'Clinical Supervisor',
+          approved_at: now,
+          content_hash: res.data?.approval_audit?.content_hash
+        },
+        ts: new Date().toISOString()
+      }})
+      dispatch({ type: 'SET_UI_MODE', mode: 'default' })
+      updateSessionStatus(state.sessionId, 'approved', editedDraft)
+      showToast('Protocol approved & locked with edits', 'success')
     } catch (err: any) {
-      dispatch({ type: 'APPROVE_FAILED' })
-      const friendlyMsg = err.response?.data?.message || err.response?.data?.detail || 'Failed to approve edited protocol'
-      showToast(friendlyMsg, 'error')
+      dispatch({ type: 'SET_UI_MODE', mode: 'editing' })
+      showToast('Approval request failed', 'error')
     }
   }
 
-  // Export PDF with @react-pdf/renderer (Section 8)
+  // Direct approve without edits
+  const handleApprove = async () => {
+    if (!state.sessionId || !state.sessionToken) return
+
+    dispatch({ type: 'SET_UI_MODE', mode: 'approving' })
+    try {
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
+      const res = await axios.post(
+        `${API_BASE_URL}/api/protocols/${state.sessionId}/approve`,
+        {
+          approved_by: 'Clinical Supervisor',
+          edited: false,
+          validated_hash: 'BASELINE'
+        },
+        { headers: { 'X-Session-Token': state.sessionToken } }
+      )
+
+      setApprovalTime(now)
+      dispatch({ type: 'ADD_EVENT', event: {
+        session_id: state.sessionId,
+        seq: state.events.length + 1,
+        run_id: state.activeRunId || 'approval',
+        run_kind: 'approval',
+        draft_version: state.draftVersion,
+        agent: 'Human',
+        type: 'approval',
+        severity: 'info',
+        text: 'Protocol approved and locked by Clinical Supervisor.',
+        data: {
+          approved_by: 'Clinical Supervisor',
+          approved_at: now,
+          content_hash: res.data?.approval_audit?.content_hash
+        },
+        ts: new Date().toISOString()
+      }})
+      dispatch({ type: 'SET_UI_MODE', mode: 'default' })
+      updateSessionStatus(state.sessionId, 'approved')
+      showToast('Protocol approved & locked', 'success')
+    } catch (err: any) {
+      dispatch({ type: 'SET_UI_MODE', mode: 'default' })
+      showToast('Approval request failed', 'error')
+    }
+  }
+
+  // Human steering / Request Revision (A8, C7)
+  const handleRequestRevision = async (instruction?: string, concernIds?: string[]) => {
+    if (!state.sessionId || !state.sessionToken) return
+    setIsRevisionRequested(true)
+
+    try {
+      await axios.post(
+        `${API_BASE_URL}/api/protocols/${state.sessionId}/revise`,
+        {
+          instruction: instruction || 'Please address open clinical critique items.',
+          concern_ids: concernIds || []
+        },
+        { headers: { 'X-Session-Token': state.sessionToken } }
+      )
+      showToast('Revision requested · agents working', 'info')
+    } catch (err: any) {
+      setIsRevisionRequested(false)
+      showToast('Failed to trigger revision run', 'error')
+    }
+  }
+
+  // Export PDF (Phase E)
   const handleExportPdf = async () => {
-    const draftText = state.editedDraft || state.protocolState?.current_draft || ''
+    const draftText = editedDraft || state.draft || ''
     if (!draftText.trim()) {
       showToast('No protocol content available to export', 'error')
       return
@@ -432,11 +521,11 @@ function AppContent() {
     try {
       const filename = await exportClinicalPdf(
         draftText,
-        state.protocolState?.approval_audit,
+        state.approvalAudit,
         {
-          safety: state.protocolState?.safety_score,
-          empathy: state.protocolState?.empathy_score,
-          clinical: state.protocolState?.clinical_score,
+          safety: state.scores.safety_score,
+          empathy: state.scores.empathy_score,
+          clinical: state.scores.clinical_score,
         }
       )
       showToast(`Saved ${filename}`, 'success')
@@ -446,7 +535,7 @@ function AppContent() {
   }
 
   const handleCopyMarkdown = () => {
-    const draftText = state.editedDraft || state.protocolState?.current_draft || ''
+    const draftText = editedDraft || state.draft || ''
     navigator.clipboard.writeText(draftText)
     showToast('Protocol markdown copied to clipboard', 'success')
   }
@@ -457,32 +546,169 @@ function AppContent() {
         return
       }
     }
-    localStorage.removeItem('cerina_active_session_id')
+    window.history.replaceState(null, '', window.location.pathname)
+    if (streamClientRef.current) streamClientRef.current.stop()
     dispatch({ type: 'RESET' })
+    setEditedDraft('')
+    setInitialDraftBeforeEdit('')
+    setResumeBanner(null)
+    setBrowserMismatchAlert(false)
     showToast('Ready for new protocol', 'info')
   }
 
-  const hasDraft = Boolean(state.protocolState?.current_draft || state.editedDraft)
-  const isSafetyCriticRunning = phase === 'generating' && hasDraft
+  // Recorded Demo Run Replay (D8)
+  const handleWatchRecordedRun = async () => {
+    try {
+      const res = await fetch('/demo/sample-run.json')
+      if (!res.ok) throw new Error('Sample run not found')
+      const demoData = await res.json()
+
+      dispatch({ type: 'RESET' })
+      dispatch({
+        type: 'SET_SESSION',
+        sessionId: demoData.session_id || 'demo_recorded_run',
+        token: 'demo_token',
+        intent: demoData.intent || 'Cognitive Restructuring Thought Record Demo',
+        reviewDepth: 'standard'
+      })
+
+      dispatch({ type: 'SET_REPLAY_MODE', isReplay: true })
+
+      // Feed recorded events with progressive timing
+      const events: ProtocolEvent[] = demoData.events || []
+      let delay = 0
+      for (const evt of events) {
+        setTimeout(() => {
+          dispatch({ type: 'ADD_EVENT', event: evt })
+          if (evt.type === 'node_end' && evt.agent === 'Drafter' && evt.data?.draft) {
+            dispatch({ type: 'SET_DRAFT', draft: evt.data.draft, version: evt.draft_version })
+            setEditedDraft(evt.data.draft)
+          }
+        }, delay)
+        delay += 350
+      }
+      showToast('Loaded recorded run demo', 'info')
+    } catch (_) {
+      showToast('Recorded run sample file will be available after generation', 'info')
+    }
+  }
+
+  // Major concerns list for revision popover chips (C7)
+  const majorConcerns = useMemo(() => {
+    return state.events
+      .filter((e) => (e.severity === 'warning' || e.severity === 'major') && e.type === 'message')
+      .map((e, idx) => ({ id: `concern_${idx}`, text: e.text }))
+  }, [state.events])
 
   return (
     <LayoutGroup>
-      {/* Height Guard: shell min-h-[620px]; below that let body scroll rather than clip controls (Section 1) */}
-      <div className="min-h-[620px] h-dvh flex flex-col bg-[#FAF8F5] text-[#18221E] select-none">
-        {/* Header Bar */}
+      <div className="h-screen max-h-screen overflow-hidden grid grid-rows-[auto_auto_minmax(0,1fr)] bg-[#FAF8F5] text-[#18221E] select-none">
+        {/* Row 1: Header Bar */}
         <Header
           phase={phase}
-          activeAgent={state.protocolState?.active_agent}
-          sessionId={state.activeSessionId || state.protocolState?.session_id}
+          sessionId={state.sessionId || undefined}
+          underTheHood={state.uiState.underTheHood}
+          onToggleUnderTheHood={() => dispatch({ type: 'TOGGLE_UNDER_THE_HOOD' })}
           onNewProtocol={handleNewProtocol}
+          onSelectSession={handleSelectRecentSession}
         />
 
-        {/* Main Workspace Shell */}
-        <main className="flex-1 overflow-hidden max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-3.5 sm:py-4 flex flex-col">
+        {/* Row 2: In-Grid Notification Banners (never pushes shell taller than viewport) */}
+        <div className="shrink-0 flex flex-col">
+          {/* Persistent Replay Badge (D8) */}
+          {state.uiState.isReplay && (
+            <aside role="region" aria-label="Recorded run status" className="bg-[#FAF8F5] border-b border-[#E8E4DA] px-4 py-1.5 text-xs text-[#244F3B] font-semibold flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#244F3B] animate-pulse" />
+                <span>Recorded run · no live AI calls</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleNewProtocol}
+                className="text-xs text-[#55635C] hover:text-[#18221E] underline font-medium"
+              >
+                Exit replay
+              </button>
+            </aside>
+          )}
+
+          {/* Browser Mismatch Alert (B2) */}
+          {browserMismatchAlert && (
+            <aside role="alert" aria-label="Browser mismatch alert" className="bg-[#FEF3C7] border-b border-[#FDE68A] px-4 py-2 text-xs text-[#92400E] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-[#D97706]" />
+                <span>This protocol belongs to another browser. Your active session token is not stored locally.</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleNewProtocol}
+                className="font-semibold underline hover:text-[#78350F]"
+              >
+                Start new protocol
+              </button>
+            </aside>
+          )}
+
+          {/* Resume Banner (B2) */}
+          {resumeBanner && phase !== 'idle' && (
+            <aside role="status" aria-label="Session resume notification" className="bg-[#EBF3EE] border-b border-[#C2DBCB] px-4 py-1.5 text-xs text-[#1E3D2F] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#244F3B]" />
+                <span>{resumeBanner}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleNewProtocol}
+                className="text-[#244F3B] font-semibold hover:underline"
+              >
+                Start new
+              </button>
+            </aside>
+          )}
+
+          {/* Human Checkpoint Safe Notification (B2) */}
+          {phase === 'review' && (
+            <div role="status" aria-label="Review checkpoint status" className="bg-[#F0ECE3] border-b border-[#E8E4DA] px-4 py-1 text-[11px] text-[#55635C] text-center">
+              Saved — you can close this tab; your review will wait.
+            </div>
+          )}
+        </div>
+
+        {/* Row 3: Main Workspace Shell */}
+        <main className="min-h-0 overflow-hidden max-w-[1600px] w-full mx-auto px-3 sm:px-4 lg:px-6 py-2.5 sm:py-3 flex flex-col">
           {/* =========================================================================
-              PHASE: IDLE (Hero + Compact Form + AI Roster Explainer)
+              PHASE: CARE_PANEL (A10 Crisis Pre-Screen)
              ========================================================================= */}
-          {phase === 'idle' ? (
+          {phase === 'care_panel' ? (
+            <CarePanel
+              resources={state.careResources}
+              onClinicianContinue={() => {
+                if (state.userIntent) {
+                  // Clinician bypass continue
+                  axios
+                    .post(`${API_BASE_URL}/api/protocols/create`, {
+                      intent: state.userIntent,
+                      review_depth: state.reviewDepth,
+                      clinician_bypass: true
+                    })
+                    .then((res) => {
+                      handleSessionStart({
+                        sessionId: res.data.session_id,
+                        sessionToken: res.data.session_token,
+                        status: res.data.status,
+                        intent: state.userIntent,
+                        reviewDepth: state.reviewDepth
+                      })
+                    })
+                    .catch(() => showToast('Failed to continue clinician run', 'error'))
+                }
+              }}
+              onStartNew={handleNewProtocol}
+            />
+          ) : phase === 'idle' ? (
+            /* =========================================================================
+                PHASE: IDLE (Clean Hero + Form + Pipeline Explainer)
+               ========================================================================= */
             <AnimatePresence mode="wait">
               <motion.div
                 key="idle-view"
@@ -492,44 +718,35 @@ function AppContent() {
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                 className="h-full flex flex-col justify-center max-w-5xl mx-auto space-y-4 sm:space-y-6"
               >
-                {/* Hero Header with Sprig & Plain Copy (Section 10) */}
+                {/* Hero Header (P2) */}
                 <div className="text-center space-y-2 pt-2">
-                  <div className="flex items-center justify-center gap-2">
-                    <svg
-                      className="w-5 h-5 text-[#244F3B]"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                    >
+                  <div className="flex items-center justify-center">
+                    <svg className="w-5 h-5 text-[#244F3B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                       <path d="M12 2C8 6 4 12 12 22M12 7c-2 1-4 3-4 5m4-7c2 1 4 3 4 5" strokeLinecap="round" />
                     </svg>
-                    <span className="text-xs font-semibold text-[#244F3B] tracking-normal font-sans">
-                      Clinical-grade Cognitive Behavioral Protocol Design
-                    </span>
                   </div>
 
                   <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-[#18221E] font-medium tracking-tight">
-                    Design structured CBT exercises with multidisciplinary AI.
+                    Design structured CBT exercises with clinical precision.
                   </h1>
 
                   <p className="font-serif italic text-sm text-[#244F3B]/80 max-w-md mx-auto">
                     Evidence-based protocol authoring for clinical excellence
                   </p>
-
-                  <p className="text-xs text-[#55635C] max-w-lg mx-auto">
-                    Cerina drafts exercises, verifies clinical contraindications, evaluates therapeutic empathy, and halts for licensed clinician review.
-                  </p>
                 </div>
 
-                {/* 2-Column Split: Form (layoutId="intent") + Explainer Roster (layoutId="roster") */}
+                {/* 2-Column Split: Form + Pipeline Explainer (C1) */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
                   <div className="md:col-span-7">
-                    <ProtocolCreator onSessionStart={handleSessionStart} />
+                    <ProtocolCreator
+                      onSessionStart={handleSessionStart}
+                      onResumeSession={handleSelectRecentSession}
+                      onWatchRecordedRun={handleWatchRecordedRun}
+                    />
                   </div>
 
                   <div className="md:col-span-5">
-                    <AgentRoster phase="idle" state={null} isExplainer={true} />
+                    <AgentPipeline events={[]} isIdle={true} />
                   </div>
                 </div>
               </motion.div>
@@ -537,7 +754,7 @@ function AppContent() {
           ) : (
             /* =========================================================================
                 ACTIVE PHASES: generating | review | editing | approving | approved
-                3-Column Shell (Section 1): Exactly ONE vertical scroll surface at >=1024px.
+                3-Column Shell (Single Scroll Surface in Document Pane)
                ========================================================================= */
             <div className="h-full flex flex-col overflow-hidden">
               {/* Mobile Tab Switcher (<1024px) */}
@@ -570,61 +787,63 @@ function AppContent() {
                 </div>
               </div>
 
-              {/* 3-Column Shell Container */}
-              <div className="flex-1 flex gap-5 overflow-hidden">
+              {/* 3-Column Container */}
+              <div className="flex-1 flex gap-4 overflow-hidden min-h-0">
                 {/* =====================================================================
-                    1. LEFT RAIL: >=1536px (300px fixed). NEVER SCROLLS.
-                    Contains: IntentSummary (layoutId="intent") + AgentRoster (layoutId="roster")
+                    1. LEFT RAIL (280px, NEVER SCROLLS)
                    ===================================================================== */}
-                <div className="hidden 2xl:flex w-[300px] shrink-0 flex-col gap-4 overflow-hidden select-none">
+                <div className="hidden 2xl:flex w-[280px] shrink-0 flex-col gap-2.5 overflow-hidden select-none h-full">
                   <IntentSummary
-                    intent={state.protocolState?.user_intent || ''}
-                    draftVersion={state.protocolState?.draft_history?.length || 1}
-                    maxIterations={state.protocolState?.max_iterations || 5}
+                    intent={state.userIntent || ''}
+                    draftVersion={state.draftVersion || 1}
+                    maxIterations={3}
                     phase={phase}
                     onNewProtocol={handleNewProtocol}
                   />
 
-                  <AgentRoster
-                    phase={phase}
-                    state={state.protocolState}
-                    onHeadingClick={handleHeadingClick}
-                  />
+                  <div className="shrink-0 max-h-[380px] overflow-hidden">
+                    <AgentPipeline events={state.events} />
+                  </div>
+
+                  <div className="flex-1 min-h-[140px] overflow-hidden">
+                    <Outline content={state.draft || editedDraft} scrollerRef={scrollerRef} />
+                  </div>
                 </div>
 
                 {/* =====================================================================
-                    2. CENTER PANE: DocumentViewer (1fr).
-                    THE ONLY SCROLLER AT >=1024px.
-                    Scroller is on outermost element; margins & padding live inside.
+                    2. CENTER PANE: DocumentViewer (THE ONLY SCROLLER)
                    ===================================================================== */}
                 <motion.div
                   initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.08 }}
-                  className={`flex-1 min-w-0 h-full flex flex-col gap-3 overflow-hidden ${
+                  transition={{ duration: 0.25 }}
+                  className={`flex-1 min-w-0 h-full flex flex-col gap-2 overflow-hidden ${
                     mobileTab !== 'document' ? 'hidden lg:flex' : 'flex'
                   }`}
                 >
-                  {/* On 1024-1535px: show IntentSummary strip at top */}
+                  {/* Compact Mode Strip (<1536px): Horizontal Pipeline */}
                   <div className="hidden lg:block 2xl:hidden shrink-0">
-                    <IntentSummary
-                      intent={state.protocolState?.user_intent || ''}
-                      draftVersion={state.protocolState?.draft_history?.length || 1}
-                      maxIterations={state.protocolState?.max_iterations || 5}
-                      phase={phase}
-                      onNewProtocol={handleNewProtocol}
-                    />
+                    <AgentPipeline events={state.events} compact={true} />
                   </div>
 
                   {/* DocumentViewer with Outermost Scroller */}
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 overflow-hidden min-h-0">
                     <DocumentViewer
                       phase={phase}
-                      draft={state.protocolState?.current_draft || ''}
-                      editedDraft={state.editedDraft}
-                      isSafetyCriticRunning={isSafetyCriticRunning}
+                      draft={state.draft}
+                      editedDraft={editedDraft}
+                      streamingTokens={state.streamingTokenBuffer}
+                      draftVersion={state.draftVersion}
+                      hasUserEdits={editedDraft !== initialDraftBeforeEdit}
+                      revisionSummaries={state.revisionSummaries}
+                      isSafetyCriticRunning={phase === 'generating' && Boolean(state.draft)}
                       elapsedSeconds={elapsedSeconds}
-                      sessionId={state.activeSessionId || state.protocolState?.session_id}
+                      sessionId={state.sessionId || undefined}
+                      activeStageText={activeStageText}
+                      lastEventTs={lastEventTs}
+                      isReplay={state.uiState.isReplay}
+                      hasRevisedRun={state.events.some((e) => e.run_kind === 'revision')}
+                      scrollerRef={scrollerRef}
                       onDraftChange={handleDraftChange}
                       onStartEditing={handleStartEditing}
                       onSaveEditsAndApprove={handleSaveEditsAndApprove}
@@ -635,40 +854,43 @@ function AppContent() {
                 </motion.div>
 
                 {/* =====================================================================
-                    3. RIGHT RAIL: ReviewSummary + flex-1 spacer + Pinned ActionPanel.
-                    NEVER SCROLLS AT >=1024px. (Section 1)
+                    3. RIGHT RAIL (360px grid: [auto scores] [minmax(0,1fr) feed] [auto ActionPanel])
                    ===================================================================== */}
                 <motion.div
                   initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: 16 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: 0.12 }}
-                  className={`w-full lg:w-[360px] 2xl:w-[380px] shrink-0 h-full flex flex-col overflow-hidden select-none ${
-                    mobileTab !== 'review' ? 'hidden lg:flex' : 'flex'
+                  transition={{ duration: 0.25 }}
+                  className={`w-full lg:w-[350px] 2xl:w-[370px] shrink-0 h-full grid grid-rows-[auto_minmax(0,1fr)_auto] gap-2.5 overflow-hidden select-none ${
+                    mobileTab !== 'review' ? 'hidden lg:grid' : 'grid'
                   }`}
                 >
-                  {/* ReviewSummary (Auto Height, Compact, No Inner Scroller) */}
+                  {/* Row 1: Clinical Rubric Scores (C3) - Compact */}
                   <div className="shrink-0">
-                    <ReviewSummary
-                      state={state.protocolState}
-                      suggestions={suggestions}
-                      activityLogs={activityLogs}
-                      onToggleAddressed={(id) => dispatch({ type: 'TOGGLE_ADDRESSED', id })}
-                      onDismissSuggestion={(id) => dispatch({ type: 'DISMISS_SUGGESTION', id })}
+                    <ScoreMeters
+                      scores={state.scores}
+                      previousScores={state.previousScores}
                     />
                   </div>
 
-                  {/* flex-1 min-h-0 spacer (absorbs vertical slack) */}
-                  <div className="flex-1 min-h-0" />
+                  {/* Row 2: Live Agent Feed (C2) - Fills available middle space, whole cards only */}
+                  <div className="min-h-0 overflow-hidden">
+                    <LiveAgentFeed
+                      events={state.events}
+                      onOpenTimeline={() => setIsTimelineOpen(true)}
+                    />
+                  </div>
 
-                  {/* Desktop Pinned ActionPanel (shrink-0, border-t, never overlaps) */}
-                  <div className="hidden lg:block shrink-0">
+                  {/* Row 3: Desktop Pinned ActionPanel (C7) - Pinned, never clipped */}
+                  <div className="shrink-0">
                     <ActionPanel
                       phase={phase}
-                      validationStatus={state.validationStatus}
-                      hasEdits={state.editedDraft !== state.initialDraftBeforeEdit}
+                      validationStatus={validationStatus}
+                      hasEdits={editedDraft !== initialDraftBeforeEdit}
                       wordsAdded={wordsAdded}
                       wordsRemoved={wordsRemoved}
-                      approvalTime={state.approvalTime}
+                      approvalTime={approvalTime}
+                      majorConcerns={majorConcerns}
+                      isRevisionRequested={isRevisionRequested}
                       onApprove={handleApprove}
                       onStartEditing={handleStartEditing}
                       onSaveEditsAndApprove={handleSaveEditsAndApprove}
@@ -677,20 +899,23 @@ function AppContent() {
                       onExportPdf={handleExportPdf}
                       onCopyMarkdown={handleCopyMarkdown}
                       onNewProtocol={handleNewProtocol}
+                      onRequestRevision={handleRequestRevision}
                     />
                   </div>
                 </motion.div>
               </div>
 
-              {/* Mobile Sticky ActionPanel (<1024px) */}
+              {/* Mobile Sticky ActionPanel */}
               <div className="lg:hidden shrink-0 pt-2 border-t border-[#E8E4DA] bg-[#FAF8F5]">
                 <ActionPanel
                   phase={phase}
-                  validationStatus={state.validationStatus}
-                  hasEdits={state.editedDraft !== state.initialDraftBeforeEdit}
+                  validationStatus={validationStatus}
+                  hasEdits={editedDraft !== initialDraftBeforeEdit}
                   wordsAdded={wordsAdded}
                   wordsRemoved={wordsRemoved}
-                  approvalTime={state.approvalTime}
+                  approvalTime={approvalTime}
+                  majorConcerns={majorConcerns}
+                  isRevisionRequested={isRevisionRequested}
                   onApprove={handleApprove}
                   onStartEditing={handleStartEditing}
                   onSaveEditsAndApprove={handleSaveEditsAndApprove}
@@ -699,11 +924,21 @@ function AppContent() {
                   onExportPdf={handleExportPdf}
                   onCopyMarkdown={handleCopyMarkdown}
                   onNewProtocol={handleNewProtocol}
+                  onRequestRevision={handleRequestRevision}
                 />
               </div>
             </div>
           )}
         </main>
+
+        {/* Timeline Sheet (C4) */}
+        <TimelineSheet
+          isOpen={isTimelineOpen}
+          onOpenChange={setIsTimelineOpen}
+          events={state.events}
+          underTheHood={state.uiState.underTheHood}
+          onToggleUnderTheHood={() => dispatch({ type: 'TOGGLE_UNDER_THE_HOOD' })}
+        />
       </div>
     </LayoutGroup>
   )

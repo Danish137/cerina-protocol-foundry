@@ -1,12 +1,23 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowRight, Loader2, Bookmark, Sparkles, HelpCircle } from 'lucide-react'
+import { ArrowRight, Loader2, Bookmark, Sparkles, HelpCircle, ShieldAlert, PlayCircle } from 'lucide-react'
 import axios from 'axios'
 import API_BASE_URL from '../config'
 import { useToast } from './Toast'
+import { CapacityStatus, StoredSession } from '../types'
+import { getRecentSessions } from '../services/sessionStorage'
 
 interface ProtocolCreatorProps {
-  onSessionStart: (session: { sessionId: string; status: string; intent: string }) => void
+  onSessionStart: (session: {
+    sessionId: string
+    sessionToken: string
+    status: string
+    intent: string
+    reviewDepth: 'standard' | 'thorough'
+    careResources?: any
+  }) => void
+  onResumeSession?: (session: StoredSession) => void
+  onWatchRecordedRun?: () => void
 }
 
 const TEMPLATES = [
@@ -28,16 +39,33 @@ const TEMPLATES = [
   },
 ]
 
-export default function ProtocolCreator({ onSessionStart }: ProtocolCreatorProps) {
+export default function ProtocolCreator({ onSessionStart, onResumeSession, onWatchRecordedRun }: ProtocolCreatorProps) {
   const { showToast } = useToast()
   const [intent, setIntent] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
+  const [reviewDepth, setReviewDepth] = useState<'standard' | 'thorough'>('standard')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [capacity, setCapacity] = useState<CapacityStatus | null>(null)
+  const [recentSessions, setRecentSessions] = useState<StoredSession[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const charCount = intent.trim().length
-  const isTooShort = charCount < 10
+  useEffect(() => {
+    setRecentSessions(getRecentSessions())
+  }, [])
+
+  // Fetch live capacity status (A5, B4)
+  useEffect(() => {
+    async function fetchCapacity() {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/api/capacity`)
+        setCapacity(res.data)
+      } catch (err) {
+        console.warn('Failed to load capacity estimate:', err)
+      }
+    }
+    fetchCapacity()
+  }, [])
 
   const handleSelectTemplate = (prompt: string, label: string) => {
     setSelectedTemplate(label)
@@ -47,7 +75,7 @@ export default function ProtocolCreator({ onSessionStart }: ProtocolCreatorProps
     }
   }
 
-  const handleSubmit = async (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent, clinicianBypass: boolean = false) => {
     if (e) e.preventDefault()
     const activeIntent = intent.trim()
     if (activeIntent.length < 10) {
@@ -61,21 +89,32 @@ export default function ProtocolCreator({ onSessionStart }: ProtocolCreatorProps
     try {
       const response = await axios.post(`${API_BASE_URL}/api/protocols/create`, {
         intent: activeIntent,
+        review_depth: reviewDepth,
+        clinician_bypass: clinicianBypass,
+        region_code: 'US'
       })
 
       showToast('Protocol drafting initialized', 'success')
       onSessionStart({
         sessionId: response.data.session_id,
+        sessionToken: response.data.session_token,
         status: response.data.status,
         intent: activeIntent,
+        reviewDepth: response.data.review_depth || reviewDepth,
+        careResources: response.data.care_resources
       })
     } catch (err: any) {
       let errorMessage = 'Failed to initialize protocol generation'
       if (err.response) {
-        errorMessage =
-          err.response.data?.detail ||
-          err.response.data?.message ||
-          `Server error: ${err.response.status}`
+        if (err.response.status === 429) {
+          errorMessage = 'Daily demonstration quota reached. Watch a recorded run below.'
+        } else {
+          errorMessage =
+            err.response.data?.detail?.message ||
+            err.response.data?.detail ||
+            err.response.data?.message ||
+            `Server error: ${err.response.status}`
+        }
       } else if (err.request) {
         errorMessage = `No response from backend at ${API_BASE_URL}. Is server running?`
       } else {
@@ -88,125 +127,189 @@ export default function ProtocolCreator({ onSessionStart }: ProtocolCreatorProps
     }
   }
 
+  // Quota Exhausted friendly state (B4)
+  if (capacity?.exhausted) {
+    return (
+      <div className="bg-white border border-[#E8E4DA] rounded-2xl p-6 shadow-sm space-y-4">
+        <div className="flex items-center gap-3 text-[#B45309]">
+          <ShieldAlert className="w-6 h-6" />
+          <h3 className="font-serif font-semibold text-lg text-[#1F2923]">Daily AI Capacity Reached</h3>
+        </div>
+        <p className="text-sm text-[#55635C] leading-relaxed">
+          Today's live AI generation capacity ({capacity.daily_budget} calls) has been fully utilized.
+          You can experience the complete interactive clinical workflow through our recorded run replay without consuming live AI credits.
+        </p>
+        <button
+          onClick={onWatchRecordedRun}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#244F3B] text-white font-medium text-sm hover:bg-[#1B3B2B] transition-colors shadow-sm"
+        >
+          <PlayCircle className="w-4 h-4" />
+          Watch a Recorded Run
+        </button>
+      </div>
+    )
+  }
+
   return (
     <motion.div
       layoutId="intent"
       className="bg-white border border-[#E8E4DA] rounded-2xl p-5 sm:p-6 shadow-sm space-y-4"
     >
-      {/* Card Header */}
+      {/* Card Header & Capacity Chip */}
       <div className="flex items-center justify-between pb-3 border-b border-[#F0ECE3]">
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-lg bg-[#EBF3EE] text-[#244F3B]">
             <Bookmark className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-[#18221E] font-sans">
-              Create a clinical protocol
-            </h2>
-            <p className="text-xs text-[#55635C]">
-              AI drafts, screens for safety, critiques empathy, and halts for your review.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-3.5">
-        <div>
-          <label
-            htmlFor="intent-input"
-            className="block text-xs font-semibold text-[#18221E] mb-1.5"
-          >
-            Clinical Goal & Context
-          </label>
-          <div className="relative">
-            <textarea
-              id="intent-input"
-              ref={textareaRef}
-              value={intent}
-              onChange={(e) => {
-                setIntent(e.target.value)
-                if (selectedTemplate) setSelectedTemplate(null)
-              }}
-              placeholder="e.g. Design a 4-step cognitive reframing exercise for catastrophizing and work-related panic..."
-              rows={3}
-              disabled={loading}
-              className="w-full px-3.5 py-2.5 bg-[#FAF8F5] border border-[#E8E4DA] rounded-xl text-xs sm:text-sm text-[#18221E] placeholder-[#88978F] focus:bg-white focus:outline-none focus:border-[#244F3B] focus:ring-1 focus:ring-[#244F3B] transition-all resize-none leading-relaxed"
-            />
-            {/* Live Character Count */}
-            <div className="absolute right-3 bottom-2 text-[10px] font-mono text-[#55635C]">
-              {charCount} / 10+ chars
-            </div>
+            <h3 className="text-sm font-semibold text-[#1F2923]">Define Clinical Intent</h3>
+            <p className="text-xs text-[#7C8B82]">Specify the disorder, technique, or clinical objective</p>
           </div>
         </div>
 
-        {/* Template Quick-Select Chips */}
-        <div>
-          <div className="flex items-center gap-1.5 text-xs text-[#55635C] mb-2 font-medium">
-            <Sparkles className="w-3.5 h-3.5 text-[#244F3B]" />
-            <span>Try an evidence-based template:</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5 sm:gap-2">
-            {TEMPLATES.map((tmpl) => {
-              const isSelected = selectedTemplate === tmpl.label
-              return (
-                <button
-                  key={tmpl.label}
-                  type="button"
-                  onClick={() => handleSelectTemplate(tmpl.prompt, tmpl.label)}
-                  disabled={loading}
-                  className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
-                    isSelected
-                      ? 'bg-[#244F3B] text-white border-[#244F3B] shadow-2xs'
-                      : 'bg-[#FAF8F5] hover:bg-[#F2EFE8] text-[#55635C] hover:text-[#18221E] border-[#E8E4DA]'
-                  }`}
-                >
-                  {tmpl.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs">
-            <span className="font-semibold">Error: </span>
-            <span>{error}</span>
+        {/* Capacity Chip (B4) */}
+        {capacity && (
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF8F5] border border-[#E8E4DA] text-xs font-medium text-[#55635C]">
+            <span className="w-2 h-2 rounded-full bg-[#244F3B]"></span>
+            <span>Live runs left today: {capacity.remaining_runs_estimate}</span>
           </div>
         )}
+      </div>
 
-        {/* Bottom Bar: Helper Hint (shown only below minimum) & Submit Button */}
-        <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-[#F0ECE3]">
-          <div className="text-xs text-[#55635C] flex items-center gap-1.5 min-h-[20px]">
-            {isTooShort && (
-              <>
-                <HelpCircle className="w-3.5 h-3.5 text-[#55635C]" />
-                <span>Describe the exercise (min 10 characters)</span>
-              </>
-            )}
+      {/* Continue Recent Session Banner (B2) */}
+      {recentSessions.length > 0 && onResumeSession && (
+        <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#E8E4DA] flex items-center justify-between gap-3 text-xs">
+          <div className="min-w-0">
+            <span className="text-[#7C8B82] font-medium">Continue: </span>
+            <span className="font-semibold text-[#1F2923] truncate inline-block max-w-[260px] sm:max-w-[340px] align-bottom">
+              {recentSessions[0].intent}
+            </span>
+            <span className="text-[#7C8B82] ml-1.5 capitalize">· {recentSessions[0].status}</span>
           </div>
-
           <button
-            type="submit"
-            disabled={loading || isTooShort}
-            className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 text-xs font-semibold rounded-xl transition-all shadow-sm ${
-              loading || isTooShort
-                ? 'bg-[#D8D2C4] text-[#4A453A] cursor-not-allowed border border-[#C5BFB0]'
-                : 'bg-[#244F3B] hover:bg-[#1B3D2E] text-white shadow-md hover:shadow-lg active:scale-[0.99] cursor-pointer'
-            }`}
+            type="button"
+            onClick={() => onResumeSession(recentSessions[0])}
+            className="shrink-0 px-3 py-1 rounded-md bg-[#244F3B] text-white text-xs font-medium hover:bg-[#1B3B2B] transition-colors shadow-2xs"
           >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-white" />
-                <span>Starting…</span>
-              </>
-            ) : (
-              <>
-                <span>Create protocol</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </>
-            )}
+            Open
           </button>
         </div>
+      )}
+
+      <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4">
+        {/* Intent Textarea */}
+        <div className="relative">
+          <textarea
+            id="intent-input"
+            name="intent"
+            ref={textareaRef}
+            value={intent}
+            onChange={(e) => setIntent(e.target.value)}
+            placeholder="e.g., Create a 3-step graded exposure hierarchy for a patient experiencing panic symptoms when driving on highways..."
+            className="w-full h-32 px-4 py-3 rounded-xl border border-[#E8E4DA] bg-[#FAF8F5] text-sm text-[#1F2923] placeholder-[#A0ACA5] focus:outline-none focus:ring-2 focus:ring-[#244F3B] focus:border-transparent resize-none leading-relaxed transition-all"
+            disabled={loading}
+          />
+        </div>
+
+        {/* Template Pills */}
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-[#7C8B82]">
+            <Sparkles className="w-3.5 h-3.5 text-[#244F3B]" />
+            <span>Clinical Templates</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {TEMPLATES.map((tmpl) => (
+              <button
+                key={tmpl.label}
+                type="button"
+                onClick={() => handleSelectTemplate(tmpl.prompt, tmpl.label)}
+                disabled={loading}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  selectedTemplate === tmpl.label
+                    ? 'bg-[#244F3B] text-white shadow-sm'
+                    : 'bg-[#F4F1EA] text-[#55635C] hover:bg-[#EAE5DA]'
+                }`}
+              >
+                {tmpl.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Review Depth Toggle (B4) & Submit Button */}
+        <div className="pt-3 border-t border-[#F0ECE3] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium text-[#55635C]">Review Depth:</span>
+            <div className="inline-flex rounded-lg border border-[#E8E4DA] p-0.5 bg-[#FAF8F5]">
+              <button
+                type="button"
+                onClick={() => setReviewDepth('standard')}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                  reviewDepth === 'standard' ? 'bg-white shadow-xs text-[#244F3B] font-semibold' : 'text-[#7C8B82]'
+                }`}
+                title="Standard clinical safety & critique thresholds"
+              >
+                Standard
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviewDepth('thorough')}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                  reviewDepth === 'thorough' ? 'bg-white shadow-xs text-[#244F3B] font-semibold' : 'text-[#7C8B82]'
+                }`}
+                title="Stricter thresholds; enforces at least one revision if any concerns exist (uses more daily capacity)"
+              >
+                Thorough
+              </button>
+            </div>
+            <div className="group relative cursor-pointer text-[#A0ACA5] hover:text-[#55635C]">
+              <HelpCircle className="w-3.5 h-3.5" />
+              <div className="hidden group-hover:block absolute bottom-full mb-1 left-0 w-52 p-2 bg-[#1F2923] text-white text-[11px] rounded shadow-lg z-20">
+                Thorough mode runs deeper evaluation and triggers at least one revision loop if concerns are found.
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {onWatchRecordedRun && (
+              <button
+                type="button"
+                onClick={onWatchRecordedRun}
+                className="text-xs text-[#55635C] hover:text-[#244F3B] underline font-medium"
+              >
+                Watch a recorded run
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={loading || intent.trim().length < 10}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#244F3B] text-white font-medium text-sm hover:bg-[#1B3B2B] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Initializing...</span>
+                </>
+              ) : (
+                <>
+                  <span>Initialize Protocol</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Demo Disclaimer (B4) */}
+        <p className="text-[11px] text-[#A0ACA5] text-center pt-1">
+          Demo — don't enter personal or identifying information. Sessions auto-delete after 7 days.
+        </p>
+
+        {error && (
+          <div className="p-3 rounded-lg bg-[#FDF2F2] border border-[#F8D7DA] text-xs text-[#991B1B]">
+            {error}
+          </div>
+        )}
       </form>
     </motion.div>
   )

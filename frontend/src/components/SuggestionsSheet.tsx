@@ -64,7 +64,7 @@ export default function SuggestionsSheet({
               </div>
             ) : (
               visibleSuggestions.map((sug) => {
-                const agent = AGENTS[sug.agentId] || AGENTS.clinical_critic
+                const agent = (sug.agentId && AGENTS[sug.agentId]) || AGENTS.clinical_critic
                 const AgentIcon = agent.icon
 
                 const severityStyle =

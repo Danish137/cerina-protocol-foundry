@@ -98,3 +98,69 @@
   list-style-type: lower-alpha;
   margin: 0.25rem 0;
 }
+
+/* D3: Shared Typography System */
+.cerina-prose {
+  font-size: 17px;
+  line-height: 1.7;
+  color: #18221E;
+}
+
+.cerina-prose h1 {
+  font-family: 'Newsreader', serif;
+  font-size: 32px;
+  line-height: 38px;
+  font-weight: 600;
+  color: #18221E;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.cerina-prose h2 {
+  font-family: 'Newsreader', serif;
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 600;
+  color: #18221E;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  scroll-margin-top: calc(var(--toolbar-h, 53px) + 16px);
+}
+
+.cerina-prose h3 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  color: #244F3B;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  scroll-margin-top: calc(var(--toolbar-h, 53px) + 16px);
+}
+
+.cerina-prose p {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+/* D5: Ruled Write-in Line */
+.cerina-write-in-line {
+  border-bottom: 1.5px solid #D8D2C4;
+  height: 28px;
+  margin: 8px 0;
+  width: 100%;
+}
+
+/* Reduced motion preference: disable transform animations and transitions */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+    transform: none !important;
+  }
+}
+

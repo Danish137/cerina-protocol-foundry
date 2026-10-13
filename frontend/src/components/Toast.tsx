@@ -64,11 +64,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {/* Toast container: below header (top-[72px] right-6), never overlapping header */}
+      {/* Toast container: top-center under header, never overlaps CTA row (P2) */}
       <div
         aria-live="polite"
         aria-atomic="true"
-        className="fixed top-[72px] right-6 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"
+        className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 max-w-md w-full px-4 pointer-events-none"
       >
         {toasts.map((toast) => (
           <div

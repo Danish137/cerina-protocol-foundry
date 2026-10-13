@@ -12,7 +12,9 @@ import {
   AlertTriangle,
   Clock,
   GitCompare,
+  RotateCcw,
 } from 'lucide-react'
+import * as Popover from '@radix-ui/react-popover'
 import { Phase, ValidationStatus } from '../types'
 
 interface ActionPanelProps {
@@ -23,6 +25,9 @@ interface ActionPanelProps {
   wordsRemoved?: number
   approvalTime?: string
   lastValidatedTime?: string
+  approverName?: string
+  majorConcerns?: { id: string; text: string }[]
+  isRevisionRequested?: boolean
   onApprove: () => void
   onStartEditing: () => void
   onSaveEditsAndApprove: () => void
@@ -31,6 +36,7 @@ interface ActionPanelProps {
   onExportPdf: () => void
   onCopyMarkdown: () => void
   onNewProtocol: () => void
+  onRequestRevision?: (instruction?: string, concernIds?: string[]) => void
   onOpenDiffPopover?: () => void
 }
 
@@ -42,6 +48,9 @@ export default function ActionPanel({
   wordsRemoved = 0,
   approvalTime,
   lastValidatedTime,
+  approverName = 'Danish Akhtar (Lead)',
+  majorConcerns = [],
+  isRevisionRequested = false,
   onApprove,
   onStartEditing,
   onSaveEditsAndApprove,
@@ -50,12 +59,33 @@ export default function ActionPanel({
   onExportPdf,
   onCopyMarkdown,
   onNewProtocol,
+  onRequestRevision,
   onOpenDiffPopover,
 }: ActionPanelProps) {
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
   const [exportState, setExportState] = useState<'idle' | 'preparing' | 'downloaded'>('idle')
   const [copiedMd, setCopiedMd] = useState(false)
+  const [customInstruction, setCustomInstruction] = useState('')
+  const [selectedConcernIds, setSelectedConcernIds] = useState<string[]>([])
+  const [isRevisionPopoverOpen, setIsRevisionPopoverOpen] = useState(false)
   const shouldReduceMotion = useReducedMotion()
+
+  const handleToggleConcern = (id: string, text: string) => {
+    setSelectedConcernIds((prev) => {
+      const exists = prev.includes(id)
+      if (exists) {
+        return prev.filter((item) => item !== id)
+      } else {
+        setCustomInstruction((curr) => (curr ? `${curr}\n- ${text}` : `- ${text}`))
+        return [...prev, id]
+      }
+    })
+  }
+
+  const handleSubmitRevision = () => {
+    setIsRevisionPopoverOpen(false)
+    onRequestRevision?.(customInstruction, selectedConcernIds)
+  }
 
   const handleExportClick = () => {
     setExportState('preparing')
@@ -114,7 +144,7 @@ export default function ActionPanel({
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-[#18221E] font-sans">
-                Protocol approved {approvalTime ? `· ${approvalTime}` : ''}
+                Approved {approvalTime ? `${approvalTime}` : '2:41 AM IST'} · by {approverName}
               </h3>
               <p className="text-xs text-[#55635C] mt-0.5">
                 {hasEdits
@@ -414,27 +444,111 @@ export default function ActionPanel({
             </p>
           </div>
 
-          <div className="space-y-2">
-            {/* Primary: Approve & finalize */}
-            <button
-              type="button"
-              onClick={onApprove}
-              className="w-full py-3 px-4 rounded-xl bg-[#244F3B] hover:bg-[#1B3D2E] active:scale-[0.99] text-white text-xs sm:text-sm font-semibold shadow-sm transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B]"
-            >
-              <Check className="w-4 h-4 stroke-[2.5]" />
-              <span>Approve & finalize</span>
-            </button>
+          {isRevisionRequested ? (
+            <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#CDE0D4] flex items-center justify-center gap-2 text-xs font-semibold text-[#244F3B]">
+              <Loader2 className="w-4 h-4 animate-spin text-[#244F3B]" />
+              <span>Revision requested · agents working</span>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {/* Primary: Approve & finalize */}
+              <button
+                type="button"
+                onClick={onApprove}
+                className="w-full py-3 px-4 rounded-xl bg-[#244F3B] hover:bg-[#1B3D2E] active:scale-[0.99] text-white text-xs sm:text-sm font-semibold shadow-sm transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B]"
+              >
+                <Check className="w-4 h-4 stroke-[2.5]" />
+                <span>Approve & finalize</span>
+              </button>
 
-            {/* Secondary: Edit draft */}
-            <button
-              type="button"
-              onClick={onStartEditing}
-              className="w-full py-2 px-3 rounded-lg bg-white hover:bg-[#F5F2EC] border border-[#E8E4DA] text-xs font-semibold text-[#55635C] hover:text-[#18221E] transition-colors flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B]"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-[#7E8F87]" />
-              <span>Edit draft</span>
-            </button>
-          </div>
+              {/* Secondary: Edit draft & Request revision */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={onStartEditing}
+                  className="py-2 px-3 rounded-lg bg-white hover:bg-[#F5F2EC] border border-[#E8E4DA] text-xs font-semibold text-[#55635C] hover:text-[#18221E] transition-colors flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B]"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-[#7E8F87]" />
+                  <span>Edit draft</span>
+                </button>
+
+                {/* Request revision popover (C7) */}
+                <Popover.Root open={isRevisionPopoverOpen} onOpenChange={setIsRevisionPopoverOpen}>
+                  <Popover.Trigger asChild>
+                    <button
+                      type="button"
+                      className="py-2 px-3 rounded-lg bg-white hover:bg-[#FDF6E2] border border-[#F6E0B5] text-xs font-semibold text-[#8C4A26] transition-colors flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8C4A26]"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-[#8C4A26]" />
+                      <span>Request revision</span>
+                    </button>
+                  </Popover.Trigger>
+
+                  <Popover.Portal>
+                    <Popover.Content
+                      side="top"
+                      align="end"
+                      sideOffset={8}
+                      className="z-50 w-80 rounded-2xl border border-[#E8E4DA] bg-white p-4 shadow-xl space-y-3 text-xs animate-in fade-in zoom-in-95"
+                    >
+                      <div>
+                        <h4 className="font-semibold text-[#18221E] text-sm">Request Protocol Revision</h4>
+                        <p className="text-[11px] text-[#55635C]">Provide steering notes back to the Protocol Drafter</p>
+                      </div>
+
+                      {/* Concern chips if present */}
+                      {majorConcerns.length > 0 && (
+                        <div className="space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-[#7C8B82]">Open Concerns:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {majorConcerns.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => handleToggleConcern(c.id, c.text)}
+                                className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors ${
+                                  selectedConcernIds.includes(c.id)
+                                    ? 'bg-[#8C4A26] text-white border-[#8C4A26]'
+                                    : 'bg-[#FDF6E2] text-[#8C4A26] border-[#F6E0B5] hover:bg-[#F9ECC9]'
+                                }`}
+                              >
+                                {c.text.slice(0, 30)}...
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <textarea
+                        value={customInstruction}
+                        onChange={(e) => setCustomInstruction(e.target.value)}
+                        placeholder="e.g. Please simplify the language in Step 2 and add a grounding breath exercise..."
+                        className="w-full h-24 p-2.5 rounded-lg border border-[#E8E4DA] bg-[#FAF8F5] text-xs leading-relaxed text-[#18221E] placeholder-[#A0ACA5] resize-none focus:outline-none focus:ring-1 focus:ring-[#244F3B]"
+                      />
+
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-[#F0ECE3]">
+                        <button
+                          type="button"
+                          onClick={() => setIsRevisionPopoverOpen(false)}
+                          className="px-3 py-1.5 rounded-lg border border-[#E8E4DA] text-xs font-medium text-[#55635C] hover:bg-[#FAF8F5]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSubmitRevision}
+                          disabled={!customInstruction.trim() && selectedConcernIds.length === 0}
+                          className="px-3.5 py-1.5 rounded-lg bg-[#244F3B] text-white text-xs font-semibold hover:bg-[#1B3D2E] disabled:opacity-50 transition-colors shadow-2xs"
+                        >
+                          Submit Revision
+                        </button>
+                      </div>
+                    </Popover.Content>
+                  </Popover.Portal>
+                </Popover.Root>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </motion.div>
