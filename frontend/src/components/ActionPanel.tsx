@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import * as Popover from '@radix-ui/react-popover'
 import { Phase, ValidationStatus } from '../types'
+import { formatLocalDateTime } from '../utils/dateFormatter'
 
 interface ActionPanelProps {
   phase: Phase
@@ -25,7 +26,6 @@ interface ActionPanelProps {
   wordsRemoved?: number
   approvalTime?: string
   lastValidatedTime?: string
-  approverName?: string
   majorConcerns?: { id: string; text: string }[]
   isRevisionRequested?: boolean
   onApprove: () => void
@@ -33,7 +33,7 @@ interface ActionPanelProps {
   onSaveEditsAndApprove: () => void
   onRevalidateOnly: () => void
   onDiscardEdits: () => void
-  onExportPdf: () => void
+  onExportPdf: (includeDetails?: boolean) => void
   onCopyMarkdown: () => void
   onNewProtocol: () => void
   onRequestRevision?: (instruction?: string, concernIds?: string[]) => void
@@ -48,7 +48,6 @@ export default function ActionPanel({
   wordsRemoved = 0,
   approvalTime,
   lastValidatedTime,
-  approverName = 'Danish Akhtar (Lead)',
   majorConcerns = [],
   isRevisionRequested = false,
   onApprove,
@@ -64,6 +63,7 @@ export default function ActionPanel({
 }: ActionPanelProps) {
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
   const [exportState, setExportState] = useState<'idle' | 'preparing' | 'downloaded'>('idle')
+  const [includeDetailsInPdf, setIncludeDetailsInPdf] = useState(false)
   const [copiedMd, setCopiedMd] = useState(false)
   const [customInstruction, setCustomInstruction] = useState('')
   const [selectedConcernIds, setSelectedConcernIds] = useState<string[]>([])
@@ -87,15 +87,17 @@ export default function ActionPanel({
     onRequestRevision?.(customInstruction, selectedConcernIds)
   }
 
-  const handleExportClick = () => {
-    setExportState('preparing')
-    onExportPdf()
-    setTimeout(() => {
+  const handleExportClick = async () => {
+    try {
+      setExportState('preparing')
+      await onExportPdf(includeDetailsInPdf)
       setExportState('downloaded')
       setTimeout(() => {
         setExportState('idle')
       }, 3000)
-    }, 800)
+    } catch {
+      setExportState('idle')
+    }
   }
 
   const handleCopyMdClick = () => {
@@ -144,12 +146,10 @@ export default function ActionPanel({
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-[#18221E] font-sans">
-                Approved {approvalTime ? `${approvalTime}` : '2:41 AM IST'} · by {approverName}
+                Approved by you on {approvalTime ? (approvalTime.includes('T') || approvalTime.includes('-') ? formatLocalDateTime(approvalTime) : approvalTime) : formatLocalDateTime(new Date().toISOString())}.
               </h3>
               <p className="text-xs text-[#55635C] mt-0.5">
-                {hasEdits
-                  ? 'Locked and validated with your clinician edits.'
-                  : 'Locked and verified by clinical supervisor.'}
+                AI-reviewed; not clinically validated.
               </p>
             </div>
           </div>
@@ -178,6 +178,17 @@ export default function ActionPanel({
               </>
             )}
           </button>
+
+          {/* Optional review details toggle (D3 - defaults OFF) */}
+          <label className="flex items-center gap-2 text-xs text-[#55635C] cursor-pointer px-1">
+            <input
+              type="checkbox"
+              checked={includeDetailsInPdf}
+              onChange={(e) => setIncludeDetailsInPdf(e.target.checked)}
+              className="rounded text-[#244F3B] focus:ring-[#244F3B]"
+            />
+            <span>Include review details in PDF export</span>
+          </label>
 
           {/* Secondary Options */}
           <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#F0ECE3]">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import {
   MessageSquare,
@@ -23,6 +23,7 @@ interface LiveAgentFeedProps {
 export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgentFeedProps) {
   const shouldReduceMotion = useReducedMotion()
   const [now, setNow] = useState<number>(Date.now())
+  const feedContainerRef = useRef<HTMLDivElement>(null)
 
   // Shared 1s interval driving relative times (C2)
   useEffect(() => {
@@ -37,10 +38,12 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
     )
   }, [events])
 
-  // Display newest whole cards that fit
-  const lastCards = useMemo(() => {
-    return displayEvents.slice(-4)
-  }, [displayEvents])
+  // Automatically scroll to bottom as new events arrive
+  useEffect(() => {
+    if (feedContainerRef.current) {
+      feedContainerRef.current.scrollTop = feedContainerRef.current.scrollHeight
+    }
+  }, [displayEvents.length])
 
   const formatRelTime = (ts: string) => {
     if (!ts) return 'Just now'
@@ -75,8 +78,8 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
   }
 
   return (
-    <div className="bg-white border border-[#E8E4DA] rounded-2xl p-3 sm:p-4 shadow-2xs flex flex-col h-full min-h-0 overflow-hidden select-none">
-      {/* Header with Unified Count & Timeline link (P1-3) */}
+    <div className="bg-white border border-[#E8E4DA] rounded-2xl p-3 sm:p-4 shadow-2xs flex flex-col h-full min-h-0 overflow-hidden">
+      {/* Header with Unified Count & Timeline link */}
       <div className="flex items-center justify-between pb-2 border-b border-[#F0ECE3] shrink-0">
         <div className="flex items-center gap-2">
           <Sparkles className="w-3.5 h-3.5 text-[#244F3B]" />
@@ -87,24 +90,28 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
             type="button"
             onClick={onOpenTimeline}
             className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#244F3B] hover:underline cursor-pointer"
+            title="Open complete protocol timeline"
           >
             <History className="w-3 h-3" />
-            <span>{lastCards.length} highlights / {events.length} events</span>
+            <span>View full timeline</span>
           </button>
         )}
       </div>
 
-      {/* Feed container: fills available height, hides fractional overflow */}
-      <div className="flex-1 flex flex-col justify-end overflow-hidden pt-2 relative min-h-0">
-        {lastCards.length === 0 ? (
+      {/* Feed container: fully scrollable with complete event history */}
+      <div
+        ref={feedContainerRef}
+        className="flex-1 overflow-y-auto overscroll-contain scrollbar-thin pt-2 space-y-2 min-h-0 pr-0.5"
+      >
+        {displayEvents.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-xs text-[#A0ACA5] p-3">
             <MessageSquare className="w-5 h-5 stroke-1 mb-1.5 text-[#D8D2C4]" />
             <p>Agent observations and verdicts appear in real time.</p>
           </div>
         ) : (
-          <div className="space-y-1.5 flex flex-col justify-end overflow-hidden">
+          <div className="space-y-2">
             <AnimatePresence initial={false}>
-              {lastCards.map((evt) => {
+              {displayEvents.map((evt) => {
                 const isDecision = evt.type === 'decision'
                 const isCheckpoint = evt.type === 'checkpoint'
 
@@ -113,9 +120,8 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
                     key={`${evt.seq}_${evt.ts}`}
                     initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
                     transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                    className={`p-2 rounded-xl text-xs transition-all shrink-0 ${
+                    className={`p-2.5 rounded-xl text-xs transition-all ${
                       isDecision
                         ? evt.data?.route === 'revise'
                           ? 'bg-[#FDF6E2] border border-[#F6E0B5] text-[#8C4A26] font-medium'
@@ -141,7 +147,7 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
                       </span>
                     </div>
 
-                    <p className="mt-1 text-[11px] text-[#55635C] line-clamp-2 leading-relaxed">
+                    <p className="mt-1.5 text-[11px] text-[#55635C] leading-relaxed break-words">
                       {evt.text}
                     </p>
                   </motion.div>

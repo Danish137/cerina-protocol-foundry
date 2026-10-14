@@ -30,16 +30,16 @@ export const AGENTS: Record<string, AgentMeta> = {
     description: 'Evaluates therapeutic warmth, collaborative empiricism, and clarity'
   },
   Supervisor: {
-    displayName: 'Clinical Supervisor',
+    displayName: 'Workflow Supervisor',
     shortName: 'Supervisor',
     role: 'Quality & Routing Decision',
     description: 'Synthesizes rubric scores to determine human review routing'
   },
   Human: {
-    displayName: 'Clinical Reviewer (You)',
+    displayName: 'Reviewer (You)',
     shortName: 'You',
     role: 'Final Verification & Approval',
-    description: 'Licensed clinician providing final sign-off and practice tailoring'
+    description: 'Providing final sign-off and practice tailoring'
   },
   System: {
     displayName: 'Cerina Foundry',

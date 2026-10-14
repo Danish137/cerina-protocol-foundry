@@ -271,9 +271,9 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
           </div>
         </div>
 
-        {/* Demo Disclaimer (B4) */}
-        <p className="text-[11px] text-[#A0ACA5] text-center pt-1">
-          Demo — don't enter personal or identifying information. Sessions auto-delete after 7 days.
+        {/* Demo Disclaimer (Decision A) */}
+        <p className="text-[11px] text-[#7C8B82] text-center pt-1">
+          This is a demo. Describe the situation in general terms; don't include names, contact details or personal health information.
         </p>
 
         {error && (

@@ -10,8 +10,6 @@ interface HeaderProps {
   phase: Phase
   activeAgent?: string
   sessionId?: string
-  underTheHood?: boolean
-  onToggleUnderTheHood?: () => void
   onNewProtocol: () => void
   onSelectSession?: (session: StoredSession) => void
   onFocusStep?: (stepNumber: number) => void
@@ -35,8 +33,6 @@ export default function Header({
   phase,
   activeAgent,
   sessionId,
-  underTheHood = false,
-  onToggleUnderTheHood,
   onNewProtocol,
   onSelectSession,
   onFocusStep,
@@ -117,20 +113,7 @@ export default function Header({
 
         {/* Right: Actions & User Avatar */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Under the hood toggle (P1-4) */}
-          <button
-            type="button"
-            onClick={onToggleUnderTheHood}
-            title="Toggle developer & blackboard telemetry"
-            aria-pressed={underTheHood}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border transition-colors shadow-2xs cursor-pointer ${
-              underTheHood
-                ? 'bg-[#244F3B] text-white border-[#244F3B]'
-                : 'bg-white hover:bg-[#F5F2EC] text-[#55635C] border-[#E8E4DA]'
-            }`}
-          >
-            <span className="font-mono text-[11px] font-semibold">Under the hood</span>
-          </button>
+
 
           {/* MCP Popover (Section 10) */}
           <Popover.Root>
@@ -224,7 +207,7 @@ export default function Header({
               >
                 <div className="px-3 py-2 border-b border-[#F0ECE3] mb-1">
                   <p className="font-semibold text-[#18221E]">Clinical Reviewer</p>
-                  <p className="text-[11px] text-[#55635C] font-mono">Danish Akhtar (Lead)</p>
+                  <p className="text-[11px] text-[#55635C] font-mono">Danish Akhtar</p>
                 </div>
 
                 {/* Session ID in avatar menu per Section 10 */}

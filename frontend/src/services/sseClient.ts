@@ -25,7 +25,8 @@ export class ProtocolStreamClient {
     this.stop()
     this.abortController = new AbortController()
 
-    const url = `${API_BASE_URL}/api/protocols/${this.options.sessionId}/stream?after=${this.highestSeq}&token=${encodeURIComponent(this.options.sessionToken)}`
+    // Security A3: Token transmitted via X-Session-Token header, NOT query parameter
+    const url = `${API_BASE_URL}/api/protocols/${this.options.sessionId}/stream?after=${this.highestSeq}`
 
     fetchEventSource(url, {
       method: 'GET',
@@ -72,6 +73,7 @@ export class ProtocolStreamClient {
               })
             }
           } catch (_) {}
+          this.stop()
           return
         }
 
@@ -80,6 +82,9 @@ export class ProtocolStreamClient {
           if (this.options.onRunEnd) {
             this.options.onRunEnd()
           }
+          // Security A4: Cleanly terminate client stream to prevent auto-reconnection attempts
+          this.stop()
+          return
         }
 
         // Standard ProtocolEvent

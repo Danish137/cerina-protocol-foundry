@@ -14,7 +14,7 @@ interface IntentSummaryProps {
 export default function IntentSummary({
   intent,
   draftVersion = 1,
-  maxIterations = 5,
+  maxIterations = 3,
   phase,
   onNewProtocol,
 }: IntentSummaryProps) {
@@ -23,9 +23,9 @@ export default function IntentSummary({
       case 'generating':
         return 'Drafting & Evaluating'
       case 'review':
-        return 'Awaiting Clinician Review'
+        return 'Awaiting Review'
       case 'editing':
-        return 'Clinician Modifying Draft'
+        return 'Editing Protocol Draft'
       case 'approving':
         return 'Finalizing Protocol'
       case 'approved':

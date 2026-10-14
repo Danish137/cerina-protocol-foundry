@@ -81,6 +81,7 @@ export interface ApprovalAudit {
   validated_hash?: string
   edited?: boolean
   rechecked?: boolean
+  app_version?: string
 }
 
 export type ValidationStatus = 'none' | 'checking' | 'passed' | 'failed' | 'stale'

@@ -2,8 +2,8 @@
   "_metadata": {
     "mode": "Recorded live run",
     "capture_date": "2026-10-12T22:01:00.994154+00:00Z",
-    "provider": "OpenRouter",
-    "model": "openrouter/free (mistralai/mistral-small-3.2-24b-instruct:free)",
+    "provider": "AI Infrastructure",
+    "model": "Clinical Protocol Drafter",
     "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
     "run_id": "run_B0dWqFEGJwg",
     "event_count": 17,

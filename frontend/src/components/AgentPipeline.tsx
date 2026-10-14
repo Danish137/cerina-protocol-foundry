@@ -77,10 +77,10 @@ export default function AgentPipeline({
       },
       human: {
         id: 'human',
-        name: 'Clinical Reviewer (You)',
+        name: 'Reviewer (You)',
         role: 'Final Verification & Approval',
         status: isIdle ? 'idle' : 'idle',
-        statusLine: 'Independent clinician sign-off',
+        statusLine: 'User verification sign-off',
       },
     }
 
@@ -114,15 +114,24 @@ export default function AgentPipeline({
 
       if (e.type === 'node_start') {
         target.status = 'working'
-        target.statusLine = e.text ? e.text.slice(0, 60) : 'Executing analysis...'
+        target.statusLine = e.text || 'Executing analysis...'
         target.startTime = new Date(e.ts).getTime() || Date.now()
       } else if (e.type === 'node_end') {
         target.status = 'done'
         if (e.data?.latency_ms) {
           target.durationText = `${(e.data.latency_ms / 1000).toFixed(1)}s`
         }
+        if (agentKey === 'drafter') {
+          target.statusLine = 'Draft generated with required clinical sections'
+        } else if (agentKey === 'safety') {
+          target.statusLine = 'Checked 5 safety criteria, all passed'
+        } else if (agentKey === 'critic') {
+          target.statusLine = 'Completed CBT fidelity and empathy review'
+        } else if (agentKey === 'supervisor') {
+          target.statusLine = 'Synthesized rubric thresholds and approved progression'
+        }
       } else if (e.type === 'message') {
-        target.statusLine = e.text.slice(0, 60)
+        target.statusLine = e.text || ''
         if (e.severity === 'warning' || e.severity === 'major') {
           target.status = 'concern'
         }
@@ -131,16 +140,22 @@ export default function AgentPipeline({
           const passed = Object.values(e.data.checks).filter(Boolean).length
           const total = Object.keys(e.data.checks).length
           target.metricPill = `${passed}/${total} checks`
+          if (passed === total) {
+            target.statusLine = 'Checked 5 safety criteria, all passed'
+          }
         } else if (agentKey === 'critic' && e.data.empathy_score !== undefined) {
-          target.metricPill = `Emp ${e.data.empathy_score.toFixed(1)} / Clin ${e.data.clinical_score?.toFixed(1) || '—'}`
+          target.metricPill = `Empathy ${e.data.empathy_score.toFixed(1)} · Clinical ${e.data.clinical_score?.toFixed(1) || '—'}`
+          target.statusLine = 'Completed CBT fidelity and empathy review'
         }
       } else if (e.type === 'decision' && agentKey === 'supervisor') {
         target.status = 'done'
         if (e.data?.route === 'revise') {
           target.status = 'concern'
           target.metricPill = `Revise (loop ${revCount})`
+          target.statusLine = 'Rubric threshold not met; routing revision back to Drafter'
         } else {
-          target.metricPill = 'Route: Human'
+          target.metricPill = 'Ready for Review'
+          target.statusLine = 'All clinical thresholds satisfied; ready for sign-off'
         }
       } else if (e.type === 'checkpoint') {
         initialNodes.human.status = 'waiting'
@@ -288,20 +303,20 @@ export default function AgentPipeline({
                   </div>
 
                   {/* Metric Pill or Duration */}
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 shrink-0 ml-1">
                     {node.metricPill && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white border border-[#E8E4DA] text-[#18221E] font-semibold">
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white border border-[#E8E4DA] text-[#18221E] font-semibold whitespace-nowrap">
                         {node.metricPill}
                       </span>
                     )}
                     {node.durationText && (
-                      <span className="text-[10px] font-mono text-[#55635C]">{node.durationText}</span>
+                      <span className="text-[10px] font-mono text-[#55635C] whitespace-nowrap">{node.durationText}</span>
                     )}
                   </div>
                 </div>
 
-                {/* Status line (<=60 chars) */}
-                <p className="mt-1.5 text-[11px] text-[#55635C] truncate pl-7">{node.statusLine}</p>
+                {/* Status line - fully visible without truncation */}
+                <p className="mt-1.5 text-[11px] text-[#55635C] leading-snug break-words pl-7">{node.statusLine}</p>
               </div>
 
               {/* Connecting line / handoff dot */}

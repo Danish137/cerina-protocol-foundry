@@ -165,10 +165,14 @@ export function protocolReducer(state: ReducerState, action: ProtocolAction): Re
       let approvalAudit = state.approvalAudit
       if (e.type === 'approval' && e.data) {
         approvalAudit = {
-          approved_by: e.data.approved_by || 'Clinical Supervisor',
+          approved_by: e.data.approved_by || 'You',
           approved_at: e.data.approved_at || e.ts,
           scores_at_approval: e.data.scores_at_approval || {},
-          content_hash: e.data.content_hash
+          content_hash: e.data.content_hash,
+          validated_hash: e.data.validated_hash,
+          edited: e.data.edited,
+          rechecked: e.data.rechecked,
+          app_version: e.data.app_version || '3.0.0'
         }
       }
 

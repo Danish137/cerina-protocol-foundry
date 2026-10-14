@@ -15,7 +15,7 @@ export default function DiffModal({
   originalDraft,
   editedDraft,
 }: DiffModalProps) {
-  const diffParts = Diff.diffWords(originalDraft, editedDraft)
+  const diffParts = Diff.diffLines(originalDraft, editedDraft)
 
   let additions = 0
   let deletions = 0
@@ -34,7 +34,7 @@ export default function DiffModal({
             <div>
               <div className="flex items-center gap-2">
                 <Dialog.Title className="text-base font-serif font-bold text-[#18221E]">
-                  Review Clinical Edits
+                  What changed
                 </Dialog.Title>
                 <div className="flex items-center gap-1.5 text-xs font-mono">
                   <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
@@ -61,35 +61,39 @@ export default function DiffModal({
             </Dialog.Close>
           </div>
 
-          {/* Scrollable Diff View Container */}
+          {/* Scrollable Diff View Container (H2: paragraph/section-level readable highlights) */}
           <div
             tabIndex={0}
             role="region"
-            aria-label="Clinical draft word diff"
-            className="flex-1 overflow-y-auto p-6 text-xs sm:text-sm leading-relaxed font-sans whitespace-pre-wrap select-text focus:outline-none scrollbar-thin"
+            aria-label="Clinical draft line diff"
+            className="flex-1 overflow-y-auto p-6 text-xs sm:text-sm leading-relaxed font-sans select-text focus:outline-none scrollbar-thin space-y-1"
           >
             {diffParts.map((part, idx) => {
               if (part.added) {
                 return (
-                  <span
+                  <div
                     key={idx}
-                    className="bg-[#EBF3EE] text-[#1B3D2E] px-0.5 py-0.5 rounded font-medium border-b border-[#244F3B]"
+                    className="bg-[#EBF3EE] text-[#1B3D2E] p-2 rounded-md border-l-4 border-[#244F3B] whitespace-pre-wrap font-sans"
                   >
                     {part.value}
-                  </span>
+                  </div>
                 )
               }
               if (part.removed) {
                 return (
-                  <span
+                  <div
                     key={idx}
-                    className="bg-[#FDF2F2] text-[#9B2C2C] line-through px-0.5 py-0.5 rounded font-normal opacity-70"
+                    className="bg-[#FDF2F2] text-[#9B2C2C] p-2 rounded-md border-l-4 border-[#E53E3E] line-through opacity-75 whitespace-pre-wrap font-sans"
                   >
                     {part.value}
-                  </span>
+                  </div>
                 )
               }
-              return <span key={idx} className="text-[#3A4A41]">{part.value}</span>
+              return (
+                <div key={idx} className="text-[#3A4A41] py-1 whitespace-pre-wrap font-sans">
+                  {part.value}
+                </div>
+              )
             })}
           </div>
 

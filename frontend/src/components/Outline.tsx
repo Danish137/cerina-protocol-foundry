@@ -36,7 +36,15 @@ export default function Outline({
 
       if (h2Match) {
         h2Count++
-        const clean = h2Match[1].trim()
+        const clean = h2Match[1]
+          .replace(/\*\*\*(.*?)\*\*\*/g, '$1')
+          .replace(/\*\*(.*?)\*\*/g, '$1')
+          .replace(/\*(.*?)\*/g, '$1')
+          .replace(/___(.*?)___/g, '$1')
+          .replace(/__(.*?)__/g, '$1')
+          .replace(/_(.*?)_/g, '$1')
+          .replace(/`([^`]+)`/g, '$1')
+          .trim()
         result.push({
           id: `heading-${clean.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
           text: clean,
@@ -44,7 +52,15 @@ export default function Outline({
           index: h2Count
         })
       } else if (h3Match) {
-        const clean = h3Match[1].trim()
+        const clean = h3Match[1]
+          .replace(/\*\*\*(.*?)\*\*\*/g, '$1')
+          .replace(/\*\*(.*?)\*\*/g, '$1')
+          .replace(/\*(.*?)\*/g, '$1')
+          .replace(/___(.*?)___/g, '$1')
+          .replace(/__(.*?)__/g, '$1')
+          .replace(/_(.*?)_/g, '$1')
+          .replace(/`([^`]+)`/g, '$1')
+          .trim()
         result.push({
           id: `heading-${clean.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
           text: clean,

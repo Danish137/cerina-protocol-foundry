@@ -137,17 +137,6 @@ function AppContent() {
     client.start()
   }, [showToast])
 
-  // Persist under the hood toggle in localStorage (P1-4)
-  useEffect(() => {
-    const saved = localStorage.getItem('cerina_under_the_hood')
-    if (saved === 'true' && !state.uiState.underTheHood) {
-      dispatch({ type: 'TOGGLE_UNDER_THE_HOOD' })
-    }
-  }, [])
-
-  useEffect(() => {
-    localStorage.setItem('cerina_under_the_hood', String(state.uiState.underTheHood))
-  }, [state.uiState.underTheHood])
 
   // Active stage from latest unmatched node_start (P0-2)
   const activeStageText = useMemo(() => {
@@ -426,8 +415,7 @@ function AppContent() {
       const valHash = valData.validated_hash
 
       // 2. Approve with validated hash and "You" attribution
-      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
-      await axios.post(
+      const appRes = await axios.post(
         `${API_BASE_URL}/api/protocols/${state.sessionId}/approve`,
         {
           approved_content: editedDraft,
@@ -438,7 +426,8 @@ function AppContent() {
         { headers: { 'X-Session-Token': state.sessionToken } }
       )
 
-      setApprovalTime(now)
+      const approvedIso = appRes.data?.audit?.approved_at || new Date().toISOString()
+      setApprovalTime(approvedIso)
       dispatch({ type: 'SET_DRAFT', draft: editedDraft })
       dispatch({ type: 'SET_UI_MODE', mode: 'default' })
       updateSessionStatus(state.sessionId, 'approved', editedDraft)
@@ -469,8 +458,7 @@ function AppContent() {
 
     dispatch({ type: 'SET_UI_MODE', mode: 'approving' })
     try {
-      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
-      await axios.post(
+      const appRes = await axios.post(
         `${API_BASE_URL}/api/protocols/${state.sessionId}/approve`,
         {
           approved_by: 'You',
@@ -480,7 +468,8 @@ function AppContent() {
         { headers: { 'X-Session-Token': state.sessionToken } }
       )
 
-      setApprovalTime(now)
+      const approvedIso = appRes.data?.audit?.approved_at || new Date().toISOString()
+      setApprovalTime(approvedIso)
       dispatch({ type: 'SET_UI_MODE', mode: 'default' })
       updateSessionStatus(state.sessionId, 'approved')
       showToast('Protocol approved & locked', 'success')
@@ -526,8 +515,8 @@ function AppContent() {
     }
   }
 
-  // Export PDF (Phase E)
-  const handleExportPdf = async () => {
+  // Export PDF (Phase E, Round 5)
+  const handleExportPdf = async (includeDetails: boolean = false) => {
     const draftText = editedDraft || state.draft || ''
     if (!draftText.trim()) {
       showToast('No protocol content available to export', 'error')
@@ -542,11 +531,14 @@ function AppContent() {
           safety: state.scores.safety_score,
           empathy: state.scores.empathy_score,
           clinical: state.scores.clinical_score,
-        }
+        },
+        state.userIntent,
+        includeDetails
       )
       showToast(`Saved ${filename}`, 'success')
     } catch (err: any) {
       showToast(`PDF Export error: ${err.message}`, 'error')
+      throw err
     }
   }
 
@@ -623,8 +615,6 @@ function AppContent() {
         <Header
           phase={phase}
           sessionId={state.sessionId || undefined}
-          underTheHood={state.uiState.underTheHood}
-          onToggleUnderTheHood={() => dispatch({ type: 'TOGGLE_UNDER_THE_HOOD' })}
           onNewProtocol={handleNewProtocol}
           onSelectSession={handleSelectRecentSession}
         />
@@ -806,9 +796,9 @@ function AppContent() {
               {/* 3-Column Container */}
               <div className="flex-1 flex gap-4 overflow-hidden min-h-0">
                 {/* =====================================================================
-                    1. LEFT RAIL (280px, NEVER SCROLLS)
+                    1. LEFT RAIL
                    ===================================================================== */}
-                <div className="hidden 2xl:flex w-[280px] shrink-0 flex-col gap-2.5 overflow-hidden select-none h-full">
+                <div className="hidden 2xl:flex w-[310px] shrink-0 flex-col gap-2.5 overflow-y-auto overscroll-contain scrollbar-thin h-full pr-1.5 pb-4">
                   <IntentSummary
                     intent={state.userIntent || ''}
                     draftVersion={state.draftVersion || 1}
@@ -817,11 +807,11 @@ function AppContent() {
                     onNewProtocol={handleNewProtocol}
                   />
 
-                  <div className="shrink-0 max-h-[380px] overflow-hidden">
+                  <div className="shrink-0">
                     <AgentPipeline events={state.events} />
                   </div>
 
-                  <div className="flex-1 min-h-[140px] overflow-hidden">
+                  <div className="flex-1 min-h-[140px]">
                     <Outline content={state.draft || editedDraft} scrollerRef={scrollerRef} />
                   </div>
                 </div>
@@ -861,6 +851,9 @@ function AppContent() {
                       hasRevisedRun={state.events.some((e) => e.run_kind === 'revision' || e.run_kind === 'human_revision')}
                       v1Draft={state.events.find((e) => e.type === 'draft' && e.draft_version === 1)?.data?.draft || ''}
                       scrollerRef={scrollerRef}
+                      scores={state.scores}
+                      events={state.events}
+                      audit={state.approvalAudit}
                       onDraftChange={handleDraftChange}
                       onStartEditing={handleStartEditing}
                       onSaveEditsAndApprove={handleSaveEditsAndApprove}
@@ -877,7 +870,7 @@ function AppContent() {
                   initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: 16 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.25 }}
-                  className={`w-full lg:w-[350px] 2xl:w-[370px] shrink-0 h-full grid grid-rows-[auto_minmax(0,1fr)_auto] gap-2.5 overflow-hidden select-none ${
+                  className={`w-full lg:w-[350px] 2xl:w-[370px] shrink-0 h-full grid grid-rows-[auto_minmax(0,1fr)_auto] gap-2.5 overflow-hidden ${
                     mobileTab !== 'review' ? 'hidden lg:grid' : 'grid'
                   }`}
                 >
@@ -948,13 +941,11 @@ function AppContent() {
           )}
         </main>
 
-        {/* Timeline Sheet (C4) */}
+        {/* Timeline Sheet */}
         <TimelineSheet
           isOpen={isTimelineOpen}
           onOpenChange={setIsTimelineOpen}
           events={state.events}
-          underTheHood={state.uiState.underTheHood}
-          onToggleUnderTheHood={() => dispatch({ type: 'TOGGLE_UNDER_THE_HOOD' })}
         />
       </div>
     </LayoutGroup>

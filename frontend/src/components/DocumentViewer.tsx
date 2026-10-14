@@ -27,8 +27,8 @@ import {
 } from 'lucide-react'
 import { Phase } from '../types'
 import DiffModal from './DiffModal'
-import { RevisionSummaryItem } from '../types'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import ReviewDetailsSheet from './ReviewDetailsSheet'
+import { RevisionSummaryItem, ScoreData, ProtocolEvent, ApprovalAudit } from '../types'
 
 interface DocumentViewerProps {
   phase: Phase
@@ -50,8 +50,11 @@ interface DocumentViewerProps {
   onStartEditing: () => void
   onSaveEditsAndApprove: () => void
   onDiscardEdits: () => void
-  onExportPdf: () => void
+  onExportPdf: (includeDetails?: boolean) => void
   scrollerRef?: React.RefObject<HTMLDivElement | null>
+  scores?: ScoreData
+  events?: ProtocolEvent[]
+  audit?: ApprovalAudit
 }
 
 export default function DocumentViewer({
@@ -76,6 +79,9 @@ export default function DocumentViewer({
   onDiscardEdits,
   onExportPdf,
   scrollerRef: externalScrollerRef,
+  scores,
+  events,
+  audit
 }: DocumentViewerProps) {
   // Default to Split view on wide displays >=1536px, Rich Editor otherwise
   const [editorViewMode, setEditorViewMode] = useState<'rich' | 'markdown' | 'split'>(() => {
@@ -83,7 +89,7 @@ export default function DocumentViewer({
   })
   const [readingProgress, setReadingProgress] = useState(0)
   const [showDiffModal, setShowDiffModal] = useState(false)
-  const [revisionCardExpanded, setRevisionCardExpanded] = useState(false)
+  const [showReviewDetails, setShowReviewDetails] = useState(false)
   const [restoredSessionAlert, setRestoredSessionAlert] = useState(false)
   const internalScrollerRef = useRef<HTMLDivElement>(null)
   const scrollerRef = externalScrollerRef || internalScrollerRef
@@ -307,9 +313,6 @@ export default function DocumentViewer({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono text-[#8C5921] bg-[#FEF9EE] border border-[#F7E1B5] px-2.5 py-0.5 rounded-full">
-              Waiting on model · {formatTime(secondsSinceLastEvent)}
-            </span>
             <div className="inline-flex items-center gap-1.5 font-mono text-xs px-3 py-1 rounded-full bg-[#FAF8F5] border border-[#E8E4DA] text-[#55635C]">
               <Clock className="w-3.5 h-3.5" />
               <span>{formatTime(elapsedSeconds)}</span>
@@ -365,7 +368,7 @@ export default function DocumentViewer({
               </span>
             ) : (
               <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-[#FAF8F5] text-[#55635C] border border-[#E8E4DA] whitespace-nowrap">
-                v{draftVersion} · Clinician Editor
+                v{draftVersion} · Protocol Editor
               </span>
             )}
           </div>
@@ -668,6 +671,14 @@ export default function DocumentViewer({
 
         {/* Toolbar Secondary Actions */}
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowReviewDetails(true)}
+            className="text-xs text-[#244F3B] hover:text-[#18221E] underline font-medium cursor-pointer px-2 transition-colors"
+          >
+            Review details
+          </button>
+
           {!isApproved && (
             <button
               type="button"
@@ -687,7 +698,7 @@ export default function DocumentViewer({
           <div className="relative group">
             <button
               type="button"
-              onClick={onExportPdf}
+              onClick={() => onExportPdf()}
               disabled={!isApproved}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
                 isApproved
@@ -723,23 +734,18 @@ export default function DocumentViewer({
       {(draftVersion >= 2 || hasRevisedRun) && (
         <div className="mx-6 mt-4 rounded-xl border border-[#F6E0B5] bg-[#FDF6E2] p-3 text-xs text-[#8C4A26] shrink-0">
           <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setRevisionCardExpanded((prev) => !prev)}
-              className="flex items-center gap-2 font-semibold hover:underline"
-            >
-              <span>{revisionSummaries.length > 0 ? `Revised after review · ${revisionSummaries.length} changes` : 'Revised after your request'}</span>
-              {revisionCardExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
+            <span className="font-semibold text-[#8C4A26]">
+              {revisionSummaries.length > 0 ? `Revised after review · ${revisionSummaries.length} changes` : 'Revised after your request'}
+            </span>
             <button
               type="button"
               onClick={() => setShowDiffModal(true)}
-              className="px-2.5 py-1 rounded-md bg-white border border-[#F6E0B5] font-semibold hover:bg-[#FAF8F5] shadow-2xs"
+              className="px-2.5 py-1 rounded-md bg-white border border-[#F6E0B5] font-semibold hover:bg-[#FAF8F5] shadow-2xs cursor-pointer text-[#8C4A26] transition-colors"
             >
               View changes
             </button>
           </div>
-          {revisionCardExpanded && (
+          {revisionSummaries && revisionSummaries.length > 0 && (
             <div className="mt-2 pt-2 border-t border-[#F6E0B5]/60 space-y-1.5 font-sans">
               {revisionSummaries.map((item, idx) => (
                 <div key={idx} className="flex items-start gap-1.5 text-[11px]">
@@ -796,7 +802,16 @@ export default function DocumentViewer({
 
         {/* Quiet Clinical Disclaimer at bottom of document */}
         <div className="max-w-[68ch] mx-auto mt-12 pt-6 border-t border-[#F0ECE3] text-[12px] text-[#55635C] flex items-center justify-between">
-          <span>AI-generated protocol draft for clinician review — not a substitute for professional clinical care.</span>
+          <div className="flex items-center gap-2">
+            <span>AI-generated protocol demo — not a substitute for professional clinical care.</span>
+            <button
+              type="button"
+              onClick={() => setShowReviewDetails(true)}
+              className="text-[#244F3B] hover:text-[#18221E] underline font-medium cursor-pointer"
+            >
+              Review details
+            </button>
+          </div>
           <span className="font-mono text-[11px] text-[#55635C]">CERINA CLINICAL FOUNDRY</span>
         </div>
 
@@ -806,6 +821,21 @@ export default function DocumentViewer({
           onOpenChange={setShowDiffModal}
           originalDraft={v1Draft || draft}
           editedDraft={draft}
+        />
+
+        {/* Review Details Sheet (Requirement 3.1 - 3.4) */}
+        <ReviewDetailsSheet
+          isOpen={showReviewDetails}
+          onClose={() => setShowReviewDetails(false)}
+          scores={scores || {}}
+          events={events || []}
+          draft={displayContent}
+          sessionId={sessionId}
+          audit={audit}
+          onExportPdf={(includeDetails) => {
+            setShowReviewDetails(false)
+            onExportPdf(includeDetails)
+          }}
         />
       </div>
     </div>

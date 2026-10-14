@@ -47,8 +47,8 @@ export const AGENTS: Record<string, AgentConfig> = {
   human: {
     id: 'human',
     label: 'Human Reviewer',
-    role: 'Clinician Gatekeeper',
-    description: 'Licensed clinician approval gate for final patient delivery.',
+    role: 'Human Gatekeeper',
+    description: 'User verification gate for final protocol delivery.',
     icon: UserCheck,
   },
 }
