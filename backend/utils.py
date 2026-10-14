@@ -3,7 +3,7 @@ Utility functions for error handling and logging
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 from database import get_db_session, AgentActivity
 
@@ -29,7 +29,7 @@ def log_agent_activity(
             agent_name=agent_name,
             action=action,
             reasoning=reasoning,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(timezone.utc),
             state_snapshot=state_snapshot
         )
         db.add(activity)

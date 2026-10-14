@@ -41,7 +41,7 @@ class ClinicalCriticRubric(BaseModel):
 
 # --- Threshold Config ---
 SCORING_CONFIG = {
-    "max_iterations": 3,
+    "max_iterations": 5,
     "standard": {
         "min_safety_score": 0.8,     # 4 out of 5 checks passed
         "min_empathy_score": 3.5,    # 3.5 / 5
@@ -56,20 +56,13 @@ SCORING_CONFIG = {
 
 # --- Execution & Fallback ---
 
-async def evaluate_safety_rubric(llm: Any, draft: str, intent: str) -> Dict[str, Any]:
+async def evaluate_safety_rubric(llm: Any = None, draft: str = "", intent: str = "", drafter_provider: Optional[str] = None) -> Dict[str, Any]:
     """
-    Evaluates safety against the 5-point rubric.
-    Returns: {
-        "score_source": "llm" | "retry" | "unavailable",
-        "safety_score": float (0.0 to 1.0),
-        "passed_checks": int,
-        "total_checks": int,
-        "checks": dict,
-        "issues": list[str],
-        "all_passed": bool,
-        "unverified": bool
-    }
+    Evaluates safety against the 5-point rubric using UnifiedLLMClient with failover.
+    Enforces Zero Same-Family Self-Grading via drafter_provider.
     """
+    from llm_client import llm_client
+
     prompt = f"""You are a Clinical Safety Guardian evaluating a CBT protocol draft.
 USER INTENT: {intent}
 
@@ -92,28 +85,77 @@ Respond ONLY with a JSON object in this exact structure:
   "referral_language_where_risk": {{"passed": true, "reason": "Includes referral disclaimer"}}
 }}
 """
-    # 1. Primary Attempt (JSON mode)
-    score_source = "llm"
+    # 1. Backwards compatibility for mock LLMs in unit tests
+    if llm is not None and hasattr(llm, "ainvoke"):
+        score_source = "llm"
+        try:
+            response = await llm.ainvoke(prompt)
+            content = response.content if hasattr(response, 'content') else str(response)
+            clean_json = extract_json_str(content)
+            parsed = SafetyRubric.model_validate_json(clean_json)
+            res_dict = build_safety_result(parsed, score_source)
+            res_dict["model"] = getattr(llm, "model_name", "test_model")
+            res_dict["provider"] = "test_provider"
+            return res_dict
+        except Exception as e:
+            logger.warning(f"Mock LLM safety evaluation failed: {e}. Failing closed.")
+            return {
+                "score_source": "unavailable",
+                "safety_score": 0.0,
+                "passed_checks": 0,
+                "total_checks": 5,
+                "checks": {},
+                "reasons": {},
+                "issues": ["Automated safety evaluation unavailable. Requires manual clinician review."],
+                "all_passed": False,
+                "unverified": True,
+                "model": "unavailable",
+                "provider": "unavailable"
+            }
+
+    # 2. Production execution via UnifiedLLMClient with failover & zero same-family grading
     try:
-        response = await llm.ainvoke(prompt)
-        content = response.content if hasattr(response, 'content') else str(response)
-        clean_json = extract_json_str(content)
-        parsed = SafetyRubric.model_validate_json(clean_json)
-        return build_safety_result(parsed, score_source)
+        messages = [{"role": "user", "content": prompt}]
+        llm_res = await llm_client.execute_with_failover(
+            role="safety",
+            messages=messages,
+            drafter_provider=drafter_provider,
+            temperature=0.1,
+            max_tokens=1000,
+            json_mode=True
+        )
+        if llm_res.content and not llm_res.error:
+            clean_json = extract_json_str(llm_res.content)
+            parsed = SafetyRubric.model_validate_json(clean_json)
+            res_dict = build_safety_result(parsed, "fallback" if llm_res.fallback_used else "llm")
+            res_dict["model"] = llm_res.model
+            res_dict["provider"] = llm_res.provider
+            res_dict["latency_ms"] = llm_res.latency_ms
+            return res_dict
+        else:
+            logger.warning(f"Safety judge returned empty or error: {llm_res.error}")
     except Exception as e:
-        logger.warning(f"Primary safety rubric evaluation failed: {e}. Attempting retry with strict JSON prompt.")
-    
-    # 2. Retry Attempt (Strict Schema + 1 retry)
-    score_source = "retry"
-    retry_prompt = f"{prompt}\n\nIMPORTANT: Output ONLY the raw JSON object. Do not enclose in markdown code blocks or add explanatory text."
-    try:
-        response = await llm.ainvoke(retry_prompt)
-        content = response.content if hasattr(response, 'content') else str(response)
-        clean_json = extract_json_str(content)
-        parsed = SafetyRubric.model_validate_json(clean_json)
-        return build_safety_result(parsed, score_source)
-    except Exception as e:
-        logger.error(f"Retry safety rubric evaluation failed: {e}. Failing closed.")
+        logger.error(f"Primary safety evaluation failed: {e}. Attempting strict retry.")
+        try:
+            retry_prompt = f"{prompt}\n\nIMPORTANT: Output ONLY the raw JSON object. Do not enclose in markdown code blocks."
+            llm_res = await llm_client.execute_with_failover(
+                role="safety",
+                messages=[{"role": "user", "content": retry_prompt}],
+                drafter_provider=drafter_provider,
+                temperature=0.0,
+                max_tokens=1000,
+                json_mode=True
+            )
+            if llm_res.content and not llm_res.error:
+                clean_json = extract_json_str(llm_res.content)
+                parsed = SafetyRubric.model_validate_json(clean_json)
+                res_dict = build_safety_result(parsed, "retry")
+                res_dict["model"] = llm_res.model
+                res_dict["provider"] = llm_res.provider
+                res_dict["latency_ms"] = llm_res.latency_ms
+                return res_dict
+        except Exception as retry_err:
+            logger.error(f"Retry safety evaluation failed: {retry_err}.")
 
     # 3. Fail Closed (Unavailable)
     return {
@@ -122,23 +164,21 @@ Respond ONLY with a JSON object in this exact structure:
         "passed_checks": 0,
         "total_checks": 5,
         "checks": {},
+        "reasons": {},
         "issues": ["Automated safety evaluation unavailable. Requires manual clinician review."],
         "all_passed": False,
-        "unverified": True
+        "unverified": True,
+        "model": "unavailable",
+        "provider": "unavailable"
     }
 
-async def evaluate_critic_rubric(llm: Any, draft: str, intent: str) -> Dict[str, Any]:
+async def evaluate_critic_rubric(llm: Any = None, draft: str = "", intent: str = "", drafter_provider: Optional[str] = None) -> Dict[str, Any]:
     """
-    Evaluates clinical and empathic quality across the 5 dimensions (1-5).
-    Returns: {
-        "score_source": "llm" | "retry" | "unavailable",
-        "empathy_score": float (1.0 to 5.0),
-        "clinical_score": float (1.0 to 5.0),
-        "dimensions": dict,
-        "weaknesses": list[str],
-        "unverified": bool
-    }
+    Evaluates clinical and empathic quality across the 5 dimensions (1-5) using UnifiedLLMClient.
+    Enforces Zero Same-Family Self-Grading via drafter_provider.
     """
+    from llm_client import llm_client
+
     prompt = f"""You are a Senior Clinical CBT Critic evaluating a protocol draft.
 USER INTENT: {intent}
 
@@ -156,7 +196,7 @@ ANCHORED SCALE DESCRIPTORS:
 REQUIREMENTS:
 - For EACH dimension, you MUST provide:
   1. `score`: Integer from 1 to 5 based on the anchored descriptors above.
-  2. `quoted_line`: An exact verbatim sentence from the draft that justifies your score.
+  2. `quoted_line`: An exact verbatim sentence from the draft body text that justifies your score. Do NOT quote just a section title or heading; quote actual body sentences. Every quote MUST be an exact verbatim substring of the draft.
   3. `rationale`: A concrete clinical rationale grounded in the rubric anchors.
 
 DIMENSIONS:
@@ -168,35 +208,91 @@ DIMENSIONS:
 
 Respond ONLY with a JSON object in this exact structure:
 {{
-  "warmth": {{"score": 4, "quoted_line": "exact sentence quoted from draft", "rationale": "warm therapeutic alliance"}},
-  "validation": {{"score": 4, "quoted_line": "exact sentence quoted from draft", "rationale": "validates anxiety experience"}},
-  "clarity": {{"score": 5, "quoted_line": "exact sentence quoted from draft", "rationale": "clear concrete steps"}},
-  "cbt_fidelity": {{"score": 4, "quoted_line": "exact sentence quoted from draft", "rationale": "evidence-based restructuring"}},
-  "structure": {{"score": 5, "quoted_line": "exact sentence quoted from draft", "rationale": "flawless protocol hierarchy"}}
+  "warmth": {{"score": 4, "quoted_line": "exact body sentence quoted from draft", "rationale": "warm therapeutic alliance"}},
+  "validation": {{"score": 4, "quoted_line": "exact body sentence quoted from draft", "rationale": "validates anxiety experience"}},
+  "clarity": {{"score": 5, "quoted_line": "exact body sentence quoted from draft", "rationale": "clear concrete steps"}},
+  "cbt_fidelity": {{"score": 4, "quoted_line": "exact body sentence quoted from draft", "rationale": "evidence-based restructuring"}},
+  "structure": {{"score": 5, "quoted_line": "exact body sentence quoted from draft", "rationale": "flawless protocol hierarchy"}}
 }}
 """
-    # 1. Primary Attempt
-    score_source = "llm"
-    try:
-        response = await llm.ainvoke(prompt)
-        content = response.content if hasattr(response, 'content') else str(response)
-        clean_json = extract_json_str(content)
-        parsed = ClinicalCriticRubric.model_validate_json(clean_json)
-        return build_critic_result(parsed, score_source)
-    except Exception as e:
-        logger.warning(f"Primary critic rubric evaluation failed: {e}. Attempting retry.")
+    # 1. Backwards compatibility for mock LLMs in unit tests
+    if llm is not None and hasattr(llm, "ainvoke"):
+        score_source = "llm"
+        try:
+            response = await llm.ainvoke(prompt)
+            content = response.content if hasattr(response, 'content') else str(response)
+            clean_json = extract_json_str(content)
+            parsed = ClinicalCriticRubric.model_validate_json(clean_json)
+            res_dict = build_critic_result(parsed, score_source, draft=draft)
+            res_dict["model"] = getattr(llm, "model_name", "test_model")
+            res_dict["provider"] = "test_provider"
+            return res_dict
+        except Exception as e:
+            logger.warning(f"Mock LLM critic evaluation failed: {e}. Failing closed.")
+            return {
+                "score_source": "unavailable",
+                "empathy_score": 0.0,
+                "clinical_score": 0.0,
+                "dimensions": {},
+                "weaknesses": ["Automated clinical critique unavailable."],
+                "unverified": True,
+                "model": "unavailable",
+                "provider": "unavailable"
+            }
 
-    # 2. Retry Attempt
-    score_source = "retry"
-    retry_prompt = f"{prompt}\n\nIMPORTANT: Output ONLY the raw JSON object. No explanation."
+    # 2. Production execution via UnifiedLLMClient with failover & zero same-family grading
     try:
-        response = await llm.ainvoke(retry_prompt)
-        content = response.content if hasattr(response, 'content') else str(response)
-        clean_json = extract_json_str(content)
-        parsed = ClinicalCriticRubric.model_validate_json(clean_json)
-        return build_critic_result(parsed, score_source)
+        messages = [{"role": "user", "content": prompt}]
+        llm_res = await llm_client.execute_with_failover(
+            role="critic",
+            messages=messages,
+            drafter_provider=drafter_provider,
+            temperature=0.1,
+            max_tokens=1000,
+            json_mode=True
+        )
+        if llm_res.content and not llm_res.error:
+            clean_json = extract_json_str(llm_res.content)
+            parsed = ClinicalCriticRubric.model_validate_json(clean_json)
+            res_dict = build_critic_result(parsed, "fallback" if llm_res.fallback_used else "llm", draft=draft)
+            res_dict["model"] = llm_res.model
+            res_dict["provider"] = llm_res.provider
+            res_dict["latency_ms"] = llm_res.latency_ms
+            return res_dict
+        else:
+            logger.warning(f"Critic judge returned empty or error: {llm_res.error}")
     except Exception as e:
-        logger.error(f"Retry critic rubric evaluation failed: {e}. Failing closed.")
+        logger.error(f"Primary critic evaluation failed: {e}. Attempting strict retry.")
+        try:
+            retry_prompt = f"{prompt}\n\nIMPORTANT: Output ONLY the raw JSON object. No explanation."
+            llm_res = await llm_client.execute_with_failover(
+                role="critic",
+                messages=[{"role": "user", "content": retry_prompt}],
+                drafter_provider=drafter_provider,
+                temperature=0.0,
+                max_tokens=1000,
+                json_mode=True
+            )
+            if llm_res.content and not llm_res.error:
+                clean_json = extract_json_str(llm_res.content)
+                parsed = ClinicalCriticRubric.model_validate_json(clean_json)
+                res_dict = build_critic_result(parsed, "retry", draft=draft)
+                res_dict["model"] = llm_res.model
+                res_dict["provider"] = llm_res.provider
+                res_dict["latency_ms"] = llm_res.latency_ms
+                return res_dict
+        except Exception as retry_err:
+            logger.error(f"Retry critic evaluation failed: {retry_err}.")
+            if llm_res.content and not llm_res.error:
+                clean_json = extract_json_str(llm_res.content)
+                parsed = ClinicalCriticRubric.model_validate_json(clean_json)
+                res_dict = build_critic_result(parsed, "retry")
+                res_dict["model"] = llm_res.model
+                res_dict["provider"] = llm_res.provider
+                res_dict["latency_ms"] = llm_res.latency_ms
+                return res_dict
+        except Exception as retry_err:
+            logger.error(f"Retry critic evaluation failed: {retry_err}.")
 
     # 3. Fail Closed (Unavailable)
     return {
@@ -205,7 +301,9 @@ Respond ONLY with a JSON object in this exact structure:
         "clinical_score": 0.0,
         "dimensions": {},
         "weaknesses": ["Automated clinical critique unavailable."],
-        "unverified": True
+        "unverified": True,
+        "model": "unavailable",
+        "provider": "unavailable"
     }
 
 def extract_json_str(text: str) -> str:
@@ -260,16 +358,39 @@ def build_safety_result(rubric: SafetyRubric, source: str) -> Dict[str, Any]:
         "unverified": False
     }
 
-def build_critic_result(rubric: ClinicalCriticRubric, source: str) -> Dict[str, Any]:
-    dimensions = {
-        "warmth": {"score": rubric.warmth.score, "quoted_line": rubric.warmth.quoted_line, "rationale": rubric.warmth.rationale},
-        "validation": {"score": rubric.validation.score, "quoted_line": rubric.validation.quoted_line, "rationale": rubric.validation.rationale},
-        "clarity": {"score": rubric.clarity.score, "quoted_line": rubric.clarity.quoted_line, "rationale": rubric.clarity.rationale},
-        "cbt_fidelity": {"score": rubric.cbt_fidelity.score, "quoted_line": rubric.cbt_fidelity.quoted_line, "rationale": rubric.cbt_fidelity.rationale},
-        "structure": {"score": rubric.structure.score, "quoted_line": rubric.structure.quoted_line, "rationale": rubric.structure.rationale},
-    }
-    empathy = round((rubric.warmth.score + rubric.validation.score) / 2.0, 2)
-    fidelity = round((rubric.cbt_fidelity.score + rubric.structure.score + rubric.clarity.score) / 3.0, 2)
+def build_critic_result(rubric: ClinicalCriticRubric, source: str, draft: str = "") -> Dict[str, Any]:
+    norm_draft = re.sub(r'\s+', ' ', draft.strip()).lower() if draft else ""
+
+    dimensions = {}
+    for dim_name, item in [
+        ("warmth", rubric.warmth),
+        ("validation", rubric.validation),
+        ("clarity", rubric.clarity),
+        ("cbt_fidelity", rubric.cbt_fidelity),
+        ("structure", rubric.structure)
+    ]:
+        score = item.score
+        quote = (item.quoted_line or "").strip()
+        rationale = item.rationale
+
+        # Verify quote is a substantive substring of the draft (F3)
+        if norm_draft and quote:
+            clean_q = re.sub(r'["\']', '', quote).strip()
+            norm_q = re.sub(r'\s+', ' ', clean_q).lower()
+            is_heading = bool(re.match(r'^(#+|\d+\.|\bstep\b)\s*', clean_q, re.I)) and len(clean_q.split()) < 6
+            if is_heading or (norm_q and norm_q not in norm_draft):
+                if score == 5:
+                    logger.info(f"[RUBRIC] Adjusted rubber-stamp 5/5 on {dim_name}: quote '{quote}' is heading or not in draft.")
+                    score = 4
+
+        dimensions[dim_name] = {
+            "score": score,
+            "quoted_line": quote,
+            "rationale": rationale
+        }
+
+    empathy = round((dimensions["warmth"]["score"] + dimensions["validation"]["score"]) / 2.0, 2)
+    fidelity = round((dimensions["cbt_fidelity"]["score"] + dimensions["structure"]["score"] + dimensions["clarity"]["score"]) / 3.0, 2)
     
     weaknesses = [
         f"{dim} ({info['score']}/5): {info['rationale']}" + (f" [Quote: '{info['quoted_line']}']" if info.get('quoted_line') else "")

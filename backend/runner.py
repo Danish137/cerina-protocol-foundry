@@ -11,7 +11,7 @@ import json
 import logging
 import time
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, AsyncGenerator
 
 import hashlib
@@ -107,7 +107,12 @@ def emit_event(
     and broadcasts to live in-process SSE subscribers.
     """
     data = data or {}
-    ts_now = datetime.utcnow()
+    clean_data = {
+        k: v for k, v in data.items()
+        if k not in ["provider", "model", "drafter_provider", "drafter_model", "serving_provider", "serving_model"]
+    }
+    ts_now = datetime.now(timezone.utc)
+    ts_str = ts_now.strftime("%Y-%m-%dT%H:%M:%SZ")
     
     # Tokens are live-only (not persisted per A2)
     if event_type == "token":
@@ -122,8 +127,8 @@ def emit_event(
             "to_agent": to_agent,
             "severity": severity,
             "text": text_content,
-            "data": data,
-            "ts": ts_now.isoformat() + "Z"
+            "data": clean_data,
+            "ts": ts_str
         }
         registry.broadcast(session_id, payload)
         return payload
@@ -148,7 +153,7 @@ def emit_event(
             to_agent=to_agent,
             severity=severity,
             text=text_content,
-            data=data,
+            data=clean_data,
             ts=ts_now
         )
         db.add(event_obj)
@@ -165,8 +170,8 @@ def emit_event(
             "to_agent": to_agent,
             "severity": severity,
             "text": text_content,
-            "data": data,
-            "ts": ts_now.isoformat() + "Z"
+            "data": clean_data,
+            "ts": ts_str
         }
         registry.broadcast(session_id, payload)
         return payload
@@ -309,8 +314,10 @@ async def run_protocol_workflow(
 
     except Exception as e:
         logger.error(f"[RUNNER] Exception during workflow for {session_id}: {e}", exc_info=True)
-        code = "quota_exceeded" if "429" in str(e) or "quota" in str(e).lower() else "runner_error"
+        is_capacity = "429" in str(e) or "quota" in str(e).lower() or "capacity" in str(e).lower()
+        code = "quota_exceeded" if is_capacity else "runner_error"
         retryable = (code != "quota_exceeded")
+        plain_msg = "We're at capacity, please try again shortly." if is_capacity else "An unexpected issue occurred. Please retry shortly."
         emit_event(
             session_id=session_id,
             run_id=run_id,
@@ -318,9 +325,9 @@ async def run_protocol_workflow(
             draft_version=draft_version,
             agent="System",
             event_type="error",
-            text_content=f"Execution error: {str(e)}",
+            text_content=plain_msg,
             severity="critical",
-            data={"code": code, "message": str(e), "retryable": retryable}
+            data={"code": code, "message": plain_msg, "retryable": retryable, "raw_detail": str(e)}
         )
         emit_event(
             session_id=session_id,
@@ -365,7 +372,7 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
 
     state["current_draft"] = clean_draft
     
-    # 1. Safety Guardian
+    # Run Safety Guardian and Clinical Critic concurrently on edited draft (Amendment 6)
     emit_event(
         session_id=session_id,
         run_id=run_id,
@@ -376,31 +383,6 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
         text_content="Safety Guardian reviewing edited draft",
         severity="info"
     )
-    s_res = await safety_guardian.review(state)
-    s_score = s_res.get("safety_score", 0.0)
-    emit_event(
-        session_id=session_id,
-        run_id=run_id,
-        run_kind="recheck",
-        draft_version=draft_version,
-        agent="SafetyGuardian",
-        event_type="score",
-        text_content=f"Safety score after edits: {s_score:.2f}",
-        severity="critical" if s_score < 0.8 else "info",
-        data={"metric": "safety", "score": s_score, "checks": s_res.get("safety_checks", {}), "model": s_res.get("model", "judge_model")}
-    )
-    emit_event(
-        session_id=session_id,
-        run_id=run_id,
-        run_kind="recheck",
-        draft_version=draft_version,
-        agent="SafetyGuardian",
-        event_type="node_end",
-        text_content="Safety check complete",
-        severity="info"
-    )
-
-    # 2. Clinical Critic
     emit_event(
         session_id=session_id,
         run_id=run_id,
@@ -411,30 +393,78 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
         text_content="Clinical Critic reviewing edited draft",
         severity="info"
     )
-    c_res = await clinical_critic.critique(state)
+
+    async def recheck_safety():
+        s_res = await safety_guardian.review(state)
+        s_score = s_res.get("safety_score", 0.0)
+        emit_event(
+            session_id=session_id,
+            run_id=run_id,
+            run_kind="recheck",
+            draft_version=draft_version,
+            agent="SafetyGuardian",
+            event_type="score",
+            text_content=f"Safety score after edits: {s_score:.2f}",
+            severity="critical" if s_score < 0.8 else "info",
+            data={
+                "metric": "safety",
+                "score": s_score,
+                "checks": s_res.get("safety_checks", {}),
+                "reasons": s_res.get("safety_reasons", {}),
+                "model": s_res.get("model", "judge_model"),
+                "provider": s_res.get("provider", "judge_provider")
+            }
+        )
+        emit_event(
+            session_id=session_id,
+            run_id=run_id,
+            run_kind="recheck",
+            draft_version=draft_version,
+            agent="SafetyGuardian",
+            event_type="node_end",
+            text_content="Safety check complete",
+            severity="info"
+        )
+        return s_res
+
+    async def recheck_critic():
+        c_res = await clinical_critic.critique(state)
+        emp = c_res.get("empathy_score", 0.0)
+        fid = c_res.get("clinical_score", 0.0)
+        emit_event(
+            session_id=session_id,
+            run_id=run_id,
+            run_kind="recheck",
+            draft_version=draft_version,
+            agent="ClinicalCritic",
+            event_type="score",
+            text_content=f"Empathy: {emp:.1f}/5, Clinical fidelity: {fid:.1f}/5",
+            severity="info",
+            data={
+                "metric": "clinical",
+                "empathy_score": emp,
+                "clinical_score": fid,
+                "dimensions": c_res.get("dimensions", {}),
+                "model": c_res.get("model", "judge_model"),
+                "provider": c_res.get("provider", "judge_provider")
+            }
+        )
+        emit_event(
+            session_id=session_id,
+            run_id=run_id,
+            run_kind="recheck",
+            draft_version=draft_version,
+            agent="ClinicalCritic",
+            event_type="node_end",
+            text_content="Clinical critique complete",
+            severity="info"
+        )
+        return c_res
+
+    s_res, c_res = await asyncio.gather(recheck_safety(), recheck_critic())
+    s_score = s_res.get("safety_score", 0.0)
     emp = c_res.get("empathy_score", 0.0)
     fid = c_res.get("clinical_score", 0.0)
-    emit_event(
-        session_id=session_id,
-        run_id=run_id,
-        run_kind="recheck",
-        draft_version=draft_version,
-        agent="ClinicalCritic",
-        event_type="score",
-        text_content=f"Empathy: {emp:.1f}/5, Clinical fidelity: {fid:.1f}/5",
-        severity="info",
-        data={"metric": "clinical", "empathy_score": emp, "clinical_score": fid, "model": c_res.get("model", "judge_model")}
-    )
-    emit_event(
-        session_id=session_id,
-        run_id=run_id,
-        run_kind="recheck",
-        draft_version=draft_version,
-        agent="ClinicalCritic",
-        event_type="node_end",
-        text_content="Clinical critique complete",
-        severity="info"
-    )
 
     # Update state
     v_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]

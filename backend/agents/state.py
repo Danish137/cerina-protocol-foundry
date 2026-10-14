@@ -4,14 +4,20 @@ Rich, structured state that agents share and collaborate on.
 """
 
 from typing import TypedDict, List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+def utc_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 class AgentNote(TypedDict):
     """Notes agents leave for each other on the blackboard"""
     agent_name: str
     note: str
     target_agent: Optional[str]  # If None, note is for all agents
-    timestamp: datetime
+    timestamp: str  # ISO UTC with Z
     priority: str  # "info", "warning", "critical"
 
 class ProtocolDraft(TypedDict):
@@ -20,7 +26,7 @@ class ProtocolDraft(TypedDict):
     version: int
     iteration: int
     created_by: str
-    timestamp: datetime
+    timestamp: str  # ISO UTC with Z
     safety_score: Optional[float]
     empathy_score: Optional[float]
     clinical_score: Optional[float]
@@ -59,9 +65,13 @@ class ProtocolState(TypedDict):
     human_approved: bool
     human_edits: Optional[str]  # Edits made by human
     
+    # Provider and model tracking for Zero Same-Family Grading
+    drafter_provider: Optional[str]
+    drafter_model: Optional[str]
+
     # Metadata
-    start_time: datetime
-    last_update: datetime
+    start_time: str
+    last_update: str
     metadata: Dict[str, Any]  # Additional context
 
 def create_initial_state(
@@ -70,7 +80,7 @@ def create_initial_state(
     max_iterations: int = 5
 ) -> ProtocolState:
     """Create initial state for a new protocol generation"""
-    now = datetime.now()
+    now_str = utc_iso()
     return ProtocolState(
         user_intent=user_intent,
         session_id=session_id,
@@ -90,8 +100,10 @@ def create_initial_state(
         halted=False,
         human_approved=False,
         human_edits=None,
-        start_time=now,
-        last_update=now,
+        drafter_provider=None,
+        drafter_model=None,
+        start_time=now_str,
+        last_update=now_str,
         metadata={}
     )
 
@@ -103,15 +115,15 @@ def add_agent_note(
     priority: str = "info"
 ) -> ProtocolState:
     """Helper to add a note to the blackboard"""
-    new_note = AgentNote(
-        agent_name=agent_name,
-        note=note,
-        target_agent=target_agent,
-        timestamp=datetime.now(),
-        priority=priority
-    )
+    new_note: AgentNote = {
+        "agent_name": agent_name,
+        "note": note,
+        "target_agent": target_agent,
+        "timestamp": utc_iso(),
+        "priority": priority
+    }
     state.setdefault("agent_notes", []).append(new_note)
-    state["last_update"] = datetime.now()
+    state["last_update"] = utc_iso()
     return state
 
 def add_draft_version(
@@ -120,25 +132,48 @@ def add_draft_version(
     created_by: str,
     safety_score: Optional[float] = None,
     empathy_score: Optional[float] = None,
-    clinical_score: Optional[float] = None
+    clinical_score: Optional[float] = None,
+    feedback: Optional[List[str]] = None
 ) -> ProtocolState:
     """Helper to add a new draft version to history (derived from history length: v1, v2, v3...)"""
     history = state.setdefault("draft_history", [])
     new_version = len(history) + 1
-    new_draft = ProtocolDraft(
-        content=content,
-        version=new_version,
-        iteration=state.get("iteration_count", 0),
-        created_by=created_by,
-        timestamp=datetime.now(),
-        safety_score=safety_score,
-        empathy_score=empathy_score,
-        clinical_score=clinical_score,
-        feedback=[]
-    )
+    new_draft: ProtocolDraft = {
+        "content": content,
+        "version": new_version,
+        "iteration": state.get("iteration_count", 0),
+        "created_by": created_by,
+        "timestamp": utc_iso(),
+        "safety_score": safety_score,
+        "empathy_score": empathy_score,
+        "clinical_score": clinical_score,
+        "feedback": feedback or []
+    }
     history.append(new_draft)
     state["current_version"] = new_version
     state["current_draft"] = content
-    state["last_update"] = datetime.now()
+    state["last_update"] = utc_iso()
     return state
+
+def update_latest_draft_scores(
+    state: ProtocolState,
+    safety_score: Optional[float] = None,
+    empathy_score: Optional[float] = None,
+    clinical_score: Optional[float] = None,
+    feedback: Optional[List[str]] = None
+) -> ProtocolState:
+    """Helper to backfill scores into the latest draft history entry when reviewers finish"""
+    history = state.get("draft_history", [])
+    if history:
+        latest = history[-1]
+        if safety_score is not None:
+            latest["safety_score"] = safety_score
+        if empathy_score is not None:
+            latest["empathy_score"] = empathy_score
+        if clinical_score is not None:
+            latest["clinical_score"] = clinical_score
+        if feedback:
+            latest.setdefault("feedback", []).extend(feedback)
+    return state
+
 

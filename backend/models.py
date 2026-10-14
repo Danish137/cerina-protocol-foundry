@@ -5,7 +5,7 @@ Cerina Protocol Foundry (Phase A Updates)
 
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 class ProtocolStatus(str, Enum):
@@ -40,7 +40,7 @@ class ProtocolResponse(BaseModel):
     run_id: Optional[str] = None
     review_depth: Optional[str] = "standard"
     care_resources: Optional[Dict[str, Any]] = None
-    timestamp: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    timestamp: Optional[str] = Field(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
 
 class ReviseRequest(BaseModel):
     instruction: Optional[str] = Field(None, description="Clinician instruction for revision")
