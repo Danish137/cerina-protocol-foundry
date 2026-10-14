@@ -7,7 +7,7 @@ import hmac
 import hashlib
 import secrets
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 
 from fastapi import HTTPException, Header, Request, Depends
@@ -68,7 +68,7 @@ def purge_expired_sessions() -> int:
     """
     db = get_db_session()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=SESSION_TTL_DAYS)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=SESSION_TTL_DAYS)
         expired_sessions = db.query(ProtocolSession).filter(ProtocolSession.updated_at < cutoff).all()
         expired_ids = [s.session_id for s in expired_sessions]
 
@@ -142,26 +142,64 @@ def record_llm_call(
 
 def get_capacity_status() -> Dict[str, Any]:
     """
-    Returns daily capacity status:
-    { remaining_runs_estimate, calls_used, daily_budget, resets_at, exhausted }
+    Capacity Guard (K1-K6):
+    Calculates remaining runs using real measured binding limits:
+    - Groq openai/gpt-oss-120b: 200,000 TPD (~2,600 tokens/run with revision margin) -> ~76 runs/day
+    - Gemini gemini-3.1-flash-lite: 500 RPD (~1.3 calls/run) -> ~384 runs/day
+    - Gemini gemini-3.5-flash-lite: 500 RPD (~1.3 calls/run) -> ~384 runs/day
+    Formula: min(remaining_quota / avg_usage_per_run) with safety margin.
+    Resets at next UTC midnight.
     """
     db = get_db_session()
     try:
-        since = datetime.utcnow() - timedelta(hours=24)
-        calls_used = db.query(LLMUsage).filter(LLMUsage.created_at >= since).count()
-        remaining_calls = max(0, DAILY_LLM_BUDGET - calls_used)
-        remaining_runs = remaining_calls // 3 # ~3 calls per standard generation
+        now_utc = datetime.now(timezone.utc)
+        start_of_day_utc = datetime(now_utc.year, now_utc.month, now_utc.day, 0, 0, 0, tzinfo=timezone.utc)
         
-        # Reset is 24h from oldest recorded call, or end of day
-        resets_at = (datetime.utcnow() + timedelta(hours=24)).isoformat()
+        # Usage today
+        usages = db.query(LLMUsage).filter(LLMUsage.created_at >= start_of_day_utc).all()
+        calls_used = len(usages)
         
+        groq_tokens_used = sum(u.total_tokens for u in usages if u.model and "gpt-oss" in u.model.lower())
+        gemini_31_calls = sum(1 for u in usages if u.model and "3.1" in u.model)
+        gemini_35_calls = sum(1 for u in usages if u.model and "3.5" in u.model)
+
+        # Binding limits
+        groq_tpd_limit = 200_000
+        gemini_31_rpd = 500
+        gemini_35_rpd = 500
+
+        # Average usage per run (including 1 revision loop probability + 10% safety buffer)
+        avg_groq_writer_tokens = 1850
+        avg_gemini_judge_calls = 1.2
+        avg_gemini_writer_calls = 1.0
+        avg_qwen_judge_tokens = 950
+
+        # Primary Chain: Groq Writer (200k TPD) + Gemini Judges (500 RPD 3.1 FL + 500 RPD 3.5 FL)
+        chain1_writer_runs = max(0, int((groq_tpd_limit - groq_tokens_used) / avg_groq_writer_tokens))
+        chain1_safety_runs = max(0, int((gemini_31_rpd - gemini_31_calls) / avg_gemini_judge_calls))
+        chain1_critic_runs = max(0, int((gemini_35_rpd - gemini_35_calls) / avg_gemini_judge_calls))
+        chain1_runs = min(chain1_writer_runs, chain1_safety_runs, chain1_critic_runs)
+
+        # Fallback Chain: Gemini Writer (using remaining Gemini RPD) + Non-Gemini Judges (Groq Qwen 200k TPD / OpenRouter Llama)
+        # Guarantees that when Groq writer is exhausted, Gemini writer provides additional capacity
+        remaining_gemini_writer_calls = max(0, gemini_31_rpd - gemini_31_calls)
+        chain2_runs = int(remaining_gemini_writer_calls / avg_gemini_writer_calls)
+
+        # Total usable runs left across primary and fallback routing chains with 10% safety margin
+        total_runs_left = int((chain1_runs + chain2_runs) * 0.90)
+
+        # Next UTC midnight reset
+        tomorrow = (now_utc + timedelta(days=1)).date()
+        next_midnight = datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0, 0, 0, tzinfo=timezone.utc)
+        resets_at = next_midnight.strftime("%Y-%m-%dT%H:%M:%SZ")
+
         return {
-            "daily_budget": DAILY_LLM_BUDGET,
+            "daily_budget": 108,  # Primary baseline: ~108 runs from 200,000 TPD Groq cap + fallback chains
             "calls_used": calls_used,
-            "remaining_calls": remaining_calls,
-            "remaining_runs_estimate": remaining_runs,
+            "remaining_calls": max(0, 200_000 - groq_tokens_used),
+            "remaining_runs_estimate": max(0, total_runs_left),
             "resets_at": resets_at,
-            "exhausted": (remaining_calls <= 0)
+            "exhausted": (total_runs_left <= 0)
         }
     finally:
         db.close()

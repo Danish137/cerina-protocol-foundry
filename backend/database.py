@@ -3,15 +3,17 @@ Database setup, models, and utilities for persistence (A2, A4, A5)
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text, DateTime, Float, JSON,
     UniqueConstraint, Index, text
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 Base = declarative_base()
+
+def utcnow_dt():
+    return datetime.now(timezone.utc)
 
 class ProtocolSession(Base):
     """Database model for protocol generation sessions"""
@@ -30,8 +32,8 @@ class ProtocolSession(Base):
     empathy_score = Column(Float, nullable=True)
     clinical_score = Column(Float, nullable=True)
     iteration_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow_dt)
+    updated_at = Column(DateTime, default=utcnow_dt, onupdate=utcnow_dt)
     meta_data = Column(JSON, default=dict)
 
 class Event(Base):
@@ -56,7 +58,7 @@ class Event(Base):
     severity = Column(String, default="info") # info | warning | major | critical
     text = Column(Text, nullable=False)
     data = Column(JSON, default=dict)
-    ts = Column(DateTime, default=datetime.utcnow)
+    ts = Column(DateTime, default=utcnow_dt)
 
     __table_args__ = (
         UniqueConstraint("session_id", "seq", name="uq_session_seq"),
@@ -76,7 +78,7 @@ class LLMUsage(Base):
     completion_tokens = Column(Integer, default=0)
     total_tokens = Column(Integer, default=0)
     latency_ms = Column(Float, default=0.0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow_dt)
 
 class AgentActivity(Base):
     """Legacy activity log retained for backward compatibility"""
@@ -87,7 +89,7 @@ class AgentActivity(Base):
     agent_name = Column(String)
     action = Column(String)
     reasoning = Column(Text, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=utcnow_dt)
     state_snapshot = Column(JSON, nullable=True)
 
 from sqlalchemy.pool import NullPool

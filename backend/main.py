@@ -22,7 +22,7 @@ import secrets
 import asyncio
 import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
@@ -75,6 +75,9 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing Cerina Protocol Foundry database and checkpointer...")
     init_db()
     
+    from config import log_limits_on_startup
+    log_limits_on_startup()
+
     try:
         from agents.workflow import init_checkpointer_async
         await init_checkpointer_async()
@@ -129,10 +132,28 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-def serialize_state_for_json(state: Any) -> Any:
+def sanitize_data_dict(d: Any) -> Any:
+    """Recursively removes provider, model, and family identifiers from client responses (B2)"""
+    if isinstance(d, dict):
+        clean = {}
+        for k, v in d.items():
+            if k in ["provider", "model", "drafter_provider", "drafter_model", "serving_provider", "serving_model"]:
+                continue
+            clean[k] = sanitize_data_dict(v)
+        return clean
+    elif isinstance(d, list):
+        return [sanitize_data_dict(item) for item in d]
+    return d
+
+def sanitize_state_for_client(state: Any) -> Any:
+    """Serializes LangGraph state while ensuring no provider/model leakage reaches the browser (B1, B2)"""
     if state is None:
         return None
-    return jsonable_encoder(state)
+    raw = jsonable_encoder(state)
+    return sanitize_data_dict(raw)
+
+def serialize_state_for_json(state: Any) -> Any:
+    return sanitize_state_for_client(state)
 
 # --- Routes ---
 
@@ -151,6 +172,16 @@ async def create_protocol(request: Request, body: ProtocolRequest):
     """
     req_id = str(uuid.uuid4())[:8]
     logger.info(f"[{req_id}] Incoming /create request: intent_len={len(body.intent)}, review_depth={body.review_depth}")
+
+    # Simulated Outage Test Hook (Security A2: ONLY active when TEST_ALLOW_OUTAGE_SIMULATION=true, default OFF)
+    if os.getenv("TEST_ALLOW_OUTAGE_SIMULATION", "").strip().lower() == "true":
+        outage_hdr = request.headers.get("x-test-outage-provider")
+        if outage_hdr:
+            os.environ["SIMULATE_OUTAGE_PROVIDER"] = outage_hdr.strip().lower()
+        else:
+            os.environ.pop("SIMULATE_OUTAGE_PROVIDER", None)
+    else:
+        os.environ.pop("SIMULATE_OUTAGE_PROVIDER", None)
 
     # 1. Capacity Guard check (A5)
     cap = get_capacity_status()
@@ -283,22 +314,9 @@ async def stream_protocol(
     Pure SSE Tail (A1, A3): NEVER executes the graph!
     Supports Last-Event-ID resume, in-process queue tail, 15s ping, and fail-safe error propagation.
     """
-    # Authorization check (A4)
+    # Authorization check (A4): Requires valid session token via X-Session-Token header or query token
     raw_token = x_session_token or token
-    if raw_token:
-        try:
-            verify_session_access(session_id, raw_token)
-        except HTTPException:
-            raise HTTPException(status_code=404, detail="Session not found")
-    else:
-        # Fallback query DB to check if session exists
-        db = get_db_session()
-        try:
-            sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
-            if not sess:
-                raise HTTPException(status_code=404, detail="Session not found")
-        finally:
-            db.close()
+    verify_session_access(session_id, raw_token)
 
     # Determine resume sequence ID
     last_event_id_header = request.headers.get("Last-Event-ID")
@@ -332,14 +350,14 @@ async def stream_protocol(
                     "to_agent": evt.to_agent,
                     "severity": evt.severity,
                     "text": evt.text,
-                    "data": evt.data,
-                    "ts": evt.ts.isoformat() if evt.ts else datetime.utcnow().isoformat()
+                    "data": sanitize_data_dict(evt.data),
+                    "ts": evt.ts.strftime("%Y-%m-%dT%H:%M:%SZ") if evt.ts else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                 }
                 # Structured event
                 yield f"id: {evt.seq}\nevent: {evt.type}\ndata: {json.dumps(data_payload)}\n\n"
                 
                 # Legacy event bridge for Phase A compatibility
-                yield f"event: state_update\ndata: {json.dumps({'node': evt.agent, 'agent_thought': evt.text, 'timestamp': evt.ts.isoformat() if evt.ts else ''})}\n\n"
+                yield f"event: state_update\ndata: {json.dumps({'node': evt.agent, 'agent_thought': evt.text, 'timestamp': data_payload['ts']})}\n\n"
         finally:
             db.close()
 
@@ -357,17 +375,18 @@ async def stream_protocol(
                     if item_seq > 0:
                         highest_seq_sent = item_seq
 
-                    event_type = item.get("type", "message")
+                    clean_item = sanitize_data_dict(item)
+                    event_type = clean_item.get("type", "message")
                     event_id_line = f"id: {item_seq}\n" if item_seq > 0 else ""
-                    yield f"{event_id_line}event: {event_type}\ndata: {json.dumps(item)}\n\n"
+                    yield f"{event_id_line}event: {event_type}\ndata: {json.dumps(clean_item)}\n\n"
 
                     # Legacy state_update bridge
-                    yield f"event: state_update\ndata: {json.dumps({'node': item.get('agent'), 'agent_thought': item.get('text'), 'timestamp': item.get('ts')})}\n\n"
+                    yield f"event: state_update\ndata: {json.dumps({'node': clean_item.get('agent'), 'agent_thought': clean_item.get('text'), 'timestamp': clean_item.get('ts')})}\n\n"
 
                     # Terminal check
                     if event_type in ["run_end", "error"]:
                         if event_type == "error":
-                            yield f"event: error\ndata: {json.dumps(item.get('data', {}))}\n\n"
+                            yield f"event: error\ndata: {json.dumps(clean_item.get('data', {}))}\n\n"
                         break
 
                 except asyncio.TimeoutError:
@@ -433,8 +452,8 @@ async def get_protocol_events(
                     "to_agent": e.to_agent,
                     "severity": e.severity,
                     "text": e.text,
-                    "data": e.data,
-                    "ts": e.ts.isoformat() if e.ts else ""
+                    "data": sanitize_data_dict(e.data),
+                    "ts": e.ts.strftime("%Y-%m-%dT%H:%M:%SZ") if e.ts else ""
                 }
                 for e in events
             ]
@@ -588,12 +607,13 @@ async def approve_protocol(
 
     audit = {
         "approved_by": approver,
-        "approved_at": datetime.utcnow().isoformat(),
+        "approved_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "edited": is_edited,
         "rechecked": rechecked,
         "validated_hash": approved_hash if (not is_edited or rechecked) else (last_val_hash or ""),
         "scores_at_approval": scores_at_approval,
-        "content_hash": approved_hash
+        "content_hash": approved_hash,
+        "app_version": "3.0.0"
     }
 
     updated_state["current_draft"] = clean_draft
@@ -646,6 +666,7 @@ async def approve_protocol(
         "status": "approved",
         "message": "Protocol approved and finalized",
         "approval_audit": audit,
+        "audit": audit,
         "final_state": serialize_state_for_json(updated_state)
     }
 

@@ -31,6 +31,7 @@ app = Server("cerina-protocol-foundry")
 
 # Backend API URL
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+SESSION_TOKENS: dict[str, str] = {}
 
 @app.list_tools()
 async def list_tools() -> list[Tool]:
@@ -121,12 +122,17 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 )
                 response.raise_for_status()
                 data = response.json()
+                sid = data['session_id']
+                stok = data.get('session_token')
+                if stok:
+                    SESSION_TOKENS[sid] = stok
                 
                 return [TextContent(
                     type="text",
                     text=f"""Protocol generation started!
 
-Session ID: {data['session_id']}
+Session ID: {sid}
+Session Token: {stok or 'N/A'}
 Status: {data['status']}
 
 The multi-agent system is now working on your request. Use get_protocol_status with this session_id to check progress and retrieve the draft when ready."""
@@ -141,9 +147,12 @@ The multi-agent system is now working on your request. Use get_protocol_status w
                         text="Error: 'session_id' parameter is required"
                     )]
                 
-                # Get current state
+                # Get current state with session auth header
+                token = arguments.get("session_token") or SESSION_TOKENS.get(session_id)
+                headers = {"X-Session-Token": token} if token else {}
                 response = await client.get(
-                    f"{BACKEND_URL}/api/protocols/{session_id}/state"
+                    f"{BACKEND_URL}/api/protocols/{session_id}/state",
+                    headers=headers
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -164,7 +173,7 @@ Status: {status}
 Iteration: {iteration}
 Halted for Review: {halted}
 
-                Quality Scores:
+Quality Scores:
 - Safety: {f'{safety_score * 100:.1f}%' if safety_score is not None else 'N/A'}
 - Empathy: {f'{empathy_score * 100:.1f}%' if empathy_score is not None else 'N/A'}
 - Clinical: {f'{clinical_score * 100:.1f}%' if clinical_score is not None else 'N/A'}
@@ -189,10 +198,13 @@ Current Draft:
                         text="Error: 'session_id' parameter is required"
                     )]
                 
-                # Approve protocol
+                # Approve protocol with session auth header
+                token = arguments.get("session_token") or SESSION_TOKENS.get(session_id)
+                headers = {"X-Session-Token": token} if token else {}
                 response = await client.post(
                     f"{BACKEND_URL}/api/protocols/{session_id}/approve",
-                    json={"approved_content": approved_content} if approved_content else {}
+                    json={"approved_content": approved_content} if approved_content else {},
+                    headers=headers
                 )
                 response.raise_for_status()
                 data = response.json()

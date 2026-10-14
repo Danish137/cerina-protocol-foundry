@@ -50,7 +50,7 @@ def test_retention_purge():
     old_token = generate_session_token()
 
     # Create session 10 days old (> 7 days)
-    old_date = datetime.utcnow() - timedelta(days=10)
+    old_date = datetime.now(timezone.utc) - timedelta(days=10)
     old_sess = ProtocolSession(
         session_id=old_sid,
         token_hash=hash_token(old_token),
