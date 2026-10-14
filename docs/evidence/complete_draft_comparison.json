@@ -1,0 +1,85 @@
+[
+  {
+    "label": "Insomnia Stimulus Control",
+    "intent": "Design a stimulus control and sleep hygiene routine for sleep-onset insomnia",
+    "models": {
+      "groq:openai/gpt-oss-120b": {
+        "latency_s": 5.978,
+        "char_count": 9086,
+        "completeness_passed": false,
+        "completeness_issues": [
+          "Missing required sections: Introduction, Goals, Steps, Practice, Reflection, Conclusion",
+          "Draft ends abruptly mid-sentence without terminal punctuation"
+        ],
+        "finish_reason": "stop",
+        "content_sample": "# Stimulus\u2011Control & Sleep\u2011Hygiene Protocol for Sleep\u2011Onset Insomnia  \n*CBT\u2011I (Cognitive\u2011Behavioral Therapy for Insomnia) \u2013 Structured Clinical Guide*  \n\n---\n\n## 1. Introduction  \n\nSleep\u2011onset insomni..."
+      },
+      "gemini:gemini-3.1-flash-lite": {
+        "error": "Gemini API error 503: {\n  \"error\": {\n    \"code\": 503,\n    \"message\": \"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\n    \"status\": \"UNAVAILABLE\"\n  }\n}\n"
+      },
+      "openrouter:meta-llama/llama-3.3-70b-instruct": {
+        "latency_s": 17.616,
+        "char_count": 3622,
+        "completeness_passed": true,
+        "completeness_issues": [],
+        "finish_reason": "stop",
+        "content_sample": "# Stimulus Control and Sleep Hygiene Protocol for Sleep-Onset Insomnia\n\n## Introduction\nSleep-onset insomnia is a common sleep disorder characterized by difficulty initiating sleep. Cognitive Behavior..."
+      }
+    }
+  },
+  {
+    "label": "Elevator Phobia Exposure",
+    "intent": "Create a gradual in vivo exposure hierarchy for elevator phobia",
+    "models": {
+      "groq:openai/gpt-oss-120b": {
+        "latency_s": 4.847,
+        "char_count": 8199,
+        "completeness_passed": false,
+        "completeness_issues": [
+          "Missing required sections: Steps",
+          "Draft ends abruptly mid-sentence without terminal punctuation"
+        ],
+        "finish_reason": "stop",
+        "content_sample": "# Gradual In\u2011Vivo Exposure Hierarchy for Elevator Phobia  \n*(CBT\u2011Based Protocol for Adults & Adolescents)*  \n\n---\n\n## Introduction  \n\nElevator phobia (specific phobia: **situational type \u2013 elevators**..."
+      },
+      "gemini:gemini-3.1-flash-lite": {
+        "error": "Gemini API error 503: {\n  \"error\": {\n    \"code\": 503,\n    \"message\": \"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\n    \"status\": \"UNAVAILABLE\"\n  }\n}\n"
+      },
+      "openrouter:meta-llama/llama-3.3-70b-instruct": {
+        "latency_s": 41.576,
+        "char_count": 4541,
+        "completeness_passed": true,
+        "completeness_issues": [],
+        "finish_reason": "stop",
+        "content_sample": "# Gradual In Vivo Exposure Hierarchy for Elevator Phobia\n\n## Introduction\nElevator phobia, also known as lift phobia, is a specific type of anxiety disorder that involves an excessive and irrational f..."
+      }
+    }
+  },
+  {
+    "label": "Health Anxiety Thought Record",
+    "intent": "Develop a 5-column thought record for catastrophic health anxiety",
+    "models": {
+      "groq:openai/gpt-oss-120b": {
+        "latency_s": 4.263,
+        "char_count": 7073,
+        "completeness_passed": false,
+        "completeness_issues": [
+          "Missing required sections: Introduction, Goals, Steps, Practice, Reflection, Conclusion"
+        ],
+        "finish_reason": "stop",
+        "content_sample": "# **CBT Protocol \u2013 Developing a 5\u2011Column Thought Record for Catastrophic Health Anxiety**\n\n---\n\n## **1. Introduction**  \nCatastrophic health anxiety (sometimes called health\u2011related hypochondriasis or..."
+      },
+      "gemini:gemini-3.1-flash-lite": {
+        "error": "Gemini API error 503: {\n  \"error\": {\n    \"code\": 503,\n    \"message\": \"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\n    \"status\": \"UNAVAILABLE\"\n  }\n}\n"
+      },
+      "openrouter:meta-llama/llama-3.3-70b-instruct": {
+        "latency_s": 19.63,
+        "char_count": 3882,
+        "completeness_passed": true,
+        "completeness_issues": [],
+        "finish_reason": "stop",
+        "content_sample": "# Cognitive Behavioral Therapy (CBT) Protocol for Catastrophic Health Anxiety: Developing a 5-Column Thought Record\n\n## Introduction\nCatastrophic health anxiety is a condition where individuals experi..."
+      }
+    }
+  }
+]

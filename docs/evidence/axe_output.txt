@@ -1,0 +1,88 @@
+=== AXE-CORE ACCESSIBILITY AUDIT OUTPUT ===
+Violations count: 2
+
+Found 2 accessibility violations:
+Rule Violated:
+color-contrast - Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds
+	URL: https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI
+	Impact Level: serious
+	Tags: ['cat.color', 'wcag2aa', 'wcag143', 'TTv5', 'TT13.c', 'EN-301-549', 'EN-9.1.4.3', 'ACT', 'RGAAv4', 'RGAA-3.2.1']
+	Elements Affected:
+
+
+	1)	Target: .gap-2.items-center.flex > div:nth-child(2) > .text-\[\#7C8B82\]
+		Snippet: <p class="text-xs text-[#7C8B82]">Specify the disorder, technique, or clinical objective</p>
+		Messages:
+		* Element has insufficient color contrast of 3.57 (foreground color: #7c8b82, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1
+
+	2)	Target: .text-\[\#7C8B82\].font-medium.gap-1\.5 > span
+		Snippet: <span>Clinical Templates</span>
+		Messages:
+		* Element has insufficient color contrast of 3.57 (foreground color: #7c8b82, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1
+
+	3)	Target: .pt-1
+		Snippet: <p class="text-[11px] text-[#7C8B82] text-center pt-1">This is a demo. Describe the situation in general terms; don't include names, contact details or personal health information.</p>
+		Messages:
+		* Element has insufficient color contrast of 3.57 (foreground color: #7c8b82, background color: #ffffff, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1
+
+	4)	Target: .border-\[\#244F3B\]\/40 > .justify-between.text-xs.items-center > .gap-2.items-center.flex > div:nth-child(2) > .text-\[10px\].leading-tight.text-\[\#55635C\]
+		Snippet: <p class="text-[10px] text-[#55635C] leading-tight">CBT Protocol Architect</p>
+		Messages:
+		* Element has insufficient color contrast of 4.43 (foreground color: #6b7771, background color: #fbf9f6, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1
+
+	5)	Target: .border-\[\#244F3B\]\/40 > .mt-1\.5.leading-snug.break-words
+		Snippet: <p class="mt-1.5 text-[11px] text-[#55635C] leading-snug break-words pl-7">Drafting structured clinical exercise</p>
+		Messages:
+		* Element has insufficient color contrast of 4.43 (foreground color: #6b7771, background color: #fbf9f6, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1
+
+	6)	Target: .relative:nth-child(2) > .opacity-80.p-2.sm\:p-2\.5 > .justify-between.text-xs.items-center > .gap-2.items-center.flex > div:nth-child(2) > .text-\[10px\].leading-tight.text-\[\#55635C\]
+		Snippet: <p class="text-[10px] text-[#55635C] leading-tight">Contraindication &amp; Risk Audit</p>
+		Messages:
+		* Element has insufficient color contrast of 3.98 (foreground color: #77827d, background color: #ffffff, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1
+
+	7)	Target: .relative:nth-child(2) > .opacity-80.p-2.sm\:p-2\.5 > .mt-1\.5.leading-snug.break-words
+		Snippet: <p class="mt-1.5 text-[11px] text-[#55635C] leading-snug break-words pl-7">Auditing 5 clinical safety rubrics</p>
+		Messages:
+		* Element has insufficient color contrast of 3.98 (foreground color: #77827d, background color: #ffffff, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1
+
+	8)	Target: .relative:nth-child(3) > .opacity-80.p-2.sm\:p-2\.5 > .justify-between.text-xs.items-center > .gap-2.items-center.flex > div:nth-child(2) > .text-\[10px\].leading-tight.text-\[\#55635C\]
+		Snippet: <p class="text-[10px] text-[#55635C] leading-tight">CBT Fidelity &amp; Empathy</p>
+		Messages:
+		* Element has insufficient color contrast of 3.98 (foreground color: #77827d, background color: #ffffff, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1
+
+	9)	Target: .relative:nth-child(3) > .opacity-80.p-2.sm\:p-2\.5 > .mt-1\.5.leading-snug.break-words
+		Snippet: <p class="mt-1.5 text-[11px] text-[#55635C] leading-snug break-words pl-7">Evaluating warmth &amp; therapeutic alliance</p>
+		Messages:
+		* Element has insufficient color contrast of 3.98 (foreground color: #77827d, background color: #ffffff, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1
+
+	10)	Target: .relative:nth-child(4) > .opacity-80.p-2.sm\:p-2\.5 > .justify-between.text-xs.items-center > .gap-2.items-center.flex > div:nth-child(2) > .text-\[10px\].leading-tight.text-\[\#55635C\]
+		Snippet: <p class="text-[10px] text-[#55635C] leading-tight">Quality &amp; Routing Decision</p>
+		Messages:
+		* Element has insufficient color contrast of 3.98 (foreground color: #77827d, background color: #ffffff, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1
+
+	11)	Target: .relative:nth-child(4) > .opacity-80.p-2.sm\:p-2\.5 > .mt-1\.5.leading-snug.break-words
+		Snippet: <p class="mt-1.5 text-[11px] text-[#55635C] leading-snug break-words pl-7">Synthesizing rubric thresholds</p>
+		Messages:
+		* Element has insufficient color contrast of 3.98 (foreground color: #77827d, background color: #ffffff, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1
+
+	12)	Target: .relative:nth-child(5) > .opacity-80.p-2.sm\:p-2\.5 > .justify-between.text-xs.items-center > .gap-2.items-center.flex > div:nth-child(2) > .text-\[10px\].leading-tight.text-\[\#55635C\]
+		Snippet: <p class="text-[10px] text-[#55635C] leading-tight">Final Verification &amp; Approval</p>
+		Messages:
+		* Element has insufficient color contrast of 3.98 (foreground color: #77827d, background color: #ffffff, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1
+
+	13)	Target: .relative:nth-child(5) > .opacity-80.p-2.sm\:p-2\.5 > .mt-1\.5.leading-snug.break-words
+		Snippet: <p class="mt-1.5 text-[11px] text-[#55635C] leading-snug break-words pl-7">User verification sign-off</p>
+		Messages:
+		* Element has insufficient color contrast of 3.98 (foreground color: #77827d, background color: #ffffff, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1
+Rule Violated:
+heading-order - Ensure the order of headings is semantically correct
+	URL: https://dequeuniversity.com/rules/axe/4.12/heading-order?application=axeAPI
+	Impact Level: moderate
+	Tags: ['cat.semantics', 'best-practice']
+	Elements Affected:
+
+
+	1)	Target: div:nth-child(2) > h3
+		Snippet: <h3 class="text-sm font-semibold text-[#1F2923]">Define Clinical Intent</h3>
+		Messages:
+		* Heading order invalid

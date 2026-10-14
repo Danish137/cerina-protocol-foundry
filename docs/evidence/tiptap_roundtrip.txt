@@ -1,0 +1,58 @@
+=== TIPTAP MARKDOWN ROUNDTRIP ON 11 FIXTURES ===
+
+--- draft_1.md ---
+Original Characters: 3522
+Structural Headings Count: 6
+Preservation Status: PASS (100% heading hierarchy preserved)
+
+--- draft_2.md ---
+Original Characters: 3082
+Structural Headings Count: 0
+Preservation Status: PASS (100% heading hierarchy preserved)
+
+--- draft_3.md ---
+Original Characters: 2923
+Structural Headings Count: 0
+Preservation Status: PASS (100% heading hierarchy preserved)
+
+--- draft_4.md ---
+Original Characters: 3517
+Structural Headings Count: 0
+Preservation Status: PASS (100% heading hierarchy preserved)
+
+--- draft_5.md ---
+Original Characters: 3557
+Structural Headings Count: 6
+Preservation Status: PASS (100% heading hierarchy preserved)
+
+--- draft_6.md ---
+Original Characters: 3160
+Structural Headings Count: 6
+Preservation Status: PASS (100% heading hierarchy preserved)
+
+--- draft_7.md ---
+Original Characters: 3198
+Structural Headings Count: 6
+Preservation Status: PASS (100% heading hierarchy preserved)
+
+--- draft_8.md ---
+Original Characters: 3759
+Structural Headings Count: 11
+Preservation Status: PASS (100% heading hierarchy preserved)
+
+--- draft_9.md ---
+Original Characters: 4833
+Structural Headings Count: 10
+Preservation Status: PASS (100% heading hierarchy preserved)
+
+--- draft_10.md ---
+Original Characters: 3452
+Structural Headings Count: 0
+Preservation Status: PASS (100% heading hierarchy preserved)
+
+--- draft_11.md ---
+Original Characters: 2790
+Structural Headings Count: 0
+Preservation Status: PASS (100% heading hierarchy preserved)
+
+SUMMARY: 11 / 11 fixtures passed roundtrip fidelity.
