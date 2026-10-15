@@ -206,6 +206,7 @@ export default function DocumentViewer({
     content: editedDraft || draft || '',
     editorProps: {
       attributes: {
+        'aria-label': 'Clinical protocol rich text editor',
         class: 'prose prose-stone cerina-prose max-w-[68ch] mx-auto min-h-[300px] focus:outline-none text-[17px] leading-[1.7]',
       },
     },
@@ -526,7 +527,7 @@ export default function DocumentViewer({
               </button>
             </div>
 
-            <div className="flex items-center gap-2 text-[11px] font-mono text-[#7E8F87]">
+            <div className="flex items-center gap-2 text-[11px] font-mono text-[#5C6A62]">
               <span>Cmd/Ctrl+S = Save</span>
               <span>·</span>
               <span>Esc = Discard</span>
@@ -553,7 +554,7 @@ export default function DocumentViewer({
               <button
                 type="button"
                 onClick={() => setRestoredSessionAlert(false)}
-                className="text-[#7E8F87] hover:text-[#18221E]"
+                className="text-[#5C6A62] hover:text-[#18221E]"
               >
                 Dismiss
               </button>
@@ -576,8 +577,6 @@ export default function DocumentViewer({
             <textarea
               value={editedDraft}
               onChange={(e) => onDraftChange(e.target.value)}
-              tabIndex={0}
-              role="region"
               aria-label="Markdown text editor"
               placeholder="CBT Protocol Markdown…"
               className="w-full h-full p-6 sm:p-8 font-mono text-xs sm:text-sm text-[#18221E] leading-relaxed resize-none focus:outline-none scrollbar-thin bg-white"
@@ -656,8 +655,8 @@ export default function DocumentViewer({
       className="h-full overflow-y-auto bg-white border border-[#E8E4DA] rounded-2xl shadow-2xs overscroll-contain focus:outline-none scrollbar-thin relative flex flex-col"
     >
       {/* Sticky Document Toolbar (D1: Fully Opaque bg-white, alpha = 1) */}
-      <div id="document-toolbar" className="sticky top-0 z-20 bg-white border-b border-[#E8E4DA] px-6 py-3.5 flex items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <div id="document-toolbar" className="sticky top-0 z-20 bg-white border-b border-[#E8E4DA] px-4 sm:px-6 py-2.5 sm:py-3.5 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-[#FAF8F5] border border-[#E8E4DA] flex items-center justify-center text-[#244F3B] shrink-0">
             <FileText className="w-4 h-4" />
           </div>
@@ -783,7 +782,7 @@ export default function DocumentViewer({
         />
       </div>
 
-      {/* Clinician Edits Banner */}
+      {/* User Edits Banner */}
       {isClinicianEdited && (
         <div className="mx-6 mt-4 rounded-xl border border-[#C2DBCB] bg-[#EBF3EE] p-3 text-xs text-[#1E3D2F] shrink-0">
           <div className="flex items-center justify-between gap-2">

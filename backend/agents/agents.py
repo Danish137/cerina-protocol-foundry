@@ -435,6 +435,17 @@ class SupervisorAgent:
         # Dev flag FORCE_REVISION
         force_revision = (os.getenv("FORCE_REVISION", "0") == "1") and (iteration == 0)
         
+        # Fail closed check: if automated checks are unavailable, route immediately to human
+        if unverified:
+            reason = "Automated checks unavailable. Routing to human with unverified status."
+            state = add_agent_note(state, self.name, reason, priority="warning")
+            return {
+                "next_agent": "HALT",
+                "status": "awaiting_approval",
+                "halted": True,
+                "reason": reason
+            }
+
         # Deterministic Completeness Check (G2): An incomplete draft is never passed
         current_draft = state.get("current_draft") or ""
         finish_reason = state.get("finish_reason")
@@ -452,17 +463,6 @@ class SupervisorAgent:
         # Check max iterations
         if iteration >= max_iterations:
             reason = f"Max iterations ({max_iterations}) reached. Halting for human sign-off."
-            state = add_agent_note(state, self.name, reason, priority="warning")
-            return {
-                "next_agent": "HALT",
-                "status": "awaiting_approval",
-                "halted": True,
-                "reason": reason
-            }
-            
-        # Fail closed check
-        if unverified:
-            reason = "Automated checks unavailable. Routing to human with unverified status."
             state = add_agent_note(state, self.name, reason, priority="warning")
             return {
                 "next_agent": "HALT",

@@ -518,7 +518,7 @@ function AppContent() {
 
       const valHash = valData.validated_hash
 
-      // 2. Approve with validated hash and "You" attribution
+      // 2. Approve with verified hash and "You" attribution
       const appRes = await axios.post(
         `${API_BASE_URL}/api/protocols/${state.sessionId}/approve`,
         {
@@ -784,7 +784,7 @@ function AppContent() {
 
           {/* Browser Mismatch Alert (B2) */}
           {browserMismatchAlert && (
-            <aside role="alert" aria-label="Browser mismatch alert" className="bg-[#FEF3C7] border-b border-[#FDE68A] px-4 py-2 text-xs text-[#92400E] flex items-center justify-between">
+            <aside role="alert" aria-label="Browser mismatch alert" className="bg-[#FEF3C7] border-b border-[#FDE68A] px-4 py-2 text-xs text-[#78350F] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-[#D97706]" />
                 <span>This protocol belongs to another browser. Your active session token is not stored locally.</span>
@@ -855,7 +855,7 @@ function AppContent() {
               resources={state.careResources}
               onClinicianContinue={() => {
                 if (state.userIntent) {
-                  // Clinician bypass continue
+                  // Professional bypass continue
                   axios
                     .post(`${API_BASE_URL}/api/protocols/create`, {
                       intent: state.userIntent,

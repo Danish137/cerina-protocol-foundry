@@ -169,7 +169,12 @@ export default function ReviewDetailsSheet({
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 overscroll-contain text-sm text-[#2C3B34]">
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label="Review details content"
+          className="flex-1 overflow-y-auto p-6 space-y-6 overscroll-contain text-sm text-[#2C3B34] focus:outline-none"
+        >
           {/* Top Plain-Language Narrative Summary (Requirement 3.2, Amendment B, F1) */}
           <div className="p-4 rounded-xl bg-[#F4F1EA] border border-[#E8E4DA] space-y-2.5">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#244F3B] uppercase tracking-wider">

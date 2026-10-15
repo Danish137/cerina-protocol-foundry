@@ -44,7 +44,7 @@ async def list_tools() -> list[Tool]:
 This tool uses a multi-agent system to autonomously design, critique, and refine CBT exercises.
 The system includes:
 - Drafter Agent: Creates initial drafts
-- Safety Guardian: Validates for safety and medical advice
+- Safety Guardian: Audits for safety and medical advice
 - Clinical Critic: Evaluates tone, empathy, and clinical appropriateness
 - Supervisor: Orchestrates the workflow
 

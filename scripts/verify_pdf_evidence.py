@@ -35,10 +35,14 @@ def verify_and_render_pdfs():
     assert "\ufffd" not in text_no, "Assertion Failed: Replacement char found in PDF text!"
     log_lines.append("[PASS] No missing glyphs in extracted text.")
 
-    # Check timezone present (e.g. 'IST' or 'UTC')
-    has_tz = ("IST" in text_no) or ("UTC" in text_no) or ("GMT" in text_no)
-    assert has_tz, f"Assertion Failed: Timezone (IST/UTC/GMT) not found in PDF text! Text snippet: {text_no[:400]}"
-    log_lines.append("[PASS] Timezone present in approval block.")
+    # Assert NO GMT (A8)
+    assert "GMT" not in text_no, "Assertion Failed: 'GMT' found in PDF text!"
+    log_lines.append("[PASS] Verified 'GMT' is absent from PDF text.")
+
+    # Assert NO hash (A8)
+    import re
+    assert not re.search(r"\b[0-9a-f]{16,64}\b", text_no, re.IGNORECASE), "Assertion Failed: Hash found in PDF text!"
+    log_lines.append("[PASS] Verified content hash is absent from PDF text.")
 
     # Check approval status and disclaimer
     assert "approved by you" in text_no.lower(), "Assertion Failed: Approved by you not found in PDF text!"
@@ -65,11 +69,13 @@ def verify_and_render_pdfs():
     assert "\ufffd" not in text_with, "Assertion Failed: Replacement char found in PDF with appendix!"
     log_lines.append("[PASS] No missing glyphs in extracted text.")
 
-    assert ("IST" in text_with) or ("UTC" in text_with) or ("GMT" in text_with), "Assertion Failed: Timezone missing in PDF with appendix!"
-    log_lines.append("[PASS] Timezone present in approval block.")
+    # Assert NO GMT (A8)
+    assert "GMT" not in text_with, "Assertion Failed: 'GMT' found in PDF with appendix!"
+    log_lines.append("[PASS] Verified 'GMT' is absent from PDF with appendix.")
 
-    assert "8d1bea3a68a27598" in text_with, "Assertion Failed: Content hash missing in PDF with appendix!"
-    log_lines.append("[PASS] Server-validated content hash '8d1bea3a68a27598' verified in PDF text.")
+    # Assert NO hash (A8)
+    assert not re.search(r"\b[0-9a-f]{16,64}\b", text_with, re.IGNORECASE), "Assertion Failed: Hash found in PDF with appendix!"
+    log_lines.append("[PASS] Verified content hash is absent from PDF with appendix.")
 
     assert "independent review details" in text_with.lower() or "review details" in text_with.lower(), "Assertion Failed: Appendix heading missing!"
     log_lines.append("[PASS] Appendix heading 'Independent Review Details' verified.")

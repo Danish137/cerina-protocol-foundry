@@ -1,32 +1,33 @@
-# Cerina Protocol Foundry - Architecture Documentation
+# Cerina Protocol Foundry — Architecture Documentation
 
 ## System Overview
 
-The Cerina Protocol Foundry is an autonomous multi-agent system that designs, critiques, and refines CBT (Cognitive Behavioral Therapy) exercises. The system uses a **Supervisor-Worker** pattern with specialized agents that collaborate through a shared state (Blackboard pattern).
-
-## Architecture Diagram
+The Cerina Protocol Foundry is an autonomous, observable multi-agent system designed for generating, critiquing, and iteratively refining Cognitive Behavioral Therapy (CBT) protocols. The system is built around a **Supervisor-Worker blackboard architecture** coordinated via LangGraph, with an asynchronous FastAPI backend and a responsive React/Vite dashboard.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      User Interface Layer                        │
+│                      Client Layer                               │
 ├──────────────────────┬──────────────────────────────────────────┤
-│   React Dashboard    │         MCP Client                        │
-│  (Human-in-the-Loop) │    (Machine-to-Machine)                  │
+│   React / Vite UI    │         MCP Protocol Client              │
+│  (Human-in-the-Loop) │      (CLI, Claude Desktop, Cursor)       │
 └──────────┬───────────┴──────────────┬───────────────────────────┘
            │                           │
-           │ HTTP/SSE                  │ MCP Protocol
+           │ HTTP/SSE                  │ JSON-RPC (stdio)
            │                           │
-┌──────────▼───────────────────────────▼───────────────────────────┐
-│                      FastAPI Backend                              │
+┌──────────▼───────────────────────────▼──────────────────────────┐
+│                      FastAPI Backend                            │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │              API Endpoints                                │   │
+│  │ Endpoints:                                               │   │
 │  │  - POST /api/protocols/create                            │   │
-│  │  - GET  /api/protocols/{id}/stream (SSE)                │   │
-│  │  - GET  /api/protocols/{id}/state                       │   │
-│  │  - POST /api/protocols/{id}/approve                     │   │
-│  │  - POST /api/protocols/{id}/halt                        │   │
+│  │  - GET  /api/protocols/{id}/stream (Server-Sent Events)  │   │
+│  │  - GET  /api/protocols/{id}/state                        │   │
+│  │  - POST /api/protocols/{id}/approve                      │   │
+│  │  - POST /api/protocols/{id}/edit                         │   │
+│  │  - POST /api/protocols/{id}/halt                         │   │
+│  │  - GET  /api/protocols/{id}/events                       │   │
+│  │  - GET  /api/protocols/quota                             │   │
 │  └──────────────────────────────────────────────────────────┘   │
-└───────────────────────────┬───────────────────────────────────────┘
+└───────────────────────────┬─────────────────────────────────────┘
                             │
                 ┌───────────▼───────────┐
                 │   LangGraph Workflow   │
@@ -45,161 +46,118 @@ The Cerina Protocol Foundry is an autonomous multi-agent system that designs, cr
                     ┌───────▼────────┐
                     │  Supervisor    │
                     │  Agent         │
-                    │  (Orchestrator)│
+                    │  (Evaluator)   │
                     └───────┬────────┘
                             │
                 ┌───────────▼───────────┐
                 │   Shared State         │
                 │   (Blackboard)         │
-                │  - Current Draft       │
-                │  - Draft History       │
-                │  - Agent Notes         │
-                │  - Quality Scores      │
-                │  - Safety Checks       │
+                │  - current_draft       │
+                │  - draft_history       │
+                │  - agent_notes         │
+                │  - scores (1-5)        │
+                │  - score_source        │
+                │  - unverified          │
+                │  - degraded_review     │
                 └───────────┬───────────┘
                             │
                 ┌───────────▼───────────┐
                 │   SQLite Checkpointer │
-                │   (Persistence)       │
+                │   (WAL Mode Persistence)│
                 └───────────────────────┘
 ```
 
-## Agent Architecture
+---
 
-### 1. Supervisor Agent
-**Role**: Orchestrator and decision-maker
-- Evaluates quality metrics (safety, empathy, clinical scores)
-- Decides when drafts meet quality thresholds
-- Routes workflow between agents
-- Manages iteration limits
-- Triggers human-in-the-loop pauses
+## Multi-Agent Architecture
 
-**Decision Logic**:
-- If quality scores < thresholds → Route to Drafter for revision
-- If quality scores ≥ thresholds → Halt for human approval
-- If max iterations reached → Finalize current draft
+### 1. Drafter Agent
+- **Role**: Content generation & clinical drafting.
+- **Responsibilities**:
+  - Synthesizes user intent into structured CBT exercises.
+  - Enforces 7 mandatory clinical sections: Title, Introduction/Rationale, Measurable Goals, Step-by-Step Instructions, Guided Practice / Exposure, Reflection / Thought Record, Conclusion & Emergency Support.
+  - Formulates revisions incorporating targeted critique from Safety and Critic notes.
+- **Streaming**: Streams token-by-token via SSE callbacks to minimize Time to First Token (TTFT).
 
-### 2. Drafter Agent
-**Role**: Content creator
-- Generates initial CBT exercise drafts
-- Incorporates feedback from other agents
-- Revises drafts based on critique
-- Maintains clinical structure and evidence-based techniques
+### 2. Safety Guardian Agent
+- **Role**: Patient safety and clinical boundary verification.
+- **Responsibilities**:
+  - Scans for contraindicated medication advice, unanchored SUDS, or dismissive tone.
+  - Enforces mandatory UK/US crisis hotlines (988, 111, Samaritans, Crisis Text Line).
+  - Scores safety on a 1–5 rubric with quote-grounded evidence.
 
-**Input**: User intent, feedback from other agents
-**Output**: Structured CBT exercise draft
+### 3. Clinical Critic Agent
+- **Role**: Quality and pedagogical evaluation.
+- **Responsibilities**:
+  - Assesses therapeutic warmth/empathy, fidelity to CBT principles, clarity, structural completeness, and actionability.
+  - Extracts verbatim quotes from draft to substantiate score deductions.
+  - Prevents rubber-stamping by validating that cited phrases exist in the current draft.
 
-### 3. Safety Guardian Agent
-**Role**: Safety validator
-- Checks for self-harm references
-- Identifies medical advice (should be avoided)
-- Flags dangerous practices
-- Assigns safety score (0.0-1.0)
+### 4. Supervisor Agent
+- **Role**: Routing and workflow decision logic.
+- **Responsibilities**:
+  - Evaluates scores against clinical thresholds: Safety >= 4/5, Warmth >= 3/5, Fidelity >= 4/5, Clarity >= 3/5, Structure >= 4/5, Actionability >= 3/5.
+  - **Deterministic Completeness Gate**: Validates all 7 required sections and terminal punctuation before routing to human approval.
+  - **Fail-Closed Outage Handling**: If safety checks were unavailable (`unverified=True`), halts for human review but flags state as degraded, requiring explicit clinician acknowledgement.
+  - Enforces iteration limits (maximum 3 revisions) before escalating to human reviewer.
 
-**Output**: Safety score, safety checks, flagged issues
+---
 
-### 4. Clinical Critic Agent
-**Role**: Quality evaluator
-- Assesses clinical appropriateness
-- Evaluates empathy and tone
-- Checks structure and clarity
-- Measures actionability
-- Assigns empathy and clinical scores (0.0-1.0)
+## State Management (The Blackboard Pattern)
 
-**Output**: Empathy score, clinical score, recommendations
-
-## State Management (Blackboard Pattern)
-
-The `ProtocolState` TypedDict serves as the shared workspace:
+The `ProtocolState` object represents the blackboard on which all agents read and write:
 
 ```python
-ProtocolState:
-  - user_intent: str
-  - session_id: str
-  - status: str
-  - current_draft: Optional[str]
-  - draft_history: List[ProtocolDraft]
-  - agent_notes: List[AgentNote]  # Blackboard scratchpad
-  - safety_score: Optional[float]
-  - empathy_score: Optional[float]
-  - clinical_score: Optional[float]
-  - halted: bool
-  - human_approved: bool
-  - iteration_count: int
-  - max_iterations: int
+class ProtocolState(TypedDict):
+    user_intent: str
+    session_id: str
+    status: str                         # 'drafting' | 'reviewing' | 'awaiting_approval' | 'approved' | 'halted'
+    current_draft: Optional[str]
+    draft_history: List[Dict[str, Any]]
+    agent_notes: List[AgentNote]        # Blackboard communication scratchpad
+    scores: Dict[str, Any]              # Rubric scores (1–5)
+    score_source: Optional[str]         # 'llm' | 'heuristic' | 'unavailable'
+    unverified: bool                    # True if automated safety checks could not run
+    degraded_review: bool               # True if router failed over to secondary/heuristic
+    drafter_model: Optional[str]
+    drafter_provider: Optional[str]
+    safety_model: Optional[str]
+    critic_model: Optional[str]
+    iteration_count: int
+    max_iterations: int
+    halted: bool
+    human_approved: bool
+    human_edited: bool
 ```
 
-### Agent Notes (Blackboard)
-Agents communicate through notes:
-- **Targeted notes**: `target_agent` specified for direct communication
-- **Broadcast notes**: `target_agent=None` for all agents
-- **Priority levels**: "info", "warning", "critical"
+### Blackboard Notes
+Agents communicate via `agent_notes` containing:
+- `sender`: Generating agent ID
+- `recipient`: Target agent (`drafter`, `supervisor`, or `all`)
+- `note_type`: `safety_violation`, `clinical_critique`, `revision_instruction`
+- `content`: Specific feedback with verbatim quotes
 
-## Workflow Execution Flow
+---
 
-1. **Initialization**
-   - User submits intent
-   - Initial state created
-   - Workflow starts at "draft" node
+## Resilient Routing & Zero Same-Family Rule
 
-2. **Drafting Phase**
-   - Drafter creates initial draft
-   - Draft added to history
-   - State updated with draft content
+To guarantee objective evaluation, the LLM router enforces the **Zero Same-Family Rule**:
+- The model family that generated a draft is **strictly forbidden** from acting as judge (Safety Guardian or Clinical Critic).
+- If `openai/gpt-oss-120b` (Groq/OpenAI family) drafts, judges must be Google Gemini or Meta Llama.
+- If `gemini-3.1-flash-lite` (Google family) drafts, judges must be Groq Qwen/OpenAI or Meta Llama.
 
-3. **Review Phase**
-   - Safety Guardian reviews draft
-   - Clinical Critic evaluates quality
-   - Scores updated in state
+### Failure Isolation & Outage Handling
+1. **Model Fallback Chain**: Each role has an ordered list of fallback models across providers (Groq, Gemini, OpenRouter).
+2. **Graceful Degradation**: If an entire provider experiences 503/429 errors, the router automatically fails over to the next provider without breaking the active SSE stream.
+3. **All Judges Down**: If all judge providers are unavailable:
+   - State sets `unverified=True` and `score_source="unavailable"`.
+   - Workflow pauses in `awaiting_approval` with a prominent warning banner.
+   - Normal `/approve` returns HTTP 409 `recheck_required` to block blind approval. Reviewer must explicitly override via `clinician_bypass` or request a re-check.
 
-4. **Decision Phase**
-   - Supervisor evaluates scores
-   - If quality OK → Halt for human approval
-   - If quality insufficient → Route back to Drafter
-   - If max iterations → Finalize
+---
 
-5. **Human-in-the-Loop**
-   - Workflow pauses at checkpoint
-   - Human reviews draft in UI
-   - Human can edit or approve
-   - Upon approval, workflow resumes
+## Streaming & Persistence
 
-6. **Finalization**
-   - Approved draft saved
-   - Session marked complete
-   - Final protocol stored
-
-## Persistence & Checkpointing
-
-- **SQLite Checkpointer**: Every workflow step is checkpointed
-- **Resume on crash**: System can resume from last checkpoint
-- **State history**: All state transitions are logged
-- **Session tracking**: Each protocol generation is a separate session
-
-## LLM Configuration
-
-The backend uses `ChatOpenAI` with an OpenAI-compatible API. See [LLM Configuration](./tech_info.md#13-llm-configuration) in `tech_info.md`.
-
-## MCP Integration
-
-The MCP server exposes the workflow as tools:
-- `create_cbt_protocol`: Start protocol generation
-- `get_protocol_status`: Check progress and retrieve draft
-- `approve_protocol`: Approve draft (human-in-the-loop)
-
-This allows external MCP clients (e.g., Claude Desktop) to trigger workflows programmatically.
-
-## Quality Thresholds
-
-- **Safety Score**: ≥ 0.8 (required)
-- **Empathy Score**: ≥ 0.7 (required)
-- **Clinical Score**: ≥ 0.7 (required)
-- **Max Iterations**: 5 (safety limit)
-
-## Error Handling
-
-- Workflow errors are caught and logged
-- State is preserved even on errors
-- Human can review and approve even if workflow errors
-- Graceful degradation: partial drafts are still reviewable
-
+1. **Server-Sent Events (SSE)**: Real-time event log streamed over `/api/protocols/{id}/stream`. If the SSE connection drops, the client automatically falls back to polling `/api/protocols/{id}/events?after={seq}`.
+2. **SQLite WAL Mode**: State is persisted via SQLite in Write-Ahead Logging (WAL) mode for concurrency and zero-loss crash recovery.
+3. **Draft Versioning**: Every draft iteration is recorded with a content hash, timestamp (ISO 8601 UTC), and serving model metadata.

@@ -108,7 +108,7 @@ export class ProtocolStreamClient {
         if (this.options.onError) {
           this.options.onError({
             code: 'stream_connection_error',
-            message: 'Live stream interrupted. Polling events fallback...',
+            message: 'Live stream interrupted. Polling activity fallback...',
             retryable: true
           })
         }

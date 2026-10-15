@@ -1,0 +1,17 @@
+aiosqlite==0.22.1
+fastapi==0.128.0
+httpx==0.28.1
+langchain==1.2.8
+langchain-core==1.2.8
+langchain-openai==1.1.7
+langgraph==1.0.7
+langgraph-checkpoint==4.0.0
+langgraph-checkpoint-sqlite==3.0.3
+mcp==1.30.0
+pydantic==2.12.5
+python-dotenv==1.2.4
+python-multipart==0.0.22
+slowapi==0.1.10
+SQLAlchemy==2.0.46
+sse-starlette==3.2.0
+uvicorn[standard]==0.40.0

@@ -7,7 +7,7 @@
     "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
     "run_id": "run_B0dWqFEGJwg",
     "event_count": 17,
-    "events_classification": "100% real live run events captured from SQLite events table"
+    "provenance": "100% real live run telemetry captured from SQLite database"
   },
   "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
   "intent": "Create a Behavioral Activation protocol for persistent mild depression and lethargy.",

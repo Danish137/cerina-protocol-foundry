@@ -326,7 +326,7 @@ export default function ActionPanel({
               <h3 className="text-xs sm:text-sm font-bold text-[#18221E]">
                 Editing Draft
               </h3>
-              <p className="text-[11px] font-mono text-[#8C5921] font-semibold mt-0.5">
+              <p className="text-[11px] font-mono text-[#78350F] font-semibold mt-0.5">
                 {wordDiffText} · unsaved
               </p>
             </div>
@@ -358,9 +358,9 @@ export default function ActionPanel({
                 </span>
               </div>
             ) : validationStatus === 'stale' ? (
-              <div className="flex items-center justify-between gap-2 text-[#8C5921]">
+              <div className="flex items-center justify-between gap-2 text-[#78350F]">
                 <div className="flex items-center gap-1.5 text-[11px]">
-                  <AlertTriangle className="w-3.5 h-3.5 text-[#D4882C] shrink-0" />
+                  <AlertTriangle className="w-3.5 h-3.5 text-[#B45309] shrink-0" />
                   <span>You've edited since the last safety check.</span>
                 </div>
                 <button

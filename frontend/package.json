@@ -25,17 +25,13 @@
     "clsx": "^2.1.1",
     "diff": "^9.0.0",
     "framer-motion": "^14.1.0",
-    "html2canvas": "^1.4.1",
-    "jspdf": "^4.1.0",
     "lucide-react": "^0.427.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^6.26.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.5.2",
-    "tiptap-markdown": "^0.9.0",
-    "zustand": "^4.5.5"
+    "tiptap-markdown": "^0.9.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.5",

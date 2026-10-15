@@ -160,8 +160,9 @@ export default function TimelineSheet({
 
             {/* Agent Select Filter */}
             <div className="flex items-center gap-1.5 text-xs text-[#55635C]">
-              <Filter className="w-3.5 h-3.5 text-[#A0ACA5]" />
+              <Filter className="w-3.5 h-3.5 text-[#5C6A62]" />
               <select
+                aria-label="Filter activity by agent"
                 value={agentFilter}
                 onChange={(e) => setAgentFilter(e.target.value)}
                 className="px-2 py-1 rounded-md border border-[#E8E4DA] bg-[#FAF8F5] text-xs font-medium focus:outline-none"
@@ -181,7 +182,7 @@ export default function TimelineSheet({
             <div className="space-y-4">
               {runGroups.length === 0 ? (
                 <div className="p-8 text-center text-xs text-[#A0ACA5]">
-                  <p>No events recorded yet.</p>
+                  <p>No activity recorded yet.</p>
                 </div>
               ) : (
                 runGroups.map((group, groupIdx) => {
@@ -225,12 +226,12 @@ export default function TimelineSheet({
                         </div>
                       </button>
 
-                      {/* Run Events */}
+                      {/* Run Activity Items */}
                       {isExpanded && (
                         <div className="p-3 space-y-2">
                           {filteredEvents.length === 0 ? (
                             <p className="text-xs text-[#A0ACA5] italic text-center py-2">
-                              No matching events under current filter.
+                              No matching items under current filter.
                             </p>
                           ) : (
                             filteredEvents.map((evt) => {
@@ -252,7 +253,7 @@ export default function TimelineSheet({
                                       {evt.to_agent && (
                                         <span className="text-[#5C6A62]">→ {evt.to_agent === 'SafetyGuardian' ? 'Safety Guardian' : evt.to_agent === 'ClinicalCritic' ? 'Clinical Critic' : evt.to_agent}</span>
                                       )}
-                                      <span className="font-normal text-[10px] text-[#A0ACA5]">
+                                      <span className="font-normal text-[10px] text-[#5C6A62]">
                                         ({evt.type})
                                       </span>
                                     </div>

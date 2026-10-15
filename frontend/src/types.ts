@@ -59,6 +59,7 @@ export interface ScoreData {
   dimensions?: Record<string, { score: number; rationale: string }>
   score_source?: 'llm' | 'retry' | 'unavailable'
   unavailable?: boolean
+  unverified?: boolean
   delta_safety?: number
   delta_empathy?: number
   delta_clinical?: number

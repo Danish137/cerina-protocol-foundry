@@ -59,6 +59,9 @@ class ProtocolState(TypedDict):
     safety_score: Optional[float]
     empathy_score: Optional[float]
     clinical_score: Optional[float]
+    score_source: Optional[str]
+    unverified: Optional[bool]
+    degraded_review: Optional[bool]
     
     # Human-in-the-loop
     halted: bool  # Whether workflow is paused for human review
@@ -97,6 +100,9 @@ def create_initial_state(
         safety_score=None,
         empathy_score=None,
         clinical_score=None,
+        score_source="llm",
+        unverified=False,
+        degraded_review=False,
         halted=False,
         human_approved=False,
         human_edits=None,

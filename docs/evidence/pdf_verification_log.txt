@@ -1,21 +1,24 @@
 === PDF VERIFICATION PASS 5 ===
 [RENDER] Saved d:\Projects\Cerina-Protocol-Foundary\docs\evidence\pdf_no_appendix_p1.png (1241x1754)
 [RENDER] Saved d:\Projects\Cerina-Protocol-Foundary\docs\evidence\pdf_no_appendix_p2.png (1241x1754)
+[RENDER] Saved d:\Projects\Cerina-Protocol-Foundary\docs\evidence\pdf_no_appendix_p3.png (1241x1754)
 
 --- Assertions for PDF Without Appendix ---
 [PASS] No raw '**' in extracted text.
 [PASS] No missing glyphs in extracted text.
-[PASS] Timezone present in approval block.
+[PASS] Verified 'GMT' is absent from PDF text.
+[PASS] Verified content hash is absent from PDF text.
 [PASS] Verified approval status 'Approved by you ... AI-reviewed; not clinically validated' in PDF text.
 [RENDER] Saved d:\Projects\Cerina-Protocol-Foundary\docs\evidence\pdf_with_appendix_p1.png (1241x1754)
 [RENDER] Saved d:\Projects\Cerina-Protocol-Foundary\docs\evidence\pdf_with_appendix_p2.png (1241x1754)
 [RENDER] Saved d:\Projects\Cerina-Protocol-Foundary\docs\evidence\pdf_with_appendix_p3.png (1241x1754)
+[RENDER] Saved d:\Projects\Cerina-Protocol-Foundary\docs\evidence\pdf_with_appendix_p4.png (1241x1754)
 
 --- Assertions for PDF With Appendix ---
 [PASS] No raw '**' in extracted text.
 [PASS] No missing glyphs in extracted text.
-[PASS] Timezone present in approval block.
-[PASS] Server-validated content hash '8d1bea3a68a27598' verified in PDF text.
+[PASS] Verified 'GMT' is absent from PDF with appendix.
+[PASS] Verified content hash is absent from PDF with appendix.
 [PASS] Appendix heading 'Independent Review Details' verified.
 [PASS] Purged all positive clinical validation / clinician revision claims; explicit 'not clinically validated' disclaimer present.
 
@@ -24,95 +27,140 @@
 --- Page 1 ---
 CERINA PROTOCOL FOUNDRY
 CLINICAL CBT PROTOCOL SPECIFICATION
-AI review passed [OK]
+AI review passed 
 Draft by AI | 1 review run
-Approval Status: Approved by you on 14 Oct 2026, 8:00 pm IST. AI-reviewed; not clinically validated.
-Clinical Goal: Design a stimulus control and sleep hygiene routine for sleep-onset insomnia
+Approval Status: Approved by you on Oct 12, 2026, 9:59 PM UTC · AI-reviewed · not clinically validated
+Clinical Goal: Create a Behavioral Activation protocol for persistent mild depression and lethargy.
 Safety Audit:
 100% (5/5 checks passed)
 Empathy & Alliance:
-4.8 / 5 (req: 3.5)
+4.5 / 5 (req: 3.5)
 CBT Fidelity:
-4.7 / 5 (req: 3.5)
-Stimulus Control and Sleep Hygiene Protocol for 
-Sleep-Onset Insomnia
+5.0 / 5 (req: 3.5)
+Behavioral Activation Protocol for Persistent Mild De-
+pression and Lethargy
 Introduction
-This evidence-based Cognitive Behavioral Therapy for Insomnia (CBT-I) protocol is designed for adults experiencing 
-difficulty initiating sleep. Stimulus control strengthens the conditioned association between the bed and rapid sleep 
-onset, while sleep hygiene optimizes physiological readiness for rest.
+Behavioral Activation (BA) is a well-established, evidence-based treatment that addresses the cycle of 
+depression by increasing engagement in meaningful activities. When we're depressed, we tend to withdraw 
+from activities that once brought us joy or a sense of accomplishment, which then reinforces feelings of 
+sadness, worthlessness, and low energy. This creates a downward spiral where inactivity feeds depression, 
+and depression fuels further inactivity.
+This protocol is designed for individuals experiencing persistent mild depression and lethargy—those who 
+may feel consistently low-energy, unmotivated, or disconnected from activities they previously enjoyed. 
+Rather than waiting for motivation to return (which often doesn't happen without action), Behavioral Activation 
+focuses on taking small, manageable steps to gradually rebuild positive routines and experiences. The goal 
+isn't to eliminate difficult feelings immediately, but to create opportunities for positive reinforcement and a 
+greater sense of control over your daily life.
 Goals
--
-Re-establish the bed and bedroom as strong discriminative stimuli for sleep rather than frustration or alertness.
--
-Maintain a consistent sleep-wake schedule to consolidate homeostatic sleep drive.
--
-Eliminate sleep-incompatible autonomic arousal in the bedroom.
-Step-by-Step Instructions
-Step 1: The 20-Minute Re-Association Rule
-Go to bed only when genuinely sleepy. If you have not fallen asleep within approximately 20 minutes:
--
-Leave the bedroom immediately.
--
-Move to a dimly lit room and engage in a quiet, non-screen activity (e.g., reading a physical book, gentle somatic 
-relaxation).
--
-Return to bed only when drowsiness returns. Repeat as often as necessary throughout the night.
-Step 2: Bedroom Exclusivity
-Do not use the bed for any activities other than sleep and sexual intimacy. Reading, watching television, checking 
-phones, eating, or working must occur outside the bedroom.
-Step 3: Anchor Wake Time
-Set a non-negotiable wake-up time 7 days a week, regardless of how much sleep you obtained the previous night. 
-Do not compensate with daytime naps.
+• Increase weekly engagement in activities rated as moderately pleasant or meaningful (target: 3-5 
+activities per day)
+• Reduce daily time spent in passive or avoidant behaviors (e.g., excessive screen time, staying in bed) 
+by 25% within two weeks
+• Improve self-reported mood scores by 20% over four weeks, as measured by a simple daily mood 
+tracking scale
+Steps
+Step 1: Activity Monitoring and Awareness
+Begin by tracking your current activity patterns and mood for 3–5 days before making any changes. Use a 
+simple hourly log to record:
+• What you did during each hour (be specific—include work, meals, rest, scrolling, etc.)
+• Your mood rating on a 0–10 scale (0 = worst mood, 10 = best mood)
+• Whether the activity was something you chose or felt obligated to do
 
 --- Page 2 ---
-Practice and Homework
--
-Keep a 7-day sleep diary recording bed time, estimated sleep onset latency, night awakenings, and final rising 
-time.
--
-Implement the 20-minute rule consistently every night for the upcoming 14 days without exception.
-Reflection and Progress Review
--
-Did you notice any anticipatory anxiety when getting into bed?
--
-How many times did you leave the bedroom before sleep onset occurred?
--
-What calming activity proved most effective during the out-of-bed interval?
-Conclusion
-Conditioned insomnia develops gradually and requires 2-4 weeks of consistent behavioral practice to extinguish. 
-If insomnia symptoms persist beyond 4 weeks or if daytime impairment impairs safety, consult a licensed clinical 
-psychologist or sleep medicine physician for personalized care.
+Example entry:
+Time
+Activity
+Mood (0–10)
+9 AM
+Got out of bed reluctantly
+3
+10 AM
+Sat on couch scrolling phone
+2
+11 AM
+Made coffee
+4
+This step builds awareness of how your behaviors and emotions interact throughout the day. Many people 
+discover that certain activities correlate with better moods—even small ones like making the bed or stepping 
+outside—and that avoidance behaviors often maintain low mood without providing relief.
+Step 2: Schedule Meaningful Activities
+Using your activity log, identify 1–2 activities per day that align with one of these categories:
+• Mastery Activities: Tasks that give a sense of accomplishment (e.g., organizing a drawer, cooking a 
+meal)
+• Pleasure Activities: Things that bring enjoyment or relaxation (e.g., listening to music, walking in nature)
+• Social Connection: Interactions that foster connection (e.g., texting a friend, joining a group)
+• Routine Maintenance: Basic self-care tasks (e.g., showering, eating regular meals)
+Start small. For example:
+• Monday: Take a 10-minute walk after lunch + call one friend
+• Tuesday: Cook breakfast instead of skipping it + listen to favorite playlist while cleaning
+Write these into your calendar or planner as non-negotiable appointments with yourself. If an activity feels too 
+overwhelming, break it down further (e.g., "walk" becomes "put on shoes and stand outside for 5 minutes").
+The rationale here is that depression narrows our behavioral repertoire—we stop doing things that could 
+improve our mood simply because we don't feel like it. By scheduling activities in advance, we bypass the 
+need for motivation and create structure that supports gradual improvement.
+Step 3: Monitor and Adjust Based on Feedback
+Each evening, briefly review your day using this framework:
+• Which scheduled activities did you complete?
+• How did your mood change before vs. after each activity?
+• What got in the way of completing activities?
+• What would you adjust tomorrow?
+If an activity consistently leads to increased energy or improved mood, try expanding it slightly next week 
+(e.g., increase walk duration from 10 to 15 minutes). If something feels draining or unhelpful, modify or replace 
+it.
+This reflective process helps reinforce learning and prevents discouragement. Progress isn't always linear, 
+and adjustments are part of the process—not signs of failure.
+Practice
+Commit to the following daily routine for at least two weeks:
 
 --- Page 3 ---
+Morning (within first hour of waking):
+• Complete a brief morning routine (shower, get dressed, make bed)
+• Schedule 1–2 specific activities into your day (written down or in calendar)
+Throughout the day:
+• Check in with your mood twice daily (mid-morning and mid-afternoon) using a 0–10 scale
+• Engage in at least one mastery or pleasure activity
+• Limit passive screen time when possible (set timers if needed)
+Evening (last 10 minutes before bed):
+• Reflect on the day using the questions above
+• Plan tomorrow's key activities
+Use a paper journal, app, or printed worksheet to track your progress. Consistency matters more than 
+intensity—small actions done regularly will compound over time.
+Reflection
+At the end of each week, spend five minutes answering these questions:
+• What activities consistently lifted your mood, even slightly?
+• What patterns emerged in your energy levels throughout the day?
+• When did you feel most like yourself this week—and what were you doing?
+• What barriers kept you from engaging fully, and how might you address them next week?
+• How has your relationship with planning or choosing activities shifted since starting this protocol?
+Notice whether your sense of agency—the feeling that you can influence your own experience—is growing 
+stronger. Even minor shifts in behavior can lead to meaningful improvements in outlook over time.
+Conclusion
+You've taken an important step by engaging with Behavioral Activation. Remember, the goal isn't perfection 
+but progress. Some days will feel easier than others, and that's completely normal. Be patient with yourself 
+as you rebuild routines and reconnect with sources of meaning and joy.
+If at any point your symptoms worsen significantly, interfere with basic functioning, or include thoughts of 
+self-harm, please reach out to a mental health professional right away. While this protocol can be helpful for 
+mild depression, it is not a substitute for individualized care when needed. You deserve support, and help is 
+always available.
+Clinician Note: Emphasize gradual pacing.
+
+--- Page 4 ---
 CERINA PROTOCOL FOUNDRY
 APPENDIX: INDEPENDENT REVIEW DETAILS
 Verification Audit
 Independent AI Review & Safety Audit
-This protocol was synthesized by an AI model and evaluated by two independent AI reviewers - one auditing clinical safety 
-contraindications and another evaluating therapeutic empathy, validation, and CBT cognitive/behavioral fidelity.
+This protocol was synthesized by an AI model and evaluated by two independent AI reviewers – one auditing clinical 
+safety contraindications and another evaluating therapeutic empathy, validation, and CBT cognitive/behavioral 
+fidelity.
 Safety Rubric Criteria (5 Core Checks)
-- Self-Harm & Crisis Protocol Handled Safely - Passed
-- No Prescription Medication or Dosing Advice - Passed
-- No Diagnostic Labeling of User - Passed
-- No Hazardous or Contraindicated Exposure - Passed
-- Professional Referral Language Included - Passed
-Clinical Quality Dimensions & Verbatim Evidence
-Warmth & Alliance:
-4.8 / 5.0
-Emotional Validation:
-4.8 / 5.0
-Clarity & Concreteness:
-5.0 / 5.0
-CBT Fidelity:
-4.7 / 5.0
-Sample Verbatim Evidence from Protocol Draft:
-- Warmth & Validation: "Take your time with this exercise; notice any tension without judgment."
-- CBT Fidelity & Structure: "Identify the activating event, challenge automatic thoughts, and rate distress on a 0-10 scale."
+• Self-Harm & Crisis Protocol Handled Safely – Passed
+• No Prescription Medication or Dosing Advice – Passed
+• No Diagnostic Labeling of User – Passed
+• No Hazardous or Contraindicated Exposure – Passed
+• Professional Referral Language Included – Passed
 Audit Record
-Content Hash (SHA-256):
-8d1bea3a68a27598
 App Version:
 3.0.0
-Approval Status: Approved by you on 14 Oct 2026, 8:00 pm IST. AI-reviewed; not clinically validated.
-Demonstration Disclaimer: This protocol was generated with AI assistance for educational and evaluation demonstration purposes only. It has 
-not received formal clinical validation and must not be used for medical diagnosis, treatment, or real patient care.
+Approval Status: Approved by you on Oct 12, 2026, 9:59 PM UTC · AI-reviewed · not clinically validated
+Demonstration Disclaimer: This protocol was generated with AI assistance for educational and evaluation demonstration purposes 
+only. It has not received formal clinical validation and must not be used for medical diagnosis, treatment, or real patient care.

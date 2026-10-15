@@ -582,8 +582,6 @@ export function ClinicalPdfDoc({
           </Text>
           <View style={styles.auditBox}>
             <View style={styles.auditRow}>
-              <Text style={styles.auditLabel}>Content Hash (SHA-256):</Text>
-              <Text style={[styles.auditValue, { fontFamily: 'Courier' }]}>{audit?.content_hash || audit?.validated_hash || contentHash}</Text>
               <Text style={styles.auditLabel}>App Version:</Text>
               <Text style={styles.auditValue}>{audit?.app_version || '3.0.0'}</Text>
             </View>

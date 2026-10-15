@@ -218,10 +218,10 @@ export default function AgentPipeline({
                     : node.status === 'done'
                     ? 'bg-[#FAF8F5] text-[#244F3B]'
                     : node.status === 'concern'
-                    ? 'bg-[#FEF3C7] text-[#92400E]'
+                    ? 'bg-[#FEF3C7] text-[#78350F]'
                     : node.status === 'waiting'
                     ? 'bg-[#DBEAFE] text-[#1E40AF] font-semibold animate-pulse'
-                    : 'text-[#A0ACA5]'
+                    : 'text-[#5C6A62]'
                 }`}
                 title={node.statusLine}
               >

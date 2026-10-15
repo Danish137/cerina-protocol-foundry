@@ -119,8 +119,8 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
   let badgeClass = 'bg-[#FAF8F5] text-[#55635C] border-[#E8E4DA]'
 
   if (isUnavailable) {
-    badgeLabel = 'Automated check unavailable'
-    badgeClass = 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]'
+    badgeLabel = 'Automated checks unavailable — Not verified'
+    badgeClass = 'bg-[#FEF3C7] text-[#78350F] border-[#FDE68A]'
   } else if (hasAllScores) {
     const safePass = (scores.safety_score ?? 0) >= 0.8
     const empPass = (scores.empathy_score ?? 0) >= 3.5
@@ -136,7 +136,7 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
       badgeClass = 'bg-[#FEE2E2] text-[#991B1B] border-[#FECACA]'
     } else if (atThreshold) {
       badgeLabel = 'At threshold'
-      badgeClass = 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]'
+      badgeClass = 'bg-[#FEF3C7] text-[#78350F] border-[#FDE68A]'
     } else {
       badgeLabel = 'Thresholds met'
       badgeClass = 'bg-[#EBF3EE] text-[#1E3D2F] border-[#C2DBCB]'
@@ -157,7 +157,7 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
         <div className="flex items-center gap-1.5">
           {scores.degraded_review && (
             <span
-              className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]"
+              className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#78350F] border border-[#FDE68A]"
               title="Evaluated via fallback reviewer model"
             >
               reduced-confidence review

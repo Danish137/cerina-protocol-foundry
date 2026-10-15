@@ -271,7 +271,10 @@ export function protocolReducer(state: ReducerState, action: ProtocolAction): Re
           safety_score: snap.safety_score,
           empathy_score: snap.empathy_score,
           clinical_score: snap.clinical_score,
-          safety_checks: snap.safety_checks
+          safety_checks: snap.safety_checks,
+          score_source: snap.score_source || (snap.unverified ? 'unavailable' : state.scores.score_source),
+          unavailable: snap.unavailable ?? (snap.unverified ? true : state.scores.unavailable),
+          unverified: snap.unverified ?? state.scores.unverified
         },
         approvalAudit: snap.approval_audit || state.approvalAudit
       }

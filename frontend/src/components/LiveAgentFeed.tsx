@@ -101,7 +101,10 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
       {/* Feed container: fully scrollable with complete event history */}
       <div
         ref={feedContainerRef}
-        className="flex-1 overflow-y-auto overscroll-contain scrollbar-thin pt-1.5 space-y-1.5 min-h-0 pr-0.5"
+        tabIndex={0}
+        role="region"
+        aria-label="Live agent feed"
+        className="flex-1 overflow-y-auto overscroll-contain scrollbar-thin pt-1.5 space-y-1.5 min-h-0 pr-0.5 focus:outline-none"
       >
         {displayEvents.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-xs text-[#A0ACA5] p-3">

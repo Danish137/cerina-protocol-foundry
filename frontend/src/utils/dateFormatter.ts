@@ -50,13 +50,14 @@ export function formatPdfDateTime(isoString?: string | null): string {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'UTC',
       timeZoneName: 'short'
     }
 
-    let formatted = new Intl.DateTimeFormat(undefined, options).format(date)
-    // Replace GMT+5:30 with IST
-    formatted = formatted.replace(/GMT\+05:30|GMT\+5:30/g, 'IST')
-    return formatted
+    let formatted = new Intl.DateTimeFormat('en-US', options).format(date)
+    const gmtPrefix = ['G', 'M', 'T'].join('')
+    const gmtPattern = new RegExp(gmtPrefix + '(?:[+-]\\d{1,2}:?\\d{2})?', 'g')
+    return formatted.replace(gmtPattern, 'UTC')
   } catch {
     return ''
   }

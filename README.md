@@ -1,125 +1,101 @@
 # Cerina Protocol Foundry
 
-An intelligent multi-agent system that autonomously designs, critiques, and refines CBT (Cognitive Behavioral Therapy) exercises.
-live: https://cerina-protocol-foundry.vercel.app/
+An autonomous multi-agent clinical drafting system that designs, critiques, and refines evidence-based Cognitive Behavioral Therapy (CBT) protocols with deterministic safety gates, real-time streaming, and human-in-the-loop review.
 
-Demo: https://www.loom.com/share/68516d1760b64d8a9d7f4563413a0e52
+---
 
-## Architecture Diagram
+## Architecture Overview
 
-See [`ARCHITECTURE_DIAGRAM.txt`](ARCHITECTURE_DIAGRAM.txt)
+Cerina Protocol Foundry employs a **Supervisor-Worker Blackboard pattern** coordinated via LangGraph:
 
-## Architecture
+- **Protocol Drafter**: Synthesizes clinical intents into structured CBT protocols with 7 mandatory sections (Title, Introduction/Rationale, Measurable Goals, Step-by-Step Instructions, Guided Practice / Exposure, Reflection / Thought Record, Conclusion & Emergency Support).
+- **Safety Guardian**: Evaluates contraindications, medication risks, and crisis hotline adherence using quote-grounded 1–5 rubrics.
+- **Clinical Critic**: Evaluates therapeutic warmth, fidelity to CBT principles, structural clarity, and actionable exercises.
+- **Supervisor Evaluator**: Enforces rubric thresholds, deterministic completeness checks, iteration caps, and failure-closed outage gates before routing to human approval.
 
-The system uses a **Supervisor-Worker** pattern with specialized agents:
+### Zero Same-Family Rule
+To maintain objective evaluation, the LLM router strictly forbids an AI model family from grading its own output:
+- **Groq writer** (`openai/gpt-oss-120b`) -> Evaluated by **Google Gemini** or **Meta Llama**.
+- **Gemini writer** (`gemini-3.1-flash-lite`) -> Evaluated by **Groq Qwen** or **Meta Llama**.
 
-- **Supervisor Agent**: Orchestrates the workflow, routes tasks, and decides when drafts are ready
-- **Drafter Agent**: Creates initial CBT exercise drafts based on user intent
-- **Safety Guardian**: Validates content for self-harm risks and medical advice
-- **Clinical Critic**: Evaluates tone, empathy, and clinical appropriateness
+---
 
-## Tech Stack
+## Key Features
 
-- **Backend**: Python + LangGraph + FastAPI
-- **Frontend**: React + TypeScript
-- **MCP**: Model Context Protocol server (works with any MCP client, not just Anthropic)
-- **Database**: SQLite with LangGraph checkpointers
-- **LLM**: OpenAI-compatible API (`gpt-4o-mini` via ChatAnywhere proxy — see `backend/env.template`)
+- **Observable SSE Streaming**: Real-time token streaming with automatic fallback to sequence-based polling.
+- **Fail-Closed Outage Handling**: When evaluation services are unreachable, the system enters an unverified review mode, displaying explicit warning banners and blocking approval without clinician confirmation (HTTP 409 `recheck_required`).
+- **Audit-Ready PDF Export**: Generates compliant, print-ready clinical PDFs with metadata, disclaimers, and optional audit appendices.
+- **MCP Tool Integration**: Full Model Context Protocol server exposing `cerina_create_protocol`, `cerina_get_status`, and `cerina_approve_protocol` for external orchestrators.
+
+---
 
 ## Project Structure
 
 ```
 .
-├── backend/                      # Python FastAPI backend
-│   ├── agents/                   # Multi-agent system
-│   │   ├── __init__.py
-│   │   ├── agents.py             # Agent implementations (Drafter, SafetyGuardian, ClinicalCritic, Supervisor)
-│   │   ├── state.py              # State management (ProtocolState, Blackboard pattern)
-│   │   └── workflow.py           # LangGraph workflow orchestration
-│   ├── __init__.py
-│   ├── database.py               # Persistence layer (SQLite)
-│   ├── main.py                   # FastAPI server with API endpoints
-│   ├── models.py                 # Pydantic models for API requests/responses
-│   ├── utils.py                  # Utility functions and helpers
-│   ├── requirements.txt          # Python dependencies
-│   ├── env.template              # Environment variables template
-│   └── cerina_foundry.db         # SQLite database (checkpointer storage)
-│
-├── frontend/                     # React TypeScript dashboard
-│   ├── src/
-│   │   ├── components/           # React components
-│   │   │   ├── AgentActivityFeed.tsx    # Real-time agent activity display
-│   │   │   ├── ProtocolCreator.tsx      # Protocol creation form
-│   │   │   └── ProtocolViewer.tsx       # Draft viewer with approval UI
-│   │   ├── App.tsx               # Main application component
-│   │   ├── main.tsx              # Application entry point
-│   │   └── index.css             # Global styles
-│   ├── index.html                # HTML template
-│   ├── package.json              # Node.js dependencies
-│   ├── package-lock.json          # Dependency lock file
-│   ├── tsconfig.json             # TypeScript configuration
-│   ├── tsconfig.node.json        # TypeScript config for Node
-│   ├── vite.config.ts            # Vite build configuration
-│   ├── tailwind.config.js        # TailwindCSS configuration
-│   └── postcss.config.js         # PostCSS configuration
-│
-├── mcp_server/                   # MCP (Model Context Protocol) server
-│   ├── __init__.py
-│   ├── server.py                 # MCP server implementation with tool definitions
-│   ├── requirements.txt          # Python dependencies for MCP server
-│   ├── TEST_MCP.md               # MCP testing guide
-│   └── TROUBLESHOOTING.md        # MCP troubleshooting documentation
-│
-├── docs/                         # Documentation
-│   ├── ARCHITECTURE.md           # System architecture and design
-│   ├── SETUP.md                  # Detailed setup instructions
-│   ├── USAGE.md                  # Usage guide and examples
-│   └── MCP_CLARIFICATION.md     # MCP integration details
-│
-├── tech_info.md                  # Complete technical reference (architecture → deployment)
-├── README.md                     # Project overview and quick start
-├── QUICKSTART.md                 # 5-minute setup guide
-├── PROJECT_SUMMARY.md            # Comprehensive project summary
-├── IMPLEMENTATION_NOTES.md       # Implementation details and notes
-├── ARCHITECTURE_DIAGRAM.txt      # ASCII architecture diagram
-└── .gitignore                    # Git ignore rules
+├── backend/                  # FastAPI + LangGraph asynchronous backend
+│   ├── agents/               # Drafter, Safety Guardian, Clinical Critic, Supervisor
+│   ├── tests/                # Test suite (85+ tests, canary suite, outage simulations)
+│   ├── database.py           # SQLite persistence with WAL mode
+│   ├── llm_router.py         # Multi-provider resilient router & rate limiter
+│   └── main.py               # REST API & SSE streaming endpoints
+├── frontend/                 # React 18 + TypeScript + Vite + TailwindCSS
+│   ├── src/                  # DocumentViewer, ActionPanel, ScoreMeters, TimelineSheet
+│   └── public/demo/          # Sample run replay for offline demonstration
+├── mcp_server/               # Model Context Protocol server (stdio)
+├── docs/                     # Technical architecture & benchmarks
+│   ├── ARCHITECTURE.md       # Full blackboard & multi-agent system design
+│   ├── BENCHMARKS.md         # Latency, provider limits & outage benchmark data
+│   └── evidence/             # Verified run records, logs, and sample PDFs
+└── scripts/                  # Operational scripts (benchmarking, audit, secret scanning)
 ```
 
-## Setup
+---
 
-### Backend
+## Quickstart
 
+### Prerequisites
+- Python 3.11+
+- Node.js 18+
+- API keys: `GROQ_API_KEY` and `GOOGLE_API_KEY` (optional: `OPENROUTER_API_KEY`)
+
+### 1. Backend Setup
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+# On Windows:
+.\venv\Scripts\activate
+# On Linux/macOS:
+source venv/bin/activate
+
 pip install -r requirements.txt
-cp env.template .env   # set OPENAI_API_KEY
-uvicorn main:app --reload
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-### Frontend
-
+### 2. Frontend Setup
 ```bash
 cd frontend
 npm install
 npm run dev
+# Open http://localhost:3000
 ```
 
-### MCP Server
+---
+
+## Testing & Verification
+
+Run the comprehensive unit and live canary test suite:
 
 ```bash
-cd mcp_server
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python server.py
+# Unit test suite (mock LLM)
+MOCK_LLM=true pytest backend/tests
+
+# Outage simulation suite
+pytest backend/tests/test_outage_simulation.py -s
+
+# Banned wording compliance audit (zero violations across 5 surfaces)
+python scripts/audit_banned_wording.py
+
+# PDF evidence verification
+python scripts/verify_pdf_evidence.py
 ```
-
-## Usage
-
-1. Start the backend API server
-2. Start the React frontend
-3. Use the dashboard to create CBT exercises with human-in-the-loop approval
-4. Or connect via MCP client (e.g., Claude Desktop) to trigger workflows remotely
-
