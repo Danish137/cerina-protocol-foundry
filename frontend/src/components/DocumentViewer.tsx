@@ -27,7 +27,6 @@ import {
 } from 'lucide-react'
 import { Phase } from '../types'
 import DiffModal from './DiffModal'
-import ReviewDetailsSheet from './ReviewDetailsSheet'
 import { RevisionSummaryItem, ScoreData, ProtocolEvent, ApprovalAudit } from '../types'
 
 interface DocumentViewerProps {
@@ -51,6 +50,7 @@ interface DocumentViewerProps {
   onSaveEditsAndApprove: () => void
   onDiscardEdits: () => void
   onExportPdf: (includeDetails?: boolean) => void
+  onOpenReviewDetails?: () => void
   scrollerRef?: React.RefObject<HTMLDivElement | null>
   scores?: ScoreData
   events?: ProtocolEvent[]
@@ -78,10 +78,8 @@ export default function DocumentViewer({
   onSaveEditsAndApprove,
   onDiscardEdits,
   onExportPdf,
-  scrollerRef: externalScrollerRef,
-  scores,
-  events,
-  audit
+  onOpenReviewDetails,
+  scrollerRef: externalScrollerRef
 }: DocumentViewerProps) {
   // Default to Split view on wide displays >=1536px, Rich Editor otherwise
   const [editorViewMode, setEditorViewMode] = useState<'rich' | 'markdown' | 'split'>(() => {
@@ -89,7 +87,6 @@ export default function DocumentViewer({
   })
   const [readingProgress, setReadingProgress] = useState(0)
   const [showDiffModal, setShowDiffModal] = useState(false)
-  const [showReviewDetails, setShowReviewDetails] = useState(false)
   const [restoredSessionAlert, setRestoredSessionAlert] = useState(false)
   const internalScrollerRef = useRef<HTMLDivElement>(null)
   const scrollerRef = externalScrollerRef || internalScrollerRef
@@ -623,8 +620,8 @@ export default function DocumentViewer({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-serif text-sm font-bold text-[#18221E] truncate max-w-[280px] sm:max-w-md" title={realH1}>
-                {realH1}
+              <span className="font-sans text-xs font-bold uppercase tracking-wider text-[#18221E]">
+                Clinical Protocol
               </span>
               <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-[#FAF8F5] border border-[#E8E4DA] text-[#18221E] shrink-0 whitespace-nowrap">
                 v{draftVersion}
@@ -673,7 +670,7 @@ export default function DocumentViewer({
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => setShowReviewDetails(true)}
+            onClick={onOpenReviewDetails}
             className="text-xs text-[#244F3B] hover:text-[#18221E] underline font-medium cursor-pointer px-2 transition-colors"
           >
             Review details
@@ -731,11 +728,13 @@ export default function DocumentViewer({
       </div>
 
       {/* Revision Visibility Card (C6, Round 4) */}
-      {(draftVersion >= 2 || hasRevisedRun) && (
+      {(hasRevisedRun || (revisionSummaries && revisionSummaries.length > 0)) && (
         <div className="mx-6 mt-4 rounded-xl border border-[#F6E0B5] bg-[#FDF6E2] p-3 text-xs text-[#8C4A26] shrink-0">
           <div className="flex items-center justify-between">
             <span className="font-semibold text-[#8C4A26]">
-              {revisionSummaries.length > 0 ? `Revised after review · ${revisionSummaries.length} changes` : 'Revised after your request'}
+              {hasRevisedRun
+                ? 'Revised after your request'
+                : `Refined by AI pipeline · ${revisionSummaries.length} improvements`}
             </span>
             <button
               type="button"
@@ -801,18 +800,8 @@ export default function DocumentViewer({
         </article>
 
         {/* Quiet Clinical Disclaimer at bottom of document */}
-        <div className="max-w-[68ch] mx-auto mt-12 pt-6 border-t border-[#F0ECE3] text-[12px] text-[#55635C] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span>AI-generated protocol demo — not a substitute for professional clinical care.</span>
-            <button
-              type="button"
-              onClick={() => setShowReviewDetails(true)}
-              className="text-[#244F3B] hover:text-[#18221E] underline font-medium cursor-pointer"
-            >
-              Review details
-            </button>
-          </div>
-          <span className="font-mono text-[11px] text-[#55635C]">CERINA CLINICAL FOUNDRY</span>
+        <div className="max-w-[68ch] mx-auto mt-12 pt-6 border-t border-[#F0ECE3] text-[12px] text-[#55635C] text-center">
+          <span>AI-generated protocol demo — not a substitute for professional clinical judgment or medical care.</span>
         </div>
 
         {/* Diff Modal in Read-Only Mode (v1 vs v2) */}
@@ -821,21 +810,6 @@ export default function DocumentViewer({
           onOpenChange={setShowDiffModal}
           originalDraft={v1Draft || draft}
           editedDraft={draft}
-        />
-
-        {/* Review Details Sheet (Requirement 3.1 - 3.4) */}
-        <ReviewDetailsSheet
-          isOpen={showReviewDetails}
-          onClose={() => setShowReviewDetails(false)}
-          scores={scores || {}}
-          events={events || []}
-          draft={displayContent}
-          sessionId={sessionId}
-          audit={audit}
-          onExportPdf={(includeDetails) => {
-            setShowReviewDetails(false)
-            onExportPdf(includeDetails)
-          }}
         />
       </div>
     </div>

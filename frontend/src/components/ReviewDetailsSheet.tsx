@@ -48,7 +48,6 @@ export default function ReviewDetailsSheet({
   onClose,
   scores,
   events,
-  sessionId,
   audit,
   onExportPdf
 }: ReviewDetailsSheetProps) {
@@ -342,37 +341,25 @@ export default function ReviewDetailsSheet({
             )}
           </div>
 
-          {/* Section 4: Audit Record (F2, E1) */}
-          <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#E8E4DA] text-xs space-y-1.5 font-mono">
-            <div className="flex justify-between text-[#55635C]">
-              <span>Session Identifier:</span>
-              <span className="text-[#18221E] font-semibold">{sessionId || 'active-session'}</span>
-            </div>
-            <div className="flex justify-between text-[#55635C]">
-              <span>Content Hash (SHA-256):</span>
-              <span className="text-[#18221E]">{audit?.content_hash || audit?.validated_hash || 'c3a7e91f04b28d5e'}</span>
-            </div>
-            <div className="flex justify-between text-[#55635C]">
-              <span>Validated / Edited State:</span>
-              <span className="text-[#18221E]">
-                {audit?.edited ? (audit.rechecked ? 'Validated (Edits re-checked)' : 'Edited (Re-check pending)') : 'Validated (Direct baseline)'}
+          {/* Section 4: Verification Status Record (F2, E1) */}
+          <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#E8E4DA] text-xs space-y-2">
+            <div className="flex justify-between items-center text-[#55635C]">
+              <span className="font-medium text-[#18221E]">Review Status:</span>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#EBF3EE] text-[#244F3B] border border-[#CDE0D4]">
+                {audit?.edited ? (audit.rechecked ? 'Validated (Edits re-checked)' : 'Edited (Re-check pending)') : 'Validated Baseline'}
               </span>
             </div>
-            <div className="flex justify-between text-[#55635C]">
-              <span>App Version:</span>
-              <span className="text-[#18221E]">{audit?.app_version || '3.0.0'}</span>
-            </div>
             {audit?.approved_at && (
-              <div className="flex justify-between text-[#55635C]">
+              <div className="flex justify-between items-center text-[#55635C]">
                 <span>Approval Timestamp:</span>
-                <span className="text-[#18221E]">{formatLocalDateTime(audit.approved_at)}</span>
+                <span className="text-[#18221E] font-medium">{formatLocalDateTime(audit.approved_at)}</span>
               </div>
             )}
-            <div className="pt-2 border-t border-[#E8E4DA] text-[11px] font-sans text-[#55635C]">
+            <div className="pt-2 border-t border-[#E8E4DA] text-[11px] text-[#55635C]">
               {audit?.approved_at ? (
                 <span>Approved by you on {formatLocalDateTime(audit.approved_at)}. AI-reviewed; not clinically validated.</span>
               ) : (
-                <span>AI-reviewed; not clinically validated. Pending user approval.</span>
+                <span>AI-reviewed; not clinically validated. Pending final user approval.</span>
               )}
             </div>
           </div>

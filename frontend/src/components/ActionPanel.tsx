@@ -38,6 +38,7 @@ interface ActionPanelProps {
   onNewProtocol: () => void
   onRequestRevision?: (instruction?: string, concernIds?: string[]) => void
   onOpenDiffPopover?: () => void
+  onOpenReviewDetails?: () => void
 }
 
 export default function ActionPanel({
@@ -60,6 +61,7 @@ export default function ActionPanel({
   onNewProtocol,
   onRequestRevision,
   onOpenDiffPopover,
+  onOpenReviewDetails,
 }: ActionPanelProps) {
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
   const [exportState, setExportState] = useState<'idle' | 'preparing' | 'downloaded'>('idle')
@@ -122,7 +124,7 @@ export default function ActionPanel({
     <motion.div
       layout={!shouldReduceMotion}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="w-full bg-white border-t border-[#E8E4DA] p-4 sm:p-5 shrink-0"
+      className="w-full bg-white border-t border-[#E8E4DA] p-3 sm:p-3.5 shrink-0"
       role="region"
       aria-label="Clinician Action Controls"
     >
@@ -471,6 +473,18 @@ export default function ActionPanel({
                 <Check className="w-4 h-4 stroke-[2.5]" />
                 <span>Approve & finalize</span>
               </button>
+
+              {/* View AI Review Details Button */}
+              {onOpenReviewDetails && (
+                <button
+                  type="button"
+                  onClick={onOpenReviewDetails}
+                  className="w-full py-2 px-3 rounded-lg bg-[#FAF8F5] hover:bg-[#F2EFE8] border border-[#E8E4DA] text-xs font-semibold text-[#244F3B] transition-colors flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B]"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#244F3B]" />
+                  <span>View AI Review Details & Rubrics</span>
+                </button>
+              )}
 
               {/* Secondary: Edit draft & Request revision */}
               <div className="grid grid-cols-2 gap-2">

@@ -235,9 +235,9 @@ export default function AgentPipeline({
           <h3 className="text-xs font-bold uppercase tracking-wider text-[#18221E]">Agent Pipeline</h3>
         </div>
         {revisionCount > 0 && (
-          <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-[#FDF6E2] text-[#8C4A26] border border-[#F6E0B5] flex items-center gap-1">
+          <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-[#FDF6E2] text-[#8C4A26] border border-[#F6E0B5] flex items-center gap-1">
             <RotateCcw className="w-3 h-3" />
-            <span>Loop {revisionCount}</span>
+            <span>Refinement {revisionCount}</span>
           </span>
         )}
       </div>
@@ -252,7 +252,7 @@ export default function AgentPipeline({
           return (
             <div key={node.id} className="relative">
               <div
-                className={`p-2 sm:p-2.5 rounded-xl border transition-all ${
+                className={`p-2.5 rounded-xl border transition-all ${
                   isWorking
                     ? 'border-[#244F3B] bg-[#EBF3EE]/60 shadow-xs ring-1 ring-[#244F3B]/30'
                     : isConcern
@@ -268,11 +268,12 @@ export default function AgentPipeline({
                     : 'border-[#F0ECE3] bg-white opacity-60'
                 }`}
               >
+                {/* Header Row: Agent name & role on left, latency text on right */}
                 <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     {/* Status Icon */}
                     <div
-                      className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] ${
+                      className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] shrink-0 ${
                         isDone
                           ? 'bg-[#244F3B] text-white'
                           : isWorking
@@ -296,26 +297,28 @@ export default function AgentPipeline({
                         <span>{index + 1}</span>
                       )}
                     </div>
-                    <div>
-                      <p className="font-semibold text-[#18221E] text-xs leading-tight">{node.name}</p>
-                      <p className="text-[10px] text-[#55635C] leading-tight">{node.role}</p>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-[#18221E] text-xs leading-tight truncate">{node.name}</p>
+                      <p className="text-[10px] text-[#55635C] leading-tight truncate">{node.role}</p>
                     </div>
                   </div>
 
-                  {/* Metric Pill or Duration */}
-                  <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                    {node.metricPill && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white border border-[#E8E4DA] text-[#18221E] font-semibold whitespace-nowrap">
-                        {node.metricPill}
-                      </span>
-                    )}
-                    {node.durationText && (
-                      <span className="text-[10px] font-mono text-[#55635C] whitespace-nowrap">{node.durationText}</span>
-                    )}
-                  </div>
+                  {/* Duration Text - always right aligned and never leaking */}
+                  {node.durationText && (
+                    <span className="text-[10px] font-mono text-[#55635C] whitespace-nowrap ml-2 shrink-0">{node.durationText}</span>
+                  )}
                 </div>
 
-                {/* Status line - fully visible without truncation */}
+                {/* Integrated Metric Pill Row (never crammed in header) */}
+                {node.metricPill && (
+                  <div className="mt-1.5 pl-7 flex items-center">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white border border-[#E8E4DA] text-[#244F3B] font-semibold shadow-2xs">
+                      {node.metricPill}
+                    </span>
+                  </div>
+                )}
+
+                {/* Status line */}
                 <p className="mt-1.5 text-[11px] text-[#55635C] leading-snug break-words pl-7">{node.statusLine}</p>
               </div>
 
@@ -337,13 +340,13 @@ export default function AgentPipeline({
 
         {/* Supervisor -> Drafter loop arc (C1) */}
         {revisionCount > 0 && (
-          <div className="mt-2 p-2 rounded-lg bg-[#FDF6E2] border border-[#F6E0B5] flex items-center justify-between text-[11px] text-[#8C4A26]">
-            <div className="flex items-center gap-1.5 font-semibold">
-              <RotateCcw className="w-3.5 h-3.5" />
+          <div className="mt-2.5 p-2.5 rounded-xl bg-[#FDF6E2] border border-[#F6E0B5] flex items-center justify-between text-[11px] text-[#8C4A26]">
+            <div className="flex items-center gap-1.5 font-medium">
+              <RotateCcw className="w-3.5 h-3.5 text-[#8C4A26]" />
               <span>Supervisor → Drafter loop active</span>
             </div>
-            <span className="font-mono text-[10px] bg-white px-1.5 py-0.5 rounded border border-[#F6E0B5]">
-              revision {revisionCount}
+            <span className="font-mono text-[10px] bg-white px-2 py-0.5 rounded-md border border-[#F6E0B5] font-semibold">
+              pass {revisionCount}
             </span>
           </div>
         )}

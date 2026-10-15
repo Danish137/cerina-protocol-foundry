@@ -39,7 +39,7 @@ function MeterRow({
   const isBelow = currentScore !== undefined && currentScore < threshold
 
   return (
-    <div className="space-y-1 p-2 rounded-xl bg-[#FAF8F5] border border-[#F0ECE3]">
+    <div className="space-y-1 px-2.5 py-1.5 rounded-lg bg-[#FAF8F5] border border-[#F0ECE3]">
       <div className="flex items-center justify-between text-xs">
         <div className="flex items-center gap-1.5 font-medium text-[#18221E] min-w-0">
           {icon}
@@ -148,8 +148,8 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
   const totalChecks = sChecks ? Object.keys(sChecks).length : 5
 
   return (
-    <div className="bg-white border border-[#E8E4DA] rounded-2xl p-4 shadow-2xs space-y-3 select-none">
-      <div className="flex items-center justify-between pb-2 border-b border-[#F0ECE3]">
+    <div className="bg-white border border-[#E8E4DA] rounded-2xl p-3 shadow-2xs space-y-2 select-none">
+      <div className="flex items-center justify-between pb-1.5 border-b border-[#F0ECE3]">
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-[#244F3B]" />
           <h3 className="text-xs font-bold uppercase tracking-wider text-[#18221E]">Clinical Rubrics</h3>
@@ -159,7 +159,7 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
         </span>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {/* Safety Rubric */}
         <MeterRow
           label="Safety Guardian"

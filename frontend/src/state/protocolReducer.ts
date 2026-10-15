@@ -48,22 +48,44 @@ export function derivePhase(events: ProtocolEvent[], uiState: UIState): Phase {
 
   if (!events || events.length === 0) return 'idle'
 
-  // Check last terminal/status events in order
+  // Find the index of the last terminal event (checkpoint, run_end, approval, error)
+  let lastTerminalIdx = -1
+  let lastTerminalEvent: ProtocolEvent | null = null
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i]
-    if (e.type === 'error') {
-      if (e.data?.code === 'quota_exceeded') return 'quota_exhausted'
-      return 'review' // Fail safe to review or error card
+    if (e.type === 'run_end' || e.type === 'checkpoint' || e.type === 'approval' || e.type === 'error') {
+      lastTerminalIdx = i
+      lastTerminalEvent = e
+      break
     }
-    if (e.type === 'approval') return 'approved'
-    if (e.type === 'checkpoint') {
-      if (e.data?.status === 'care_panel') return 'care_panel'
+  }
+
+  // If there are events AFTER the last terminal event, a new run has commenced
+  if (lastTerminalIdx !== -1 && lastTerminalIdx < events.length - 1) {
+    const eventsAfterTerminal = events.slice(lastTerminalIdx + 1)
+    const hasActiveWork = eventsAfterTerminal.some(
+      (e) => e.type === 'node_start' || e.type === 'human_action' || e.type === 'token' || e.type === 'draft'
+    )
+    if (hasActiveWork) {
+      return 'generating'
+    }
+  }
+
+  // If the last terminal event was found and no active work started after it
+  if (lastTerminalEvent) {
+    if (lastTerminalEvent.type === 'error') {
+      if (lastTerminalEvent.data?.code === 'quota_exceeded') return 'quota_exhausted'
       return 'review'
     }
-    if (e.type === 'run_end') {
-      if (e.data?.status === 'awaiting_approval') return 'review'
-      if (e.data?.status === 'approved') return 'approved'
-      if (e.data?.status === 'care_panel') return 'care_panel'
+    if (lastTerminalEvent.type === 'approval') return 'approved'
+    if (lastTerminalEvent.type === 'checkpoint') {
+      if (lastTerminalEvent.data?.status === 'care_panel') return 'care_panel'
+      return 'review'
+    }
+    if (lastTerminalEvent.type === 'run_end') {
+      if (lastTerminalEvent.data?.status === 'awaiting_approval') return 'review'
+      if (lastTerminalEvent.data?.status === 'approved') return 'approved'
+      if (lastTerminalEvent.data?.status === 'care_panel') return 'care_panel'
     }
   }
 

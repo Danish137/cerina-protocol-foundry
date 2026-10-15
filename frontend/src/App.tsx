@@ -9,6 +9,7 @@ import AgentPipeline from './components/AgentPipeline'
 import LiveAgentFeed from './components/LiveAgentFeed'
 import ScoreMeters from './components/ScoreMeters'
 import TimelineSheet from './components/TimelineSheet'
+import ReviewDetailsSheet from './components/ReviewDetailsSheet'
 import Outline from './components/Outline'
 import DocumentViewer from './components/DocumentViewer'
 import ActionPanel from './components/ActionPanel'
@@ -44,6 +45,7 @@ function AppContent() {
 
   // Sheet & UI view states
   const [isTimelineOpen, setIsTimelineOpen] = useState<boolean>(false)
+  const [isReviewDetailsOpen, setIsReviewDetailsOpen] = useState<boolean>(false)
   const [mobileTab, setMobileTab] = useState<'document' | 'review'>('document')
   const [resumeBanner, setResumeBanner] = useState<string | null>(null)
   const [browserMismatchAlert, setBrowserMismatchAlert] = useState<boolean>(false)
@@ -376,18 +378,36 @@ function AppContent() {
         { headers: { 'X-Session-Token': state.sessionToken } }
       )
       const data = res.data
-      const passes = data.safety_score >= 0.8 && data.empathy_score >= 0.7 && data.clinical_score >= 0.7
+      const passes = Boolean(data.passed ?? (data.safety_score >= 0.8 && data.empathy_score >= 3.5 && data.clinical_score >= 3.5))
       if (passes) {
         setValidationStatus('passed')
         setLastValidatedHash(data.validated_hash || 'OK')
-        showToast('Safety check passed for updated draft', 'success')
+        showToast('Safety & clinical checks passed for updated draft', 'success')
       } else {
         setValidationStatus('failed')
-        showToast('Validation below required threshold', 'error')
+        const reason = data.safety_score < 0.8
+          ? `Safety check failed (${Math.round((data.safety_score || 0) * 5)}/5 criteria passed)`
+          : `Clinical score below threshold (Empathy: ${data.empathy_score?.toFixed(1) || 0}/5, Fidelity: ${data.clinical_score?.toFixed(1) || 0}/5)`
+        showToast(reason, 'error')
+      }
+
+      // Fetch latest events from backend to reflect recheck scores in UI meters
+      try {
+        const evtRes = await axios.get(
+          `${API_BASE_URL}/api/protocols/${state.sessionId}/events?after=0`,
+          { headers: { 'X-Session-Token': state.sessionToken } }
+        )
+        if (evtRes.data?.events) {
+          dispatch({ type: 'BATCH_EVENTS', events: evtRes.data.events })
+        }
+      } catch (e) {
+        console.warn('Could not fetch events after revalidate:', e)
       }
     } catch (err: any) {
       setValidationStatus('failed')
-      showToast('Validation request failed', 'error')
+      const detail = err.response?.data?.detail
+      const msg = typeof detail === 'string' ? detail : detail?.message || err.message || 'Validation request failed'
+      showToast(msg, 'error')
     }
   }
 
@@ -408,7 +428,10 @@ function AppContent() {
       const valData = revalRes.data
       if (!valData.passed) {
         dispatch({ type: 'SET_UI_MODE', mode: 'editing' })
-        showToast('Safety check did not pass for edited draft', 'error')
+        const reason = valData.safety_score < 0.8
+          ? `Safety check failed (${Math.round((valData.safety_score || 0) * 5)}/5 criteria passed)`
+          : `Clinical score below threshold (Empathy: ${valData.empathy_score?.toFixed(1) || 0}/5, Fidelity: ${valData.clinical_score?.toFixed(1) || 0}/5)`
+        showToast(reason, 'error')
         return
       }
 
@@ -426,8 +449,25 @@ function AppContent() {
         { headers: { 'X-Session-Token': state.sessionToken } }
       )
 
-      const approvedIso = appRes.data?.audit?.approved_at || new Date().toISOString()
+      const approvalAudit = appRes.data?.audit
+      const approvedIso = approvalAudit?.approved_at || new Date().toISOString()
       setApprovalTime(approvedIso)
+
+      // Immediately dispatch approval event so UI transitions synchronously to approved
+      const approvalEvent: ProtocolEvent = {
+        session_id: state.sessionId || '',
+        seq: (state.events.length > 0 ? Math.max(...state.events.map((e) => e.seq || 0)) : 0) + 1,
+        run_id: 'run_approval',
+        run_kind: 'approval',
+        draft_version: state.draftVersion,
+        agent: 'Human',
+        type: 'approval',
+        text: 'Protocol approved with edits by You',
+        severity: 'info',
+        ts: approvedIso,
+        data: approvalAudit
+      }
+      dispatch({ type: 'ADD_EVENT', event: approvalEvent })
       dispatch({ type: 'SET_DRAFT', draft: editedDraft })
       dispatch({ type: 'SET_UI_MODE', mode: 'default' })
       updateSessionStatus(state.sessionId, 'approved', editedDraft)
@@ -447,7 +487,8 @@ function AppContent() {
       }
     } catch (err: any) {
       dispatch({ type: 'SET_UI_MODE', mode: 'editing' })
-      const msg = err.response?.data?.detail?.message || err.response?.data?.detail || 'Approval request failed'
+      const detail = err.response?.data?.detail
+      const msg = typeof detail === 'string' ? detail : detail?.message || err.message || 'Approval request failed'
       showToast(msg, 'error')
     }
   }
@@ -468,8 +509,25 @@ function AppContent() {
         { headers: { 'X-Session-Token': state.sessionToken } }
       )
 
-      const approvedIso = appRes.data?.audit?.approved_at || new Date().toISOString()
+      const approvalAudit = appRes.data?.audit
+      const approvedIso = approvalAudit?.approved_at || new Date().toISOString()
       setApprovalTime(approvedIso)
+
+      // Immediately dispatch approval event so UI transitions synchronously to approved
+      const approvalEvent: ProtocolEvent = {
+        session_id: state.sessionId || '',
+        seq: (state.events.length > 0 ? Math.max(...state.events.map((e) => e.seq || 0)) : 0) + 1,
+        run_id: 'run_approval',
+        run_kind: 'approval',
+        draft_version: state.draftVersion,
+        agent: 'Human',
+        type: 'approval',
+        text: 'Protocol approved by You',
+        severity: 'info',
+        ts: approvedIso,
+        data: approvalAudit
+      }
+      dispatch({ type: 'ADD_EVENT', event: approvalEvent })
       dispatch({ type: 'SET_UI_MODE', mode: 'default' })
       updateSessionStatus(state.sessionId, 'approved')
       showToast('Protocol approved & locked', 'success')
@@ -488,7 +546,9 @@ function AppContent() {
       }
     } catch (err: any) {
       dispatch({ type: 'SET_UI_MODE', mode: 'default' })
-      showToast('Approval request failed', 'error')
+      const detail = err.response?.data?.detail
+      const msg = typeof detail === 'string' ? detail : detail?.message || err.message || 'Approval request failed'
+      showToast(msg, 'error')
     }
   }
 
@@ -511,7 +571,9 @@ function AppContent() {
       connectStream(state.sessionId, state.sessionToken, currentMaxSeq)
     } catch (err: any) {
       setIsRevisionRequested(false)
-      showToast('Failed to trigger revision run', 'error')
+      const detail = err.response?.data?.detail
+      const msg = typeof detail === 'string' ? detail : detail?.message || err.message || 'Failed to trigger revision run'
+      showToast(msg, 'error')
     }
   }
 
@@ -859,6 +921,7 @@ function AppContent() {
                       onSaveEditsAndApprove={handleSaveEditsAndApprove}
                       onDiscardEdits={handleDiscardEdits}
                       onExportPdf={handleExportPdf}
+                      onOpenReviewDetails={() => setIsReviewDetailsOpen(true)}
                     />
                   </div>
                 </motion.div>
@@ -910,6 +973,7 @@ function AppContent() {
                       onCopyMarkdown={handleCopyMarkdown}
                       onNewProtocol={handleNewProtocol}
                       onRequestRevision={handleRequestRevision}
+                      onOpenReviewDetails={() => setIsReviewDetailsOpen(true)}
                     />
                   </div>
                 </motion.div>
@@ -935,6 +999,7 @@ function AppContent() {
                   onCopyMarkdown={handleCopyMarkdown}
                   onNewProtocol={handleNewProtocol}
                   onRequestRevision={handleRequestRevision}
+                  onOpenReviewDetails={() => setIsReviewDetailsOpen(true)}
                 />
               </div>
             </div>
@@ -946,6 +1011,21 @@ function AppContent() {
           isOpen={isTimelineOpen}
           onOpenChange={setIsTimelineOpen}
           events={state.events}
+        />
+
+        {/* AI Review Details Sheet */}
+        <ReviewDetailsSheet
+          isOpen={isReviewDetailsOpen}
+          onClose={() => setIsReviewDetailsOpen(false)}
+          scores={state.scores}
+          events={state.events}
+          draft={editedDraft || state.draft || ''}
+          sessionId={state.sessionId}
+          audit={state.approvalAudit}
+          onExportPdf={(includeDetails) => {
+            setIsReviewDetailsOpen(false)
+            handleExportPdf(includeDetails)
+          }}
         />
       </div>
     </LayoutGroup>

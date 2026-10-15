@@ -38,7 +38,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       options?: { actionLabel?: string; onAction?: () => void; duration?: number }
     ) => {
       const id = Math.random().toString(36).substring(2, 9)
-      const duration = options?.duration ?? (type === 'error' ? 0 : 4000)
+      const duration = options?.duration ?? (type === 'error' ? 6000 : 4000)
 
       const newToast: ToastMessage = {
         id,

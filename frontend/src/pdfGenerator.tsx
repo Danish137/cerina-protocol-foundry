@@ -7,7 +7,7 @@ import {
   pdf,
 } from '@react-pdf/renderer'
 import { ApprovalAudit } from './types'
-import { formatLocalDateTime } from './utils/dateFormatter'
+import { formatPdfDateTime } from './utils/dateFormatter'
 
 // Clinical styling per Phase E
 const styles = StyleSheet.create({
@@ -348,7 +348,7 @@ export function ClinicalPdfDoc({
 
   const isAutomatedUnavailable = safetyScore === undefined && empathyScore === undefined
 
-  const approvedDate = formatLocalDateTime(audit?.approved_at || new Date().toISOString())
+  const approvedDate = formatPdfDateTime(audit?.approved_at || new Date().toISOString())
 
   return (
     <Document>
@@ -376,31 +376,24 @@ export function ClinicalPdfDoc({
           <View style={styles.auditRow}>
             <Text style={styles.auditLabel}>Approval Status:</Text>
             <Text style={[styles.auditValue, { flex: 1, paddingLeft: 6 }]}>
-              Approved by you on {formatLocalDateTime(audit?.approved_at) || approvedDate}. AI-reviewed; not clinically validated.
+              Approved by you on {formatPdfDateTime(audit?.approved_at) || approvedDate}. AI-reviewed; not clinically validated.
             </Text>
           </View>
 
           {clinicalGoal && (
             <View style={styles.auditRow}>
-              <Text style={styles.auditLabel}>Original Clinical Goal:</Text>
-              <Text style={[styles.auditValue, { flex: 1, paddingLeft: 8 }]}>{clinicalGoal}</Text>
+              <Text style={styles.auditLabel}>Clinical Goal:</Text>
+              <Text style={[styles.auditValue, { flex: 1, paddingLeft: 6 }]}>{clinicalGoal}</Text>
             </View>
           )}
 
           <View style={styles.auditRow}>
-            <Text style={styles.auditLabel}>Content Hash (SHA-256):</Text>
-            <Text style={[styles.auditValue, { fontFamily: 'Courier' }]}>{audit?.content_hash || audit?.validated_hash || contentHash}</Text>
-            <Text style={styles.auditLabel}>App Version:</Text>
-            <Text style={styles.auditValue}>{audit?.app_version || '3.0.0'}</Text>
-          </View>
-
-          <View style={styles.auditRow}>
             <Text style={styles.auditLabel}>Safety Audit:</Text>
-            <Text style={styles.auditValue}>
+            <Text style={[styles.auditValue, { marginRight: 10 }]}>
               {safetyScore !== undefined ? `${Math.round(safetyScore * 100)}% (5/5 checks passed)` : 'Automated check unavailable'}
             </Text>
             <Text style={styles.auditLabel}>Empathy & Alliance:</Text>
-            <Text style={styles.auditValue}>
+            <Text style={[styles.auditValue, { marginRight: 10 }]}>
               {empathyScore !== undefined ? `${empathyScore.toFixed(1)} / 5 (req: 3.5)` : 'Automated check unavailable'}
             </Text>
             <Text style={styles.auditLabel}>CBT Fidelity:</Text>
@@ -555,7 +548,7 @@ export function ClinicalPdfDoc({
             <View style={styles.auditRow}>
               <Text style={styles.auditLabel}>Approval Status:</Text>
               <Text style={[styles.auditValue, { flex: 1, paddingLeft: 6 }]}>
-                Approved by you on {formatLocalDateTime(audit?.approved_at) || approvedDate}. AI-reviewed; not clinically validated.
+                Approved by you on {formatPdfDateTime(audit?.approved_at) || approvedDate}. AI-reviewed; not clinically validated.
               </Text>
             </View>
           </View>

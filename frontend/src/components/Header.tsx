@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import * as Popover from '@radix-ui/react-popover'
-import { ExternalLink, Copy, Check, PlusCircle, HelpCircle, Code2, X } from 'lucide-react'
+import { ExternalLink, Copy, Check, PlusCircle, HelpCircle, Code2, X, User, Terminal } from 'lucide-react'
 import CompactStepper from './CompactStepper'
 import { Phase, StoredSession } from '../types'
 import { getRecentSessions } from '../services/sessionStorage'
@@ -39,7 +39,6 @@ export default function Header({
 }: HeaderProps) {
   const { showToast } = useToast()
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
-  const [copiedSession, setCopiedSession] = useState(false)
   const [copiedConfig, setCopiedConfig] = useState(false)
   const [recentSessions, setRecentSessions] = useState<StoredSession[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
@@ -59,14 +58,6 @@ export default function Header({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
-
-  const handleCopySessionId = () => {
-    if (!sessionId) return
-    navigator.clipboard.writeText(sessionId)
-    setCopiedSession(true)
-    showToast('Session ID copied to clipboard', 'success')
-    setTimeout(() => setCopiedSession(false), 2000)
-  }
 
   const handleCopyMcpConfig = () => {
     navigator.clipboard.writeText(MCP_CONFIG_SNIPPET)
@@ -133,12 +124,17 @@ export default function Header({
                 side="bottom"
                 align="end"
                 sideOffset={8}
-                className="z-50 w-84 sm:w-96 rounded-xl border border-[#E8E4DA] bg-white p-4 shadow-xl text-xs space-y-3 animate-in fade-in-50 zoom-in-95"
+                className="z-50 w-96 sm:w-[440px] rounded-2xl border border-[#E8E4DA] bg-white p-5 shadow-2xl text-xs space-y-3.5 animate-in fade-in-50 zoom-in-95"
               >
-                <div className="flex items-center justify-between pb-2 border-b border-[#F0ECE3]">
+                <div className="flex items-start justify-between pb-2.5 border-b border-[#F0ECE3]">
                   <div>
-                    <h4 className="font-semibold text-[#18221E] text-sm">Claude Desktop MCP</h4>
-                    <p className="text-[11px] text-[#55635C]">Add to your claude_desktop_config.json</p>
+                    <div className="flex items-center gap-1.5 font-bold text-[#18221E] text-sm">
+                      <Terminal className="w-4 h-4 text-[#244F3B]" />
+                      <h4>Model Context Protocol (MCP)</h4>
+                    </div>
+                    <p className="text-[11px] text-[#55635C] mt-0.5">
+                      Control Cerina's multi-agent workflow directly from Claude Desktop
+                    </p>
                   </div>
                   <Popover.Close
                     className="p-1 rounded-md text-[#88978F] hover:text-[#18221E] hover:bg-[#F0ECE3] transition-colors"
@@ -148,38 +144,68 @@ export default function Header({
                   </Popover.Close>
                 </div>
 
-                <div className="relative">
-                  <pre className="p-3 bg-[#FAF8F5] rounded-lg border border-[#E8E4DA] font-mono text-[10.5px] text-[#18221E] overflow-x-auto leading-relaxed select-all">
-                    {MCP_CONFIG_SNIPPET}
-                  </pre>
-                  <button
-                    type="button"
-                    onClick={handleCopyMcpConfig}
-                    className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded bg-white hover:bg-[#F5F2EC] border border-[#E8E4DA] text-[10px] font-medium text-[#244F3B] shadow-2xs transition-colors"
-                  >
-                    {copiedConfig ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-600" />
-                        <span>Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3" />
-                        <span>Copy JSON</span>
-                      </>
-                    )}
-                  </button>
+                <div className="space-y-2 text-[11px] text-[#33423B] leading-relaxed">
+                  <p>
+                    Cerina Protocol Foundry runs an embedded MCP server exposing 3 tools to external LLM clients like Claude:
+                  </p>
+                  <ul className="space-y-1 pl-1 font-mono text-[10.5px]">
+                    <li className="flex items-baseline gap-1.5">
+                      <span className="font-bold text-[#244F3B]">• create_cbt_protocol:</span>
+                      <span className="font-sans text-[#55635C]">Starts autonomous drafting & checks</span>
+                    </li>
+                    <li className="flex items-baseline gap-1.5">
+                      <span className="font-bold text-[#244F3B]">• get_protocol_status:</span>
+                      <span className="font-sans text-[#55635C]">Inspects live draft & rubric scores</span>
+                    </li>
+                    <li className="flex items-baseline gap-1.5">
+                      <span className="font-bold text-[#244F3B]">• approve_protocol:</span>
+                      <span className="font-sans text-[#55635C]">Human sign-off and finalization</span>
+                    </li>
+                  </ul>
                 </div>
 
-                <div className="pt-1 flex items-center justify-between text-[11px]">
-                  <span className="text-[#88978F]">Requires Python 3.10+</span>
+                <div>
+                  <div className="flex items-center justify-between mb-1 text-[11px]">
+                    <span className="font-semibold text-[#18221E]">claude_desktop_config.json:</span>
+                    <button
+                      type="button"
+                      onClick={handleCopyMcpConfig}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white hover:bg-[#F5F2EC] border border-[#E8E4DA] text-[10px] font-semibold text-[#244F3B] shadow-2xs transition-colors"
+                    >
+                      {copiedConfig ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          <span>Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copy JSON</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <pre className="p-2.5 bg-[#FAF8F5] rounded-lg border border-[#E8E4DA] font-mono text-[10px] text-[#18221E] overflow-x-auto leading-relaxed select-all">
+                    {MCP_CONFIG_SNIPPET}
+                  </pre>
+                </div>
+
+                <div className="p-2.5 bg-[#EBF3EE] rounded-lg border border-[#CDE0D4] text-[11px] text-[#244F3B]">
+                  <span className="font-semibold">Example Claude prompt:</span>
+                  <p className="font-serif italic mt-0.5 text-[#18221E]">
+                    "Ask Cerina Foundry to create a sleep hygiene protocol for insomnia"
+                  </p>
+                </div>
+
+                <div className="pt-1 flex items-center justify-between text-[11px] border-t border-[#F0ECE3]">
+                  <span className="text-[#88978F]">Requires Python 3.10+ & local backend</span>
                   <a
                     href="https://github.com/Danish137/cerina-protocol-foundry/blob/main/mcp_server/TEST_MCP.md"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[#244F3B] font-medium hover:underline"
+                    className="inline-flex items-center gap-1 text-[#244F3B] font-semibold hover:underline"
                   >
-                    <span>Setup documentation</span>
+                    <span>Full setup guide</span>
                     <ExternalLink className="w-3 h-3 text-[#7E8F87]" />
                   </a>
                 </div>
@@ -197,7 +223,7 @@ export default function Header({
               aria-label="Session options and profile menu"
               className="w-8 h-8 rounded-full bg-[#244F3B] hover:bg-[#1B3D2E] text-white flex items-center justify-center text-xs font-semibold shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B] transition-transform active:scale-95 cursor-pointer"
             >
-              DA
+              <User className="w-4 h-4 text-white" />
             </button>
 
             {avatarMenuOpen && (
@@ -206,38 +232,9 @@ export default function Header({
                 className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-[#E8E4DA] bg-[#FAF8F5] p-2 shadow-xl backdrop-blur-md z-50 text-xs animate-in fade-in slide-in-from-top-1"
               >
                 <div className="px-3 py-2 border-b border-[#F0ECE3] mb-1">
-                  <p className="font-semibold text-[#18221E]">Clinical Reviewer</p>
-                  <p className="text-[11px] text-[#55635C] font-mono">Danish Akhtar</p>
+                  <p className="font-semibold text-[#18221E]">Clinical Practitioner</p>
+                  <p className="text-[11px] text-[#55635C]">Active Protocol Session</p>
                 </div>
-
-                {/* Session ID in avatar menu per Section 10 */}
-                {sessionId && (
-                  <div className="p-2 bg-white rounded-lg border border-[#E8E4DA] mb-2">
-                    <div className="flex items-center justify-between text-[11px] text-[#55635C] mb-1">
-                      <span>Active Session:</span>
-                      <button
-                        type="button"
-                        onClick={handleCopySessionId}
-                        className="inline-flex items-center gap-1 font-mono text-[10px] text-[#244F3B] font-semibold hover:underline cursor-pointer"
-                      >
-                        {copiedSession ? (
-                          <>
-                            <Check className="w-3 h-3 text-emerald-600" />
-                            <span>Copied</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3 h-3" />
-                            <span>Copy ID</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    <p className="font-mono text-[10px] text-[#18221E] truncate bg-[#FAF8F5] px-2 py-1 rounded border border-[#F0ECE3] select-all">
-                      {sessionId}
-                    </p>
-                  </div>
-                )}
 
                 {/* Recent Sessions list (max 5) per B2 */}
                 {recentSessions.length > 0 && (
