@@ -162,7 +162,7 @@ export default function Outline({
           <h3 className="text-xs font-bold uppercase tracking-wider text-[#18221E]">Document Outline</h3>
         </div>
         {totalH2 > 0 && (
-          <span className="text-[10px] font-mono font-semibold text-[#7C8B82]">
+          <span className="text-[10px] font-mono font-semibold text-[#5C6A62]">
             Section {currentSectionNumber} of {totalH2}
           </span>
         )}

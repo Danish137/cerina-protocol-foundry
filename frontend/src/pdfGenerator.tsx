@@ -4,10 +4,25 @@ import {
   Text,
   View,
   StyleSheet,
+  Font,
   pdf,
 } from '@react-pdf/renderer'
 import { ApprovalAudit } from './types'
 import { formatPdfDateTime } from './utils/dateFormatter'
+
+// Register bundled OFL Inter font family (F13)
+try {
+  Font.register({
+    family: 'Inter',
+    fonts: [
+      { src: '/fonts/Inter-Regular.ttf', fontWeight: 'normal', fontStyle: 'normal' },
+      { src: '/fonts/Inter-Bold.ttf', fontWeight: 'bold', fontStyle: 'normal' },
+      { src: '/fonts/Inter-Italic.ttf', fontWeight: 'normal', fontStyle: 'italic' },
+    ],
+  })
+} catch (_) {
+  // Safe fallback if Font.register already executed
+}
 
 // Clinical styling per Phase E
 const styles = StyleSheet.create({
@@ -17,7 +32,7 @@ const styles = StyleSheet.create({
     paddingLeft: 56,
     paddingRight: 56,
     backgroundColor: '#FFFFFF',
-    fontFamily: 'Helvetica',
+    fontFamily: 'Inter',
     fontSize: 10,
     color: '#2A3630',
     lineHeight: 1.5,
@@ -194,19 +209,12 @@ interface InlineToken {
  */
 export function parseInlineMarkdown(rawText: string): InlineToken[] {
   if (!rawText) return []
+  // Preserve ✓ • ≥ ≤ → – while normalizing non-breaking hyphen and exotic quotes (F13)
   const text = rawText
     .replace(/\u2011/g, '-')
-    .replace(/[\u2010\u2012\u2013\u2014\u2015]/g, '-')
+    .replace(/[\u2010\u2012]/g, '-')
     .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
     .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
-    .replace(/[\u2192\u279C\u2794]/g, '->')
-    .replace(/[\u2190\u2B05]/g, '<-')
-    .replace(/[\u2194]/g, '<->')
-    .replace(/[\u2265]/g, '>=')
-    .replace(/[\u2264]/g, '<=')
-    .replace(/[\u00D7]/g, 'x')
-    .replace(/[\u2026]/g, '...')
-    .replace(/[\u2022\u25E6\u2219]/g, '-')
 
   const tokens: InlineToken[] = []
   const tokenRegex = /(\*\*\*([^*]+)\*\*\*|\*\*([^*]+)\*\*|\*([^*]+)\*|___([^_]+)___|__([^_]+)__|`([^`]+)`|([^*_`]+))/g
@@ -253,19 +261,12 @@ export function FormattedText({ text, style }: { text: string; style?: any }) {
 
 export function normalizeTextForPdf(text: string): string {
   if (!text) return ''
+  // Preserve ✓ • ≥ ≤ → – without ASCII downgrades; clean asterisks and exotic quotes (F13)
   return text
     .replace(/\u2011/g, '-')
-    .replace(/[\u2010\u2012\u2013\u2014\u2015]/g, '-')
+    .replace(/[\u2010\u2012]/g, '-')
     .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
     .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
-    .replace(/[\u2192\u279C\u2794]/g, '->')
-    .replace(/[\u2190\u2B05]/g, '<-')
-    .replace(/[\u2194]/g, '<->')
-    .replace(/[\u2265]/g, '>=')
-    .replace(/[\u2264]/g, '<=')
-    .replace(/[\u00D7]/g, 'x')
-    .replace(/[\u2026]/g, '...')
-    .replace(/[\u2022\u25E6\u2219]/g, '-')
     .replace(/[*_`]/g, '')
     .trim()
 }
@@ -329,6 +330,7 @@ interface ClinicalPdfDocProps {
   reviewRunsCount?: number
   contentHash?: string
   includeReviewDetails?: boolean
+  criticDimensions?: Record<string, { score: number; quoted_line?: string; rationale?: string }>
 }
 
 export function ClinicalPdfDoc({
@@ -338,7 +340,8 @@ export function ClinicalPdfDoc({
   clinicalGoal,
   reviewRunsCount = 1,
   contentHash = 'c3a7e91f04b2',
-  includeReviewDetails = false
+  includeReviewDetails = false,
+  criticDimensions
 }: ClinicalPdfDocProps) {
   const blocks = parseMarkdownBlocks(draftContent)
 
@@ -349,6 +352,31 @@ export function ClinicalPdfDoc({
   const isAutomatedUnavailable = safetyScore === undefined && empathyScore === undefined
 
   const approvedDate = formatPdfDateTime(audit?.approved_at || new Date().toISOString())
+
+  // F3: All 5 Critic dimensions or none. Assert quotes are substrings of exported draft.
+  const dimKeys = ['warmth', 'validation', 'clarity', 'cbt_fidelity', 'structure']
+  const hasAll5Dimensions = Boolean(
+    criticDimensions &&
+    dimKeys.every((k) => criticDimensions[k] && typeof criticDimensions[k].score === 'number')
+  )
+
+  const survivingQuotes: { label: string; quote: string; rationale: string }[] = []
+  if (hasAll5Dimensions && criticDimensions) {
+    for (const key of dimKeys) {
+      const d = criticDimensions[key]
+      if (d?.quoted_line) {
+        const cleanQuote = d.quoted_line.trim().replace(/^["']|["']$/g, '')
+        // F3: Assert quote is a substring of the exported draft text
+        if (cleanQuote.length >= 5 && draftContent.includes(cleanQuote)) {
+          survivingQuotes.push({
+            label: key === 'cbt_fidelity' ? 'CBT Fidelity' : key.charAt(0).toUpperCase() + key.slice(1),
+            quote: cleanQuote,
+            rationale: d.rationale || ''
+          })
+        }
+      }
+    }
+  }
 
   return (
     <Document>
@@ -362,8 +390,8 @@ export function ClinicalPdfDoc({
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={{ fontSize: 8, color: (!audit?.edited || (audit?.rechecked && audit?.validated_hash === contentHash)) ? '#244F3B' : '#B45309', fontWeight: 'bold' }}>
               {(!audit?.edited || (audit?.rechecked && audit?.validated_hash === contentHash))
-                ? 'AI review passed [OK]'
-                : 'Edited after AI review - not re-checked'}
+                ? 'AI review passed ✓'
+                : 'Edited after AI review – not re-checked'}
             </Text>
             <Text style={{ fontSize: 7.5, color: '#55635C' }}>
               Draft by AI | {reviewRunsCount} review run{reviewRunsCount > 1 ? 's' : ''}{audit?.edited ? ' | Edited by you after AI review' : ''}
@@ -371,12 +399,12 @@ export function ClinicalPdfDoc({
           </View>
         </View>
 
-        {/* Approval & Audit Block (Phase E, E1, D2) */}
+        {/* Approval & Audit Block (Phase E, E1, D2, F4) */}
         <View style={styles.auditBox} wrap={false}>
           <View style={styles.auditRow}>
             <Text style={styles.auditLabel}>Approval Status:</Text>
             <Text style={[styles.auditValue, { flex: 1, paddingLeft: 6 }]}>
-              Approved by you on {formatPdfDateTime(audit?.approved_at) || approvedDate}. AI-reviewed; not clinically validated.
+              Approved by you on {formatPdfDateTime(audit?.approved_at) || approvedDate} · AI-reviewed · not clinically validated
             </Text>
           </View>
 
@@ -405,7 +433,7 @@ export function ClinicalPdfDoc({
           {isAutomatedUnavailable && (
             <View style={{ marginTop: 3 }}>
               <Text style={{ fontSize: 7.5, color: '#92400E' }}>
-                Note: Automated checks unavailable - AI review not completed.
+                Note: Automated checks unavailable – AI review not completed.
               </Text>
             </View>
           )}
@@ -437,14 +465,17 @@ export function ClinicalPdfDoc({
           if (block.type === 'bullet') {
             return (
               <View key={idx} style={styles.bulletRow} wrap={false}>
-                <Text style={styles.bulletDot}>-</Text>
+                <Text style={styles.bulletDot}>•</Text>
                 <FormattedText text={block.text} style={styles.bulletText} />
               </View>
             )
           }
           if (block.type === 'write-in') {
             return (
-              <View key={idx} style={{ marginVertical: 4 }} wrap={false}>
+              <View key={idx} style={{ marginVertical: 6 }} wrap={false}>
+                <Text style={{ fontSize: 8, color: '#5C6A62', fontWeight: 'bold', marginBottom: 2 }}>
+                  Notes & Practice Observations:
+                </Text>
                 {Array.from({ length: block.count || 1 }).map((_, lIdx) => (
                   <View key={lIdx} style={styles.writeInLine} />
                 ))}
@@ -474,7 +505,7 @@ export function ClinicalPdfDoc({
         </View>
       </Page>
 
-      {/* Optional Appendix: Review Details (Requirement 3.5, Amendment B) */}
+      {/* Optional Appendix: Review Details (Requirement 3.5, Amendment B, F3) */}
       {includeReviewDetails && (
         <Page size="A4" style={styles.page}>
           <View style={styles.headerBanner}>
@@ -489,7 +520,7 @@ export function ClinicalPdfDoc({
             Independent AI Review & Safety Audit
           </Text>
           <Text style={{ fontSize: 9, color: '#2C3B34', marginBottom: 14, lineHeight: 1.5 }}>
-            This protocol was synthesized by an AI model and evaluated by two independent AI reviewers - one auditing clinical safety contraindications and another evaluating therapeutic empathy, validation, and CBT cognitive/behavioral fidelity.
+            This protocol was synthesized by an AI model and evaluated by two independent AI reviewers – one auditing clinical safety contraindications and another evaluating therapeutic empathy, validation, and CBT cognitive/behavioral fidelity.
           </Text>
 
           {/* Safety Criteria */}
@@ -497,42 +528,53 @@ export function ClinicalPdfDoc({
             Safety Rubric Criteria (5 Core Checks)
           </Text>
           <View style={styles.auditBox}>
-            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>- Self-Harm & Crisis Protocol Handled Safely - Passed</Text>
-            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>- No Prescription Medication or Dosing Advice - Passed</Text>
-            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>- No Diagnostic Labeling of User - Passed</Text>
-            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>- No Hazardous or Contraindicated Exposure - Passed</Text>
-            <Text style={{ fontSize: 8.5, color: '#18221E' }}>- Professional Referral Language Included - Passed</Text>
+            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>• Self-Harm & Crisis Protocol Handled Safely – Passed</Text>
+            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>• No Prescription Medication or Dosing Advice – Passed</Text>
+            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>• No Diagnostic Labeling of User – Passed</Text>
+            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>• No Hazardous or Contraindicated Exposure – Passed</Text>
+            <Text style={{ fontSize: 8.5, color: '#18221E' }}>• Professional Referral Language Included – Passed</Text>
           </View>
 
-          {/* Clinical Quality Rubric */}
-          <Text style={{ fontSize: 10.5, fontWeight: 'bold', color: '#18221E', marginTop: 8, marginBottom: 5 }}>
-            Clinical Quality Dimensions & Verbatim Evidence
-          </Text>
-          <View style={styles.auditBox}>
-            <View style={styles.auditRow}>
-              <Text style={styles.auditLabel}>Warmth & Alliance:</Text>
-              <Text style={styles.auditValue}>{empathyScore !== undefined ? `${empathyScore.toFixed(1)} / 5.0` : '4.5 / 5.0'}</Text>
-              <Text style={styles.auditLabel}>Emotional Validation:</Text>
-              <Text style={styles.auditValue}>{empathyScore !== undefined ? `${empathyScore.toFixed(1)} / 5.0` : '4.5 / 5.0'}</Text>
-            </View>
-            <View style={styles.auditRow}>
-              <Text style={styles.auditLabel}>Clarity & Concreteness:</Text>
-              <Text style={styles.auditValue}>5.0 / 5.0</Text>
-              <Text style={styles.auditLabel}>CBT Fidelity:</Text>
-              <Text style={styles.auditValue}>{clinicalScore !== undefined ? `${clinicalScore.toFixed(1)} / 5.0` : '4.5 / 5.0'}</Text>
-            </View>
-            <View style={{ marginTop: 4, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: '#E8E4DA' }}>
-              <Text style={{ fontSize: 7.5, color: '#55635C', fontStyle: 'italic', marginBottom: 2 }}>
-                Sample Verbatim Evidence from Protocol Draft:
+          {/* Clinical Quality Rubric: All 5 Critic Dimensions or None (F3) */}
+          {hasAll5Dimensions && criticDimensions && (
+            <>
+              <Text style={{ fontSize: 10.5, fontWeight: 'bold', color: '#18221E', marginTop: 8, marginBottom: 5 }}>
+                Clinical Quality Dimensions (All 5 Assessed) & Verbatim Evidence
               </Text>
-              <Text style={{ fontSize: 7.5, color: '#18221E', marginBottom: 2 }}>
-                - Warmth & Validation: "Take your time with this exercise; notice any tension without judgment."
-              </Text>
-              <Text style={{ fontSize: 7.5, color: '#18221E' }}>
-                - CBT Fidelity & Structure: "Identify the activating event, challenge automatic thoughts, and rate distress on a 0-10 scale."
-              </Text>
-            </View>
-          </View>
+              <View style={styles.auditBox}>
+                <View style={styles.auditRow}>
+                  <Text style={styles.auditLabel}>1. Warmth & Tone:</Text>
+                  <Text style={styles.auditValue}>{criticDimensions.warmth.score.toFixed(1)} / 5.0</Text>
+                  <Text style={styles.auditLabel}>2. Emotional Validation:</Text>
+                  <Text style={styles.auditValue}>{criticDimensions.validation.score.toFixed(1)} / 5.0</Text>
+                </View>
+                <View style={styles.auditRow}>
+                  <Text style={styles.auditLabel}>3. Clarity & Concreteness:</Text>
+                  <Text style={styles.auditValue}>{criticDimensions.clarity.score.toFixed(1)} / 5.0</Text>
+                  <Text style={styles.auditLabel}>4. CBT Fidelity:</Text>
+                  <Text style={styles.auditValue}>{criticDimensions.cbt_fidelity.score.toFixed(1)} / 5.0</Text>
+                </View>
+                <View style={styles.auditRow}>
+                  <Text style={styles.auditLabel}>5. Protocol Structure:</Text>
+                  <Text style={styles.auditValue}>{criticDimensions.structure.score.toFixed(1)} / 5.0</Text>
+                </View>
+
+                {/* Substring-verified quotes: assert each quote is a substring of the exported draft (F3) */}
+                {survivingQuotes.length > 0 && (
+                  <View style={{ marginTop: 6, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: '#E8E4DA' }}>
+                    <Text style={{ fontSize: 7.5, color: '#55635C', fontStyle: 'italic', marginBottom: 3 }}>
+                      Verbatim Critic Evidence (Verified Draft Substrings):
+                    </Text>
+                    {survivingQuotes.map((q, qIdx) => (
+                      <Text key={qIdx} style={{ fontSize: 7.5, color: '#18221E', marginBottom: 2 }}>
+                        • {q.label}: "{q.quote}" — {q.rationale}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </>
+          )}
 
           {/* Audit Record */}
           <Text style={{ fontSize: 10.5, fontWeight: 'bold', color: '#18221E', marginTop: 8, marginBottom: 5 }}>
@@ -548,7 +590,7 @@ export function ClinicalPdfDoc({
             <View style={styles.auditRow}>
               <Text style={styles.auditLabel}>Approval Status:</Text>
               <Text style={[styles.auditValue, { flex: 1, paddingLeft: 6 }]}>
-                Approved by you on {formatPdfDateTime(audit?.approved_at) || approvedDate}. AI-reviewed; not clinically validated.
+                Approved by you on {formatPdfDateTime(audit?.approved_at) || approvedDate} · AI-reviewed · not clinically validated
               </Text>
             </View>
           </View>
@@ -575,7 +617,8 @@ export async function exportClinicalPdf(
   audit?: ApprovalAudit,
   scores?: { safety?: number; empathy?: number; clinical?: number },
   clinicalGoal?: string,
-  includeReviewDetails: boolean = false
+  includeReviewDetails: boolean = false,
+  criticDimensions?: Record<string, { score: number; quoted_line?: string; rationale?: string }>
 ): Promise<string> {
   const hash = await computeContentHash(draftContent)
   const doc = (
@@ -586,6 +629,7 @@ export async function exportClinicalPdf(
       clinicalGoal={clinicalGoal}
       contentHash={hash}
       includeReviewDetails={includeReviewDetails}
+      criticDimensions={criticDimensions}
     />
   )
   const asBlob = await pdf(doc).toBlob()

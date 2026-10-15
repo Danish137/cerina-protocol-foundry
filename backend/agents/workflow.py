@@ -486,7 +486,8 @@ async def parallel_review_node(state: ProtocolState) -> ProtocolState:
                     "score_source": s_source,
                     "checks": s_checks,
                     "reasons": s_reasons,
-                    "unavailable": (s_source == "unavailable")
+                    "unavailable": (s_source == "unavailable"),
+                    "degraded_review": s_result.get("degraded_review", False)
                 }
             )
             return s_result
@@ -528,7 +529,8 @@ async def parallel_review_node(state: ProtocolState) -> ProtocolState:
                     "clinical_score": clin_score,
                     "score_source": c_source,
                     "dimensions": c_result.get("dimensions", {}),
-                    "unavailable": (c_source == "unavailable")
+                    "unavailable": (c_source == "unavailable"),
+                    "degraded_review": c_result.get("degraded_review", False)
                 }
             )
             return c_result
@@ -566,6 +568,7 @@ async def parallel_review_node(state: ProtocolState) -> ProtocolState:
     score_src = s_res.get("score_source", "llm") if s_res.get("score_source") != "llm" else c_res.get("score_source", "llm")
     state["score_source"] = score_src
     state["unverified"] = bool(s_res.get("unverified") or c_res.get("unverified"))
+    state["degraded_review"] = bool(s_res.get("degraded_review") or c_res.get("degraded_review"))
     state["active_agent"] = "Reviewers"
     state["status"] = "reviewing"
 

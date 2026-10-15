@@ -226,7 +226,7 @@ export default function AgentActivityFeed({
       case 'ClinicalCritic':
         return 'Clinical Critic'
       case 'Supervisor':
-        return 'Workflow Supervisor'
+        return 'Supervisor'
       case 'Human':
         return 'Human Reviewer'
       default:

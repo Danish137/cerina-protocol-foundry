@@ -86,7 +86,7 @@ def verify_crisis_sources():
 
     lines = [
         "=== CRISIS RESOURCE DIRECTORY & OFFICIAL VERIFIED SOURCES ===",
-        "Verified per clinical governance requirements against government and official hotline registries:",
+        "Resources as of October 2026, re-check periodically.",
         ""
     ]
     for region, r_data in data.get("regions", {}).items():

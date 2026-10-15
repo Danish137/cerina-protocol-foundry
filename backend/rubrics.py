@@ -41,7 +41,7 @@ class ClinicalCriticRubric(BaseModel):
 
 # --- Threshold Config ---
 SCORING_CONFIG = {
-    "max_iterations": 5,
+    "max_iterations": 3,
     "standard": {
         "min_safety_score": 0.8,     # 4 out of 5 checks passed
         "min_empathy_score": 3.5,    # 3.5 / 5
@@ -131,6 +131,7 @@ Respond ONLY with a JSON object in this exact structure:
             res_dict["model"] = llm_res.model
             res_dict["provider"] = llm_res.provider
             res_dict["latency_ms"] = llm_res.latency_ms
+            res_dict["degraded"] = getattr(llm_res, "degraded", False)
             return res_dict
         else:
             logger.warning(f"Safety judge returned empty or error: {llm_res.error}")
@@ -153,6 +154,7 @@ Respond ONLY with a JSON object in this exact structure:
                 res_dict["model"] = llm_res.model
                 res_dict["provider"] = llm_res.provider
                 res_dict["latency_ms"] = llm_res.latency_ms
+                res_dict["degraded"] = getattr(llm_res, "degraded", False)
                 return res_dict
         except Exception as retry_err:
             logger.error(f"Retry safety evaluation failed: {retry_err}.")
@@ -258,6 +260,7 @@ Respond ONLY with a JSON object in this exact structure:
             res_dict["model"] = llm_res.model
             res_dict["provider"] = llm_res.provider
             res_dict["latency_ms"] = llm_res.latency_ms
+            res_dict["degraded"] = getattr(llm_res, "degraded", False)
             return res_dict
         else:
             logger.warning(f"Critic judge returned empty or error: {llm_res.error}")
@@ -280,6 +283,7 @@ Respond ONLY with a JSON object in this exact structure:
                 res_dict["model"] = llm_res.model
                 res_dict["provider"] = llm_res.provider
                 res_dict["latency_ms"] = llm_res.latency_ms
+                res_dict["degraded"] = getattr(llm_res, "degraded", False)
                 return res_dict
         except Exception as retry_err:
             logger.error(f"Retry critic evaluation failed: {retry_err}.")

@@ -64,17 +64,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {/* Toast container: top-center under header, never overlaps CTA row (P2) */}
+      {/* Toast container: bottom-right, never covers content (F10) */}
       <div
         aria-live="polite"
         aria-atomic="true"
-        className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 max-w-md w-full px-4 pointer-events-none"
+        className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2 max-w-sm w-full px-4 pointer-events-none"
       >
         {toasts.map((toast) => (
           <div
             key={toast.id}
             role="status"
-            className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-lg backdrop-blur-md transition-all duration-200 animate-in fade-in slide-in-from-top-2 text-xs leading-relaxed ${
+            className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-lg backdrop-blur-md transition-all duration-200 animate-in fade-in slide-in-from-bottom-2 text-xs leading-relaxed ${
               toast.type === 'success'
                 ? 'bg-[#FAF8F5]/95 border-[#CDE0D4] text-[#18221E] shadow-[#244F3B]/5'
                 : toast.type === 'error'

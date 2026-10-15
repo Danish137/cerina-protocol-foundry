@@ -255,6 +255,7 @@ class SafetyGuardianAgent:
             "model": serving_model,
             "provider": serving_provider,
             "unverified": eval_result.get("unverified", False),
+            "degraded_review": eval_result.get("degraded", False),
             "status": "reviewed"
         }
 
@@ -321,47 +322,92 @@ class ClinicalCriticAgent:
             "model": serving_model,
             "provider": serving_provider,
             "unverified": eval_result.get("unverified", False),
+            "degraded_review": eval_result.get("degraded", False),
             "status": "critiqued"
         }
 
 def check_draft_completeness(draft: str, finish_reason: Optional[str] = None) -> Tuple[bool, List[str]]:
     """
     Deterministic completeness check (G2):
-    - All required sections present (accepting valid clinical variations)
+    - All required sections present (accepting valid clinical variations and markdown formatting)
     - Proper ending (ends with terminal punctuation, not truncated)
     - finish_reason is not 'length'
     """
+    import re
     reasons = []
     if finish_reason in ["length", "max_tokens"]:
         reasons.append("Draft was truncated by token limit (finish_reason='length')")
 
     # Required section categories with acceptable clinical variants (case-insensitive)
     required_categories = {
-        "Introduction": ["## introduction", "## background", "## overview", "## clinical background"],
-        "Goals": ["## goals", "## objectives", "## treatment goals", "## protocol goals"],
-        "Steps": [
-            "## steps", "## step-by-step instructions", "## step-by-step", "## protocol steps",
-            "## action steps", "## instructions", "## core steps", "## step-by-step guide"
+        "Introduction": [
+            "introduction", "background", "overview", "clinical background",
+            "clinical rationale", "psychoeducation", "understanding"
         ],
-        "Practice": ["## practice", "## homework", "## daily practice", "## home practice", "## practice exercises"],
-        "Reflection": ["## reflection", "## debrief", "## self-reflection", "## review & reflection", "## tracking"],
-        "Conclusion": ["## conclusion", "## next steps", "## summary", "## closing", "## safety & next steps", "## final recommendations"]
+        "Goals": [
+            "goals", "objectives", "treatment goals", "protocol goals",
+            "clinical goals", "targets", "aims"
+        ],
+        "Steps": [
+            "steps", "step-by-step instructions", "step-by-step", "protocol steps",
+            "action steps", "instructions", "core steps", "step-by-step guide",
+            "exposure hierarchy", "hierarchy steps", "clinical protocol",
+            "thought record", "5-column thought record", "stimulus control steps",
+            "implementation steps", "procedure", "intervention steps", "action plan"
+        ],
+        "Practice": [
+            "practice", "homework", "daily practice", "home practice",
+            "practice exercises", "behavioral practice", "assigned practice"
+        ],
+        "Reflection": [
+            "reflection", "debrief", "self-reflection", "review & reflection",
+            "tracking", "progress monitoring", "debriefing", "monitoring"
+        ],
+        "Conclusion": [
+            "conclusion", "next steps", "summary", "closing",
+            "safety & next steps", "final recommendations", "wrap-up", "discharge"
+        ]
     }
 
-    draft_lower = draft.lower()
-    # Normalize numbered headings like "## 1. Introduction" -> "## introduction"
-    import re
-    norm_draft = re.sub(r"##\s*(?:[0-9]+[\.\)]|section\s*[0-9]+:?)\s*", "## ", draft_lower)
+    # Extract all headings (lines starting with #)
+    headings = []
+    for line in draft.splitlines():
+        line_s = line.strip()
+        if line_s.startswith("#"):
+            # Strip hashes and markdown bold/italic/code markers
+            h_text = re.sub(r"^#+\s*", "", line_s)
+            h_text = re.sub(r"[\*_`]+", "", h_text).strip().lower()
+            # Strip leading numbering like "1.", "1)", "step 1:", "section 1:"
+            h_text = re.sub(r"^(?:[0-9]+[\.\)]|\b[ivxlcdm]+[\.\)]|section\s*[0-9]+:?|step\s*[0-9]+:?)\s*", "", h_text).strip()
+            headings.append(h_text)
+
+    # Also keep full lower text with normalized hashes for fallback matching
+    draft_clean = re.sub(r"[\*_`]+", "", draft.lower())
+    norm_draft = re.sub(r"##+\s*(?:[0-9]+[\.\)]|\b[ivxlcdm]+[\.\)]|section\s*[0-9]+:?|step\s*[0-9]+:?)\s*", "## ", draft_clean)
 
     missing = []
     for cat_name, variants in required_categories.items():
-        if not any(v in norm_draft for v in variants):
+        found = False
+        # 1. Match against extracted clean headings
+        for h in headings:
+            if any(v in h for v in variants):
+                found = True
+                break
+        # 2. Match against normalized draft markdown headings
+        if not found:
+            for v in variants:
+                if f"## {v}" in norm_draft or f"# {v}" in norm_draft:
+                    found = True
+                    break
+        if not found:
             missing.append(cat_name)
 
     if missing:
         reasons.append(f"Missing required sections: {', '.join(missing)}")
 
-    stripped = draft.strip()
+    # Strip trailing markdown horizontal rules, dividers, or whitespace (e.g. ---, ***, ___)
+    stripped = re.sub(r"(\r?\n\s*[-*_]{3,}\s*)+$", "", draft.strip()).strip()
+
     if len(stripped) < 200:
         reasons.append("Draft is too short (<200 characters)")
     elif stripped and stripped[-1] not in [".", "!", "?", '"', "'", "`", "]", "}", ")"]:

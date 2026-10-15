@@ -10,15 +10,43 @@ import os
 from typing import Dict, Any, Tuple, Optional
 
 # Crisis patterns specifically matching suicidal ideation, intent, or self-harm
+# Covers: end it all, ending it all, kill myself, end my life, take my life,
+# don't want to live, no reason to live, better off dead, want to die,
+# suicid*, hurt myself, self-harm, can't go on, cut myself, and common variants.
 CRISIS_PATTERNS = [
-    r"\b(suicid(e|al)|kill\s+(my|one)self|end\s+my\s+life|want\s+to\s+die|wish\s+I\s+were\s+dead)\b",
-    r"\b(can'?t\s+take\s+this\s+pain\s+anymore.*want\s+everything\s+to\s+stop)\b",
-    r"\b(hang(ing)?\s+myself|shoot\s+myself|overdos(e|ing)|slitt?ing\s+my\s+wrists)\b",
-    r"\b(self[\s\-]harm|cutting\s+myself|hurting\s+myself)\b",
-    r"\b(better\s+off\s+dead|no\s+reason\s+to\s+live|don'?t\s+want\s+to\s+wake\s+up)\b",
+    r"\bsuicid", # suicidal, suicide, suicidality
+    r"\b(kill|killing)\s+(my|one)self\b",
+    r"\b(end|ending)\s+it\s+all\b",
+    r"\b(end|ending)\s+my\s+life\b",
+    r"\b(take|taking)\s+my\s+(own\s+)?life\b",
+    r"\b(want|wants|wishing|wish)\s+to\s+die\b",
+    r"\bwish\s+(i\s+was|i\s+were)\s+dead\b",
+    r"\bbetter\s+off\s+dead\b",
+    r"\bno\s+reason\s+to\s+live\b",
+    r"\b(don'?t|dont)\s+want\s+to\s+live\b",
+    r"\b(don'?t|dont)\s+want\s+to\s+wake\s+up\b",
+    r"\b(can'?t|cant)\s+go\s+on\b",
+    r"\b(can'?t|cant)\s+take\s+this\s+pain\b",
+    r"\bself[\s\-]harm",
+    r"\b(hurt|hurting)\s+myself\b",
+    r"\b(cut|cutting)\s+myself\b",
+    r"\b(hang|hanging)\s+myself\b",
+    r"\b(shoot|shooting)\s+myself\b",
+    r"\b(overdose|overdosing)\b",
+    r"\b(slit|slitting)\s+my\s+wrists?\b",
 ]
 
 COMPILED_PATTERNS = [re.compile(p, re.IGNORECASE) for p in CRISIS_PATTERNS]
+
+def normalize_text_for_screening(text: str) -> str:
+    """Normalize apostrophes, smart quotes, and punctuation for reliable regex matching"""
+    if not text:
+        return ""
+    # Standardize quotes and apostrophes
+    t = text.replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"')
+    # Collapse multiple whitespaces
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
 
 def screen_crisis_intent(text: str) -> Tuple[bool, Optional[str]]:
     """
@@ -33,8 +61,10 @@ def screen_crisis_intent(text: str) -> Tuple[bool, Optional[str]]:
     if not text:
         return False, None
         
+    normalized = normalize_text_for_screening(text)
+    
     for pattern in COMPILED_PATTERNS:
-        match = pattern.search(text)
+        match = pattern.search(normalized)
         if match:
             return True, match.group(0)
             

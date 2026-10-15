@@ -25,7 +25,7 @@ import {
 } from './services/sessionStorage'
 import { StoredSession, ProtocolEvent } from './types'
 import { exportClinicalPdf } from './pdfGenerator'
-import { Activity, FileText, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Activity, FileText, CheckCircle2, AlertCircle, X } from 'lucide-react'
 
 function AppContent() {
   const { showToast } = useToast()
@@ -48,6 +48,7 @@ function AppContent() {
   const [isReviewDetailsOpen, setIsReviewDetailsOpen] = useState<boolean>(false)
   const [mobileTab, setMobileTab] = useState<'document' | 'review'>('document')
   const [resumeBanner, setResumeBanner] = useState<string | null>(null)
+  const [showReviewSaveNotice, setShowReviewSaveNotice] = useState<boolean>(true)
   const [browserMismatchAlert, setBrowserMismatchAlert] = useState<boolean>(false)
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0)
 
@@ -93,7 +94,10 @@ function AppContent() {
         if ((event.type === 'draft' || (event.type === 'node_end' && event.agent === 'Drafter') || event.type === 'checkpoint' || event.type === 'run_end') && event.data?.draft) {
           dispatch({ type: 'SET_DRAFT', draft: event.data.draft, version: event.draft_version || event.data.version || 1 })
           setEditedDraft(event.data.draft)
-          setInitialDraftBeforeEdit(event.data.draft)
+          if (!initialDraftBeforeEdit) {
+            setInitialDraftBeforeEdit(event.data.draft)
+            sessionStorage.setItem(`cerina_baseline_draft_${sessionId}`, event.data.draft)
+          }
         }
 
         // On checkpoint, update session storage
@@ -127,7 +131,11 @@ function AppContent() {
               dispatch({ type: 'SET_SNAPSHOT', snapshot: res.data.state })
               if (res.data.state.current_draft) {
                 setEditedDraft(res.data.state.current_draft)
-                setInitialDraftBeforeEdit(res.data.state.current_draft)
+                const base = res.data.state.draft_history?.[0]?.content || res.data.state.current_draft
+                if (!initialDraftBeforeEdit && base) {
+                  setInitialDraftBeforeEdit(base)
+                  sessionStorage.setItem(`cerina_baseline_draft_${sessionId}`, base)
+                }
               }
             }
           })
@@ -198,9 +206,26 @@ function AppContent() {
           .then((res) => {
             if (res.data?.state) {
               dispatch({ type: 'SET_SNAPSHOT', snapshot: res.data.state })
+              const baseline = res.data.state.draft_history?.[0]?.content || res.data.state.current_draft || ''
+              if (baseline) {
+                setInitialDraftBeforeEdit(baseline)
+                sessionStorage.setItem(`cerina_baseline_draft_${stored.id}`, baseline)
+              }
             }
           })
           .catch((err) => console.warn('Could not restore snapshot:', err))
+
+        // Fetch complete event history on resume (P0-1)
+        axios
+          .get(`${API_BASE_URL}/api/protocols/${stored.id}/events?after=0`, {
+            headers: { 'X-Session-Token': stored.token }
+          })
+          .then((evtRes) => {
+            if (evtRes.data?.events && evtRes.data.events.length > 0) {
+              dispatch({ type: 'BATCH_EVENTS', events: evtRes.data.events })
+            }
+          })
+          .catch((err) => console.warn('Could not fetch events on resume:', err))
 
         // Connect SSE stream
         connectStream(stored.id, stored.token)
@@ -231,9 +256,25 @@ function AppContent() {
           .then((res) => {
             if (res.data?.state) {
               dispatch({ type: 'SET_SNAPSHOT', snapshot: res.data.state })
+              const baseline = res.data.state.draft_history?.[0]?.content || res.data.state.current_draft || ''
+              if (baseline) {
+                setInitialDraftBeforeEdit(baseline)
+                sessionStorage.setItem(`cerina_baseline_draft_${auto.id}`, baseline)
+              }
             }
           })
           .catch((err) => console.warn('Could not restore snapshot:', err))
+
+        axios
+          .get(`${API_BASE_URL}/api/protocols/${auto.id}/events?after=0`, {
+            headers: { 'X-Session-Token': auto.token }
+          })
+          .then((evtRes) => {
+            if (evtRes.data?.events && evtRes.data.events.length > 0) {
+              dispatch({ type: 'BATCH_EVENTS', events: evtRes.data.events })
+            }
+          })
+          .catch((err) => console.warn('Could not fetch events on auto-resume:', err))
 
         connectStream(auto.id, auto.token)
         const timeStr = new Date(auto.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -254,6 +295,25 @@ function AppContent() {
       document.title = 'Drafting… — Cerina'
     } else {
       document.title = 'Cerina Protocol Foundry — CBT Protocol Design'
+    }
+  }, [phase])
+
+  // Auto-dismiss resume banner after 5s
+  useEffect(() => {
+    if (resumeBanner) {
+      const timer = setTimeout(() => setResumeBanner(null), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [resumeBanner])
+
+  // Reset & auto-dismiss review checkpoint notification after 5s when entering review
+  useEffect(() => {
+    if (phase === 'review') {
+      setShowReviewSaveNotice(true)
+      const timer = setTimeout(() => setShowReviewSaveNotice(false), 5000)
+      return () => clearTimeout(timer)
+    } else {
+      setShowReviewSaveNotice(false)
     }
   }, [phase])
 
@@ -336,9 +396,25 @@ function AppContent() {
       .then((res) => {
         if (res.data?.state) {
           dispatch({ type: 'SET_SNAPSHOT', snapshot: res.data.state })
+          const baseline = res.data.state.draft_history?.[0]?.content || res.data.state.current_draft || ''
+          if (baseline) {
+            setInitialDraftBeforeEdit(baseline)
+            sessionStorage.setItem(`cerina_baseline_draft_${stored.id}`, baseline)
+          }
         }
       })
       .catch((err) => console.warn('Could not restore snapshot:', err))
+
+    axios
+      .get(`${API_BASE_URL}/api/protocols/${stored.id}/events?after=0`, {
+        headers: { 'X-Session-Token': stored.token }
+      })
+      .then((evtRes) => {
+        if (evtRes.data?.events && evtRes.data.events.length > 0) {
+          dispatch({ type: 'BATCH_EVENTS', events: evtRes.data.events })
+        }
+      })
+      .catch((err) => console.warn('Could not fetch events on select session:', err))
 
     connectStream(stored.id, stored.token)
     const timeStr = new Date(stored.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -348,9 +424,14 @@ function AppContent() {
   // Edit actions
   const handleStartEditing = () => {
     setEditedDraft(state.draft)
-    setInitialDraftBeforeEdit(state.draft)
+    if (!initialDraftBeforeEdit) {
+      setInitialDraftBeforeEdit(state.draft)
+      if (state.sessionId) {
+        sessionStorage.setItem(`cerina_baseline_draft_${state.sessionId}`, state.draft)
+      }
+    }
     dispatch({ type: 'SET_UI_MODE', mode: 'editing' })
-    showToast('Entered clinician edit mode', 'info')
+    showToast('Entered edit mode', 'info')
   }
 
   const handleDiscardEdits = () => {
@@ -595,7 +676,8 @@ function AppContent() {
           clinical: state.scores.clinical_score,
         },
         state.userIntent,
-        includeDetails
+        includeDetails,
+        state.scores.dimensions
       )
       showToast(`Saved ${filename}`, 'success')
     } catch (err: any) {
@@ -717,27 +799,48 @@ function AppContent() {
             </aside>
           )}
 
-          {/* Resume Banner (B2) */}
+          {/* Resume Banner (B2) - Auto-dismisses after 5s or with X */}
           {resumeBanner && phase !== 'idle' && (
-            <aside role="status" aria-label="Session resume notification" className="bg-[#EBF3EE] border-b border-[#C2DBCB] px-4 py-1.5 text-xs text-[#1E3D2F] flex items-center justify-between">
+            <aside role="status" aria-label="Session resume notification" className="bg-[#EBF3EE] border-b border-[#C2DBCB] px-4 py-1.5 text-xs text-[#1E3D2F] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-[#244F3B]" />
                 <span>{resumeBanner}</span>
               </div>
-              <button
-                type="button"
-                onClick={handleNewProtocol}
-                className="text-[#244F3B] font-semibold hover:underline"
-              >
-                Start new
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleNewProtocol}
+                  className="text-[#244F3B] font-semibold hover:underline cursor-pointer"
+                >
+                  Start new
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResumeBanner(null)}
+                  className="p-1 rounded text-[#55635C] hover:text-[#18221E] hover:bg-[#C2DBCB]/40 transition-colors cursor-pointer"
+                  aria-label="Dismiss banner"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </aside>
           )}
 
-          {/* Human Checkpoint Safe Notification (B2) */}
-          {phase === 'review' && (
-            <div role="status" aria-label="Review checkpoint status" className="bg-[#F0ECE3] border-b border-[#E8E4DA] px-4 py-1 text-[11px] text-[#55635C] text-center">
-              Saved — you can close this tab; your review will wait.
+          {/* Human Checkpoint Safe Notification (B2) - Auto-dismisses after 5s or with X */}
+          {phase === 'review' && showReviewSaveNotice && (
+            <div role="status" aria-label="Review checkpoint status" className="bg-[#F0ECE3] border-b border-[#E8E4DA] px-4 py-1 text-[11px] text-[#55635C] flex items-center justify-between shrink-0">
+              <div className="mx-auto flex items-center gap-1.5">
+                <CheckCircle2 className="w-3 h-3 text-[#244F3B]" />
+                <span>Saved — you can close this tab; your review will wait.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReviewSaveNotice(false)}
+                className="text-[#55635C] hover:text-[#18221E] p-0.5 cursor-pointer"
+                aria-label="Dismiss notification"
+              >
+                <X className="w-3 h-3" />
+              </button>
             </div>
           )}
         </div>
@@ -768,7 +871,7 @@ function AppContent() {
                         reviewDepth: state.reviewDepth
                       })
                     })
-                    .catch(() => showToast('Failed to continue clinician run', 'error'))
+                    .catch(() => showToast('Failed to continue run', 'error'))
                 }
               }}
               onStartNew={handleNewProtocol}
@@ -860,20 +963,22 @@ function AppContent() {
                 {/* =====================================================================
                     1. LEFT RAIL
                    ===================================================================== */}
-                <div className="hidden 2xl:flex w-[310px] shrink-0 flex-col gap-2.5 overflow-y-auto overscroll-contain scrollbar-thin h-full pr-1.5 pb-4">
-                  <IntentSummary
-                    intent={state.userIntent || ''}
-                    draftVersion={state.draftVersion || 1}
-                    maxIterations={3}
-                    phase={phase}
-                    onNewProtocol={handleNewProtocol}
-                  />
-
+                <div className="hidden 2xl:flex w-[310px] shrink-0 flex-col gap-2.5 h-full overflow-hidden min-h-0 pr-1.5 pb-2">
                   <div className="shrink-0">
+                    <IntentSummary
+                      intent={state.userIntent || ''}
+                      draftVersion={state.draftVersion || 1}
+                      maxIterations={3}
+                      phase={phase}
+                      onNewProtocol={handleNewProtocol}
+                    />
+                  </div>
+
+                  <div className="flex-1 min-h-[160px] flex flex-col">
                     <AgentPipeline events={state.events} />
                   </div>
 
-                  <div className="flex-1 min-h-[140px]">
+                  <div className="shrink-0 max-h-[220px] flex flex-col">
                     <Outline content={state.draft || editedDraft} scrollerRef={scrollerRef} />
                   </div>
                 </div>
@@ -903,6 +1008,7 @@ function AppContent() {
                       streamingTokens={state.streamingTokenBuffer}
                       draftVersion={state.draftVersion}
                       hasUserEdits={editedDraft !== initialDraftBeforeEdit}
+                      initialDraftBeforeEdit={initialDraftBeforeEdit}
                       revisionSummaries={state.revisionSummaries}
                       isSafetyCriticRunning={phase === 'generating' && Boolean(state.draft)}
                       elapsedSeconds={elapsedSeconds}

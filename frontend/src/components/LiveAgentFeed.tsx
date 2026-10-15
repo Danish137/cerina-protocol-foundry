@@ -78,10 +78,10 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
   }
 
   return (
-    <div className="bg-white border border-[#E8E4DA] rounded-2xl p-3 sm:p-4 shadow-2xs flex flex-col h-full min-h-0 overflow-hidden">
+    <div className="bg-white border border-[#E8E4DA] rounded-2xl p-2.5 sm:p-3 shadow-2xs flex flex-col h-full min-h-0 overflow-hidden">
       {/* Header with Unified Count & Timeline link */}
-      <div className="flex items-center justify-between pb-2 border-b border-[#F0ECE3] shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between pb-1.5 border-b border-[#F0ECE3] shrink-0">
+        <div className="flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-[#244F3B]" />
           <h3 className="text-xs font-bold uppercase tracking-wider text-[#18221E]">Agent Activity</h3>
         </div>
@@ -101,7 +101,7 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
       {/* Feed container: fully scrollable with complete event history */}
       <div
         ref={feedContainerRef}
-        className="flex-1 overflow-y-auto overscroll-contain scrollbar-thin pt-2 space-y-2 min-h-0 pr-0.5"
+        className="flex-1 overflow-y-auto overscroll-contain scrollbar-thin pt-1.5 space-y-1.5 min-h-0 pr-0.5"
       >
         {displayEvents.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-xs text-[#A0ACA5] p-3">
@@ -109,7 +109,7 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
             <p>Agent observations and verdicts appear in real time.</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <AnimatePresence initial={false}>
               {displayEvents.map((evt) => {
                 const isDecision = evt.type === 'decision'
@@ -121,7 +121,7 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
                     initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                    className={`p-2.5 rounded-xl text-xs transition-all ${
+                    className={`p-2 rounded-lg text-xs transition-all ${
                       isDecision
                         ? evt.data?.route === 'revise'
                           ? 'bg-[#FDF6E2] border border-[#F6E0B5] text-[#8C4A26] font-medium'
@@ -147,7 +147,7 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
                       </span>
                     </div>
 
-                    <p className="mt-1.5 text-[11px] text-[#55635C] leading-relaxed break-words">
+                    <p className="mt-1 text-[11px] text-[#55635C] leading-snug break-words">
                       {evt.text}
                     </p>
                   </motion.div>

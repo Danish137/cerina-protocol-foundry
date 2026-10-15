@@ -150,6 +150,7 @@ export function protocolReducer(state: ReducerState, action: ProtocolAction): Re
 
       // Process score events
       if (e.type === 'score' && e.data) {
+        const isDegraded = Boolean(e.data.degraded_review || nextScores.degraded_review)
         if (e.data.metric === 'safety') {
           const newSafety = e.data.score
           const delta = state.scores.safety_score !== undefined ? newSafety - state.scores.safety_score : undefined
@@ -159,6 +160,7 @@ export function protocolReducer(state: ReducerState, action: ProtocolAction): Re
             safety_checks: e.data.checks,
             score_source: e.data.score_source,
             unavailable: e.data.unavailable,
+            degraded_review: isDegraded,
             delta_safety: delta
           }
         } else if (e.data.metric === 'clinical') {
@@ -170,8 +172,10 @@ export function protocolReducer(state: ReducerState, action: ProtocolAction): Re
             ...nextScores,
             empathy_score: newEmpathy,
             clinical_score: newClinical,
+            dimensions: e.data.dimensions || nextScores.dimensions,
             score_source: e.data.score_source,
             unavailable: e.data.unavailable,
+            degraded_review: isDegraded,
             delta_empathy: deltaEmp,
             delta_clinical: deltaClin
           }

@@ -122,7 +122,7 @@ export default function TimelineSheet({
                 <Dialog.Title className="text-base font-serif font-bold text-[#18221E]">
                   Protocol Execution Timeline
                 </Dialog.Title>
-                <p className="text-xs text-[#7C8B82]">Complete chronological activity log</p>
+                <p className="text-xs text-[#5C6A62]">Complete chronological activity log</p>
               </div>
             </div>
 
@@ -131,7 +131,7 @@ export default function TimelineSheet({
                 type="button"
                 id="close-timeline-btn"
                 aria-label="Close timeline"
-                className="p-1 rounded-lg text-[#7C8B82] hover:text-[#18221E] hover:bg-[#E8E4DA] transition-colors"
+                className="p-1 rounded-lg text-[#5C6A62] hover:text-[#18221E] hover:bg-[#E8E4DA] transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -150,7 +150,7 @@ export default function TimelineSheet({
                   className={`px-2.5 py-1 rounded-md font-medium capitalize transition-all ${
                     filterType === ft
                       ? 'bg-white shadow-xs text-[#244F3B] font-semibold'
-                      : 'text-[#7C8B82] hover:text-[#18221E]'
+                      : 'text-[#5C6A62] hover:text-[#18221E]'
                   }`}
                 >
                   {ft}
@@ -170,7 +170,7 @@ export default function TimelineSheet({
                 <option value="Drafter">Protocol Drafter</option>
                 <option value="SafetyGuardian">Safety Guardian</option>
                 <option value="ClinicalCritic">Clinical Critic</option>
-                <option value="Supervisor">Workflow Supervisor</option>
+                <option value="Supervisor">Supervisor</option>
                 <option value="Human">Reviewer (You)</option>
               </select>
             </div>
@@ -203,9 +203,9 @@ export default function TimelineSheet({
                       >
                         <div className="flex items-center gap-2">
                           {isExpanded ? (
-                            <ChevronDown className="w-4 h-4 text-[#7C8B82]" />
+                            <ChevronDown className="w-4 h-4 text-[#5C6A62]" />
                           ) : (
-                            <ChevronRight className="w-4 h-4 text-[#7C8B82]" />
+                            <ChevronRight className="w-4 h-4 text-[#5C6A62]" />
                           )}
                           <span>{group.title}</span>
                         </div>
@@ -247,10 +247,10 @@ export default function TimelineSheet({
                                 >
                                   <div className="flex items-center justify-between text-[11px]">
                                     <div className="flex items-center gap-1.5 font-semibold text-[#18221E]">
-                                      <span className="font-mono text-[#7C8B82] text-[10px]">#{evt.seq}</span>
+                                      <span className="font-mono text-[#5C6A62] text-[10px]">#{evt.seq}</span>
                                       <span>{evt.agent === 'SafetyGuardian' ? 'Safety Guardian' : evt.agent === 'ClinicalCritic' ? 'Clinical Critic' : evt.agent}</span>
                                       {evt.to_agent && (
-                                        <span className="text-[#7C8B82]">→ {evt.to_agent === 'SafetyGuardian' ? 'Safety Guardian' : evt.to_agent === 'ClinicalCritic' ? 'Clinical Critic' : evt.to_agent}</span>
+                                        <span className="text-[#5C6A62]">→ {evt.to_agent === 'SafetyGuardian' ? 'Safety Guardian' : evt.to_agent === 'ClinicalCritic' ? 'Clinical Critic' : evt.to_agent}</span>
                                       )}
                                       <span className="font-normal text-[10px] text-[#A0ACA5]">
                                         ({evt.type})
@@ -259,7 +259,7 @@ export default function TimelineSheet({
 
                                     {/* Offset time and absolute time on hover */}
                                     <span
-                                      className="font-mono text-[10px] text-[#7C8B82] cursor-help"
+                                      className="font-mono text-[10px] text-[#5C6A62] cursor-help"
                                       title={new Date(evt.ts).toLocaleString()}
                                     >
                                       {offsetSec}

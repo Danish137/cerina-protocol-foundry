@@ -40,9 +40,10 @@ def verify_and_render_pdfs():
     assert has_tz, f"Assertion Failed: Timezone (IST/UTC/GMT) not found in PDF text! Text snippet: {text_no[:400]}"
     log_lines.append("[PASS] Timezone present in approval block.")
 
-    # Check content hash
-    assert "8d1bea3a68a27598" in text_no, "Assertion Failed: Content hash not found in PDF text!"
-    log_lines.append("[PASS] Server-validated content hash '8d1bea3a68a27598' verified in PDF text.")
+    # Check approval status and disclaimer
+    assert "approved by you" in text_no.lower(), "Assertion Failed: Approved by you not found in PDF text!"
+    assert "not clinically validated" in text_no.lower(), "Assertion Failed: Disclaimer not found in PDF text!"
+    log_lines.append("[PASS] Verified approval status 'Approved by you ... AI-reviewed; not clinically validated' in PDF text.")
 
     # 2. Verify cerina_protocol_with_appendix.pdf
     doc_with = fitz.open(pdf_with_app)

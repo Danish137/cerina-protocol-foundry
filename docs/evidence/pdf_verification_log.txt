@@ -6,7 +6,7 @@
 [PASS] No raw '**' in extracted text.
 [PASS] No missing glyphs in extracted text.
 [PASS] Timezone present in approval block.
-[PASS] Server-validated content hash '8d1bea3a68a27598' verified in PDF text.
+[PASS] Verified approval status 'Approved by you ... AI-reviewed; not clinically validated' in PDF text.
 [RENDER] Saved d:\Projects\Cerina-Protocol-Foundary\docs\evidence\pdf_with_appendix_p1.png (1241x1754)
 [RENDER] Saved d:\Projects\Cerina-Protocol-Foundary\docs\evidence\pdf_with_appendix_p2.png (1241x1754)
 [RENDER] Saved d:\Projects\Cerina-Protocol-Foundary\docs\evidence\pdf_with_appendix_p3.png (1241x1754)
@@ -27,12 +27,7 @@ CLINICAL CBT PROTOCOL SPECIFICATION
 AI review passed [OK]
 Draft by AI | 1 review run
 Approval Status: Approved by you on 14 Oct 2026, 8:00 pm IST. AI-reviewed; not clinically validated.
-Original Clinical Goal:
-Design a stimulus control and sleep hygiene routine for sleep-onset insomnia
-Content Hash (SHA-256):
-8d1bea3a68a27598
-App Version:
-3.0.0
+Clinical Goal: Design a stimulus control and sleep hygiene routine for sleep-onset insomnia
 Safety Audit:
 100% (5/5 checks passed)
 Empathy & Alliance:

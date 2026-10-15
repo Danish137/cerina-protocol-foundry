@@ -164,6 +164,10 @@ export default function CarePanel({
             </a>
           </div>
         )}
+
+        <p className="text-[11px] text-[#7A6A5E] text-center italic">
+          Resources as of October 2026, re-check periodically.
+        </p>
       </div>
 
       {/* Action buttons */}
@@ -182,7 +186,7 @@ export default function CarePanel({
           className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#FAF8F5] border border-[#8C4A26] text-xs font-semibold text-[#8C4A26] hover:bg-[#F5EDE0] transition-colors shadow-2xs"
         >
           <ShieldAlert className="w-3.5 h-3.5" />
-          <span>I'm a clinician designing a protocol on this topic</span>
+          <span>I am designing a clinical protocol on this topic</span>
           <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>

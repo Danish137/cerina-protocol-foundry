@@ -71,6 +71,7 @@ class LLMResult:
     json_data: Optional[Dict[str, Any]] = None
     finish_reason: Optional[str] = "stop"
     error: Optional[str] = None
+    degraded: bool = False
 
 # --- In-Process Token Limiter / Rate Budgeting (Measured 2026-10-14) ---
 
@@ -78,7 +79,7 @@ class TokenRateLimiter:
     """
     Sliding-window token & request limiter using measured limits:
     Groq free-tier: 8,000 TPM, 200,000 TPD, 30 RPM, 1,000 RPD.
-    Groq binding limit: TOKENS PER DAY (~100-120 calls/day per model at ~2K tokens).
+    Qwen output limit: 1,000 OTPM cap.
     Gemini free-tier:
       gemini-3.1-flash-lite: 15 RPM, 250K TPM, 500 RPD
       gemini-3.5-flash-lite: 15 RPM, 250K TPM, 500 RPD
@@ -88,20 +89,23 @@ class TokenRateLimiter:
         self._groq_token_history: List[Tuple[float, int]] = []
         self._groq_daily_tokens: Dict[str, int] = {}
         self._groq_daily_requests: Dict[str, int] = {}
+        self._qwen_output_history: List[Tuple[float, int]] = []
         self._gemini_daily_requests: Dict[str, int] = {}
         self._gemini_request_history: Dict[str, List[float]] = {}
         self._day_start: float = time.time()
         self._lock = asyncio.Lock()
+        self._qwen_lock = asyncio.Lock()
 
     def _check_day_reset(self, now: float):
         if now - self._day_start > 86400:
             self._groq_daily_tokens.clear()
             self._groq_daily_requests.clear()
+            self._qwen_output_history.clear()
             self._gemini_daily_requests.clear()
             self._gemini_request_history.clear()
             self._day_start = now
 
-    async def can_call_groq(self, model: str, estimated_tokens: int = 1800) -> bool:
+    async def can_call_groq(self, model: str, estimated_tokens: int = 1800, estimated_output_tokens: int = 250) -> bool:
         async with self._lock:
             now = time.time()
             self._check_day_reset(now)
@@ -133,6 +137,17 @@ class TokenRateLimiter:
                 )
                 return False
 
+            # 4. Qwen 1,000 Output-TPM cap check (F5)
+            if "qwen" in model.lower():
+                self._qwen_output_history = [(t, count) for (t, count) in self._qwen_output_history if t > cutoff]
+                qwen_otpm = sum(count for _, count in self._qwen_output_history)
+                if qwen_otpm + estimated_output_tokens > 850:
+                    logger.warning(
+                        f"[RATE LIMIT] Qwen output TPM near 1,000 cap ({qwen_otpm} + {estimated_output_tokens} > 850). "
+                        "Preemptively failing over to prevent 429."
+                    )
+                    return False
+
             return True
 
     async def can_call_gemini(self, model: str) -> bool:
@@ -158,12 +173,14 @@ class TokenRateLimiter:
 
             return True
 
-    async def record_groq_usage(self, model: str, tokens: int):
+    async def record_groq_usage(self, model: str, tokens: int, output_tokens: int = 0):
         async with self._lock:
             now = time.time()
             self._groq_token_history.append((now, tokens))
             self._groq_daily_tokens[model] = self._groq_daily_tokens.get(model, 0) + tokens
             self._groq_daily_requests[model] = self._groq_daily_requests.get(model, 0) + 1
+            if "qwen" in model.lower() and output_tokens > 0:
+                self._qwen_output_history.append((now, output_tokens))
 
     async def record_gemini_usage(self, model: str):
         async with self._lock:
@@ -212,20 +229,24 @@ class GroqAdapter:
             "max_tokens": max_tokens
         }
 
-        # Set low reasoning effort for gpt-oss models
+        # Set reasoning effort
         if "gpt-oss" in model.lower():
             payload["reasoning_effort"] = "low"
+        elif "qwen" in model.lower():
+            payload["reasoning_effort"] = "none"
+            payload["reasoning_format"] = "hidden"
 
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
 
         t0 = time.perf_counter()
 
-        # Handle streaming if callback provided
+        # Handle streaming if callback provided (Writer)
         if stream_callback is not None:
             payload["stream"] = True
             content_chunks: List[str] = []
             finish_reason = "stop"
+            first_token_time = None
             async with httpx.AsyncClient(timeout=30.0) as client:
                 async with client.stream("POST", f"{self.base_url}/chat/completions", headers=headers, json=payload) as resp:
                     if resp.status_code != 200:
@@ -244,51 +265,71 @@ class GroqAdapter:
                             if choice.get("finish_reason"):
                                 finish_reason = choice.get("finish_reason")
                             if delta:
+                                if first_token_time is None:
+                                    first_token_time = time.perf_counter()
+                                    if (first_token_time - t0) > 6.0:
+                                        raise TimeoutError(f"Writer TTFT exceeded 6.0s threshold ({(first_token_time - t0):.2f}s)")
                                 content_chunks.append(delta)
                                 stream_callback(delta)
+                        except TimeoutError:
+                            raise
                         except Exception:
                             continue
+            if first_token_time is None and (time.perf_counter() - t0) > 6.0:
+                raise TimeoutError("Writer failed to return first token within 6.0s timeout")
+
             latency_ms = round((time.perf_counter() - t0) * 1000, 2)
             full_content = "".join(content_chunks)
-            total_est_tokens = int(len(full_content) / 4) + 600
-            await rate_limiter.record_groq_usage(model=model, tokens=total_est_tokens)
+            comp_tokens = int(len(full_content) / 4)
+            total_est_tokens = comp_tokens + 600
+            await rate_limiter.record_groq_usage(model=model, tokens=total_est_tokens, output_tokens=comp_tokens)
             return LLMResult(
                 content=full_content,
                 provider="groq",
                 model=model,
                 latency_ms=latency_ms,
                 prompt_tokens=600,
-                completion_tokens=int(len(full_content) / 4),
-                finish_reason=finish_reason
-            )
-
-        # Non-streaming request
-        async with httpx.AsyncClient(timeout=25.0) as client:
-            resp = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
-            latency_ms = round((time.perf_counter() - t0) * 1000, 2)
-            if resp.status_code != 200:
-                raise RuntimeError(f"Groq API error {resp.status_code}: {resp.text}")
-            
-            data = resp.json()
-            choice = data["choices"][0]
-            content = choice["message"]["content"]
-            finish_reason = choice.get("finish_reason", "stop")
-            usage = data.get("usage", {})
-            prompt_tokens = usage.get("prompt_tokens", 0)
-            comp_tokens = usage.get("completion_tokens", 0)
-            total_tokens = usage.get("total_tokens", prompt_tokens + comp_tokens)
-
-            await rate_limiter.record_groq_usage(model=model, tokens=total_tokens or est_tokens)
-
-            return LLMResult(
-                content=content,
-                provider="groq",
-                model=model,
-                latency_ms=latency_ms,
-                prompt_tokens=prompt_tokens,
                 completion_tokens=comp_tokens,
                 finish_reason=finish_reason
             )
+
+        # Non-streaming request (Judges): 8.0s timeout per call (F6)
+        timeout_val = 8.0 if (json_mode or max_tokens <= 1500) else 25.0
+        
+        async def _do_post():
+            async with httpx.AsyncClient(timeout=timeout_val) as client:
+                resp = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
+                latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+                if resp.status_code != 200:
+                    raise RuntimeError(f"Groq API error {resp.status_code}: {resp.text}")
+                
+                data = resp.json()
+                choice = data["choices"][0]
+                content = choice["message"]["content"]
+                finish_reason = choice.get("finish_reason", "stop")
+                usage = data.get("usage", {})
+                prompt_tokens = usage.get("prompt_tokens", 0)
+                comp_tokens = usage.get("completion_tokens", 0)
+                total_tokens = usage.get("total_tokens", prompt_tokens + comp_tokens)
+
+                await rate_limiter.record_groq_usage(model=model, tokens=total_tokens or est_tokens, output_tokens=comp_tokens)
+
+                return LLMResult(
+                    content=content,
+                    provider="groq",
+                    model=model,
+                    latency_ms=latency_ms,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=comp_tokens,
+                    finish_reason=finish_reason
+                )
+
+        # Enforce sequential calls for Qwen (F5: Never fire two Qwen calls at once)
+        if "qwen" in model.lower():
+            async with rate_limiter._qwen_lock:
+                return await _do_post()
+        else:
+            return await _do_post()
 
 
 class GeminiAdapter:
@@ -334,6 +375,11 @@ class GeminiAdapter:
         if json_mode:
             gen_config["responseMimeType"] = "application/json"
 
+        # Set minimal thinking on Gemini judge calls (F5: thinkingBudget 0 cuts latency without dropping accuracy)
+        # Note: gemini-3.5-flash-lite is non-thinking and rejects thinkingConfig with 400 INVALID_ARGUMENT
+        if "3.5" not in model.lower() and (json_mode or max_tokens <= 1500 or "3.8" in model or "3.1" in model):
+            gen_config["thinkingConfig"] = {"thinkingBudget": 0}
+
         body: Dict[str, Any] = {
             "contents": contents,
             "generationConfig": gen_config
@@ -348,15 +394,16 @@ class GeminiAdapter:
             "Content-Type": "application/json"
         }
 
-        # Timeout <= 8.0s for gemini-3.8-flash (L); standard 25s for others
-        timeout_val = 8.0 if "3.8" in model else 25.0
+        # Timeout <= 8.0s for judges & 3.8-flash (F6); 25s for full protocol drafting
+        timeout_val = 8.0 if (json_mode or "3.8" in model or max_tokens <= 1500) else 25.0
 
-        # Handle streaming if callback provided
+        # Handle streaming if callback provided (Writer: 6s TTFT timeout)
         if stream_callback is not None:
             url = f"{self.base_url}/{model}:streamGenerateContent?alt=sse"
             content_chunks: List[str] = []
             finish_reason = "stop"
-            async with httpx.AsyncClient(timeout=timeout_val) as client:
+            first_token_time = None
+            async with httpx.AsyncClient(timeout=25.0) as client:
                 async with client.stream("POST", url, headers=headers, json=body) as resp:
                     if resp.status_code != 200:
                         err_text = await resp.aread()
@@ -374,10 +421,19 @@ class GeminiAdapter:
                             for p in parts:
                                 txt = p.get("text", "")
                                 if txt:
+                                    if first_token_time is None:
+                                        first_token_time = time.perf_counter()
+                                        if (first_token_time - t0) > 6.0:
+                                            raise TimeoutError(f"Writer TTFT exceeded 6.0s threshold ({(first_token_time - t0):.2f}s)")
                                     content_chunks.append(txt)
                                     stream_callback(txt)
+                        except TimeoutError:
+                            raise
                         except Exception:
                             continue
+            if first_token_time is None and (time.perf_counter() - t0) > 6.0:
+                raise TimeoutError("Writer failed to return first token within 6.0s timeout")
+
             latency_ms = round((time.perf_counter() - t0) * 1000, 2)
             full_content = "".join(content_chunks)
             await rate_limiter.record_gemini_usage(model=model)
@@ -391,7 +447,7 @@ class GeminiAdapter:
                 finish_reason=finish_reason
             )
 
-        # Non-streaming REST call
+        # Non-streaming REST call (Judges: 8.0s timeout)
         url = f"{self.base_url}/{model}:generateContent"
         async with httpx.AsyncClient(timeout=timeout_val) as client:
             resp = await client.post(url, headers=headers, json=body)
@@ -454,7 +510,58 @@ class OpenRouterAdapter:
             payload["response_format"] = {"type": "json_object"}
 
         t0 = time.perf_counter()
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        timeout_val = 8.0 if (json_mode or max_tokens <= 1500) else 25.0
+
+        if stream_callback is not None:
+            payload["stream"] = True
+            content_chunks: List[str] = []
+            finish_reason = "stop"
+            first_token_time = None
+            async with httpx.AsyncClient(timeout=25.0) as client:
+                async with client.stream("POST", f"{self.base_url}/chat/completions", headers=headers, json=payload) as resp:
+                    if resp.status_code != 200:
+                        err_text = await resp.aread()
+                        raise RuntimeError(f"OpenRouter stream error {resp.status_code}: {err_text.decode('utf-8', errors='ignore')}")
+                    async for line in resp.aiter_lines():
+                        if not line or not line.startswith("data: "):
+                            continue
+                        line_data = line[6:].strip()
+                        if line_data == "[DONE]":
+                            break
+                        try:
+                            chunk_obj = json.loads(line_data)
+                            choice = chunk_obj["choices"][0]
+                            delta = choice.get("delta", {}).get("content", "")
+                            if choice.get("finish_reason"):
+                                finish_reason = choice.get("finish_reason")
+                            if delta:
+                                if first_token_time is None:
+                                    first_token_time = time.perf_counter()
+                                    if (first_token_time - t0) > 6.0:
+                                        raise TimeoutError(f"Writer TTFT exceeded 6.0s threshold ({(first_token_time - t0):.2f}s)")
+                                content_chunks.append(delta)
+                                stream_callback(delta)
+                        except TimeoutError:
+                            raise
+                        except Exception:
+                            continue
+            if first_token_time is None and (time.perf_counter() - t0) > 6.0:
+                raise TimeoutError("Writer failed to return first token within 6.0s timeout")
+
+            latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+            full_content = "".join(content_chunks)
+            comp_tokens = int(len(full_content) / 4)
+            return LLMResult(
+                content=full_content,
+                provider="openrouter",
+                model=model,
+                latency_ms=latency_ms,
+                prompt_tokens=600,
+                completion_tokens=comp_tokens,
+                finish_reason=finish_reason
+            )
+
+        async with httpx.AsyncClient(timeout=timeout_val) as client:
             resp = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
             latency_ms = round((time.perf_counter() - t0) * 1000, 2)
             if resp.status_code != 200:
@@ -498,19 +605,23 @@ class UnifiedLLMClient:
         raise ValueError(f"Unknown LLM provider: {provider}")
 
     def resolve_writer_plan(self) -> List[Tuple[str, str]]:
-        """Ordered failover plan for Writer: Groq gpt-oss-120b -> Gemini 3.1 FL -> pinned OpenRouter"""
+        """
+        Writer routing plan (F5):
+        gpt-oss-120b (Groq) -> gemini-3.5-flash-lite -> gemini-3.1-flash-lite -> llama-3.3-70b-instruct (OpenRouter)
+        """
         return [
             ("groq", "openai/gpt-oss-120b"),
+            ("gemini", "gemini-3.5-flash-lite"),
             ("gemini", "gemini-3.1-flash-lite"),
             ("openrouter", "meta-llama/llama-3.3-70b-instruct")
         ]
 
     def resolve_judge_plan(self, role: str = "judge", drafter_model: Optional[str] = None, drafter_provider: Optional[str] = None) -> List[Tuple[str, str]]:
         """
-        Ordered failover plan for Judges enforcing Zero Same-Family Rule (L1):
-        A judge may NEVER share a family with the writer of that run.
-        Safety: Gemini 3.1 FL -> Gemini 3.5 FL -> Gemini 3.8 Flash -> Groq Qwen -> OpenRouter Llama
-        Critic: Gemini 3.5 FL -> Gemini 3.1 FL -> Groq Qwen / gpt-oss-20b -> OpenRouter Llama
+        Judge routing plans (F5) enforcing Zero Same-Family Rule:
+        Safety: Qwen -> Gemini 3.5 FL -> Gemini 3.1 FL -> Gemini 3.8 Flash -> Llama
+        Critic: Gemini 3.5 FL -> Gemini 3.1 FL -> Qwen -> Gemini 3.8 Flash -> Llama
+        Gemini 3.8 stays last-resort only with timeout <= 8s.
         """
         drafter_family = None
         if drafter_model:
@@ -527,10 +638,10 @@ class UnifiedLLMClient:
 
         if role == "safety":
             raw_plan = [
-                ("gemini", "gemini-3.1-flash-lite"),
-                ("gemini", "gemini-3.5-flash-lite"),
-                ("gemini", "gemini-3.8-flash"),
                 ("groq", "qwen/qwen3.8-27b"),
+                ("gemini", "gemini-3.5-flash-lite"),
+                ("gemini", "gemini-3.1-flash-lite"),
+                ("gemini", "gemini-3.8-flash"),
                 ("openrouter", "meta-llama/llama-3.3-70b-instruct")
             ]
         elif role == "critic":
@@ -538,17 +649,17 @@ class UnifiedLLMClient:
                 ("gemini", "gemini-3.5-flash-lite"),
                 ("gemini", "gemini-3.1-flash-lite"),
                 ("groq", "qwen/qwen3.8-27b"),
-                ("groq", "openai/gpt-oss-20b"),
+                ("gemini", "gemini-3.8-flash"),
                 ("openrouter", "meta-llama/llama-3.3-70b-instruct")
             ]
         else:
             raw_plan = [
-                ("gemini", LLM_JUDGE_MODEL),
-                ("groq", LLM_JUDGE_FALLBACK_MODEL),
-                (LAST_RESORT_PROVIDER, "meta-llama/llama-3.3-70b-instruct")
+                ("groq", "qwen/qwen3.8-27b"),
+                ("gemini", "gemini-3.5-flash-lite"),
+                ("openrouter", "meta-llama/llama-3.3-70b-instruct")
             ]
 
-        # Enforce Zero Same-Family Rule (L1)
+        # Enforce Zero Same-Family Rule: A judge may NEVER share a family with the writer
         filtered_plan = []
         for prov, mod in raw_plan:
             mod_family = MODEL_FAMILY.get(mod, "unknown")
@@ -561,7 +672,7 @@ class UnifiedLLMClient:
             if drafter_family == "google":
                 filtered_plan = [("groq", "qwen/qwen3.8-27b"), ("openrouter", "meta-llama/llama-3.3-70b-instruct")]
             else:
-                filtered_plan = [("gemini", "gemini-3.1-flash-lite"), ("openrouter", "meta-llama/llama-3.3-70b-instruct")]
+                filtered_plan = [("gemini", "gemini-3.5-flash-lite"), ("openrouter", "meta-llama/llama-3.3-70b-instruct")]
 
         return filtered_plan
 
@@ -704,6 +815,8 @@ Consistent small steps create lasting behavioral change. If symptoms worsen, ple
                     stream_callback=stream_callback
                 )
                 res.fallback_used = is_fallback
+                if "llama" in model.lower() and role in ["safety", "critic", "judge"]:
+                    res.degraded = True
                 return res
             except Exception as e:
                 last_error = e

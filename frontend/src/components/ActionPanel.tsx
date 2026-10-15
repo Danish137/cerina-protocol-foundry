@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
   Check,
+  CheckCircle2,
   Edit3,
   X,
   ShieldCheck,
@@ -65,6 +66,7 @@ export default function ActionPanel({
 }: ActionPanelProps) {
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
   const [exportState, setExportState] = useState<'idle' | 'preparing' | 'downloaded'>('idle')
+  const [hasExported, setHasExported] = useState(false)
   const [includeDetailsInPdf, setIncludeDetailsInPdf] = useState(false)
   const [copiedMd, setCopiedMd] = useState(false)
   const [customInstruction, setCustomInstruction] = useState('')
@@ -94,6 +96,7 @@ export default function ActionPanel({
       setExportState('preparing')
       await onExportPdf(includeDetailsInPdf)
       setExportState('downloaded')
+      setHasExported(true)
       setTimeout(() => {
         setExportState('idle')
       }, 3000)
@@ -126,100 +129,132 @@ export default function ActionPanel({
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="w-full bg-white border-t border-[#E8E4DA] p-3 sm:p-3.5 shrink-0"
       role="region"
-      aria-label="Clinician Action Controls"
+      aria-label="Action Controls"
     >
       {/* =====================================================================
-          PHASE: APPROVED (Morphs into in-place Success Card)
+          PHASE: APPROVED (Morphs into in-place Success Card or Collapsed Post-Export)
          ===================================================================== */}
-      {phase === 'approved' && (
-        <div className="space-y-4">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-[#EBF3EE] text-[#244F3B] flex items-center justify-center shrink-0 mt-0.5 border border-[#CDE0D4]">
-              <svg className="w-5 h-5 text-[#244F3B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                <motion.path
-                  d="M5 13l4 4L19 7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  initial={shouldReduceMotion ? { pathLength: 1 } : { pathLength: 0 }}
-                  animate={{ pathLength: 1 }}
-                  transition={{ duration: 0.4, ease: 'easeOut' }}
-                />
-              </svg>
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-[#18221E] font-sans">
-                Approved by you on {approvalTime ? (approvalTime.includes('T') || approvalTime.includes('-') ? formatLocalDateTime(approvalTime) : approvalTime) : formatLocalDateTime(new Date().toISOString())}.
-              </h3>
-              <p className="text-xs text-[#55635C] mt-0.5">
-                AI-reviewed; not clinically validated.
-              </p>
+      {phase === 'approved' && hasExported && (
+        <div className="p-2 sm:p-2.5 rounded-xl bg-[#EBF3EE] border border-[#C2DBCB] flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <CheckCircle2 className="w-4 h-4 text-[#244F3B] shrink-0" />
+            <div className="truncate">
+              <span className="font-semibold text-[#18221E]">PDF Exported</span>
+              <span className="text-[11px] text-[#55635C] ml-1.5 hidden sm:inline">Saved to Downloads</span>
             </div>
           </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleExportClick}
+              disabled={exportState === 'preparing'}
+              className="py-1 px-2 rounded-lg bg-white hover:bg-[#F2EFE8] border border-[#C2DBCB] text-[11px] font-semibold text-[#244F3B] transition-colors flex items-center gap-1 cursor-pointer"
+              title="Download PDF again"
+            >
+              {exportState === 'preparing' ? (
+                <Loader2 className="w-3 h-3 animate-spin text-[#244F3B]" />
+              ) : (
+                <Download className="w-3 h-3" />
+              )}
+              <span>Re-export</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyMdClick}
+              className="py-1 px-2 rounded-lg bg-white hover:bg-[#F2EFE8] border border-[#C2DBCB] text-[11px] font-semibold text-[#18221E] transition-colors flex items-center gap-1 cursor-pointer"
+              title="Copy Markdown"
+            >
+              {copiedMd ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-[#55635C]" />}
+              <span>{copiedMd ? 'Copied' : 'MD'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onNewProtocol}
+              className="py-1 px-2 rounded-lg bg-white hover:bg-[#F2EFE8] border border-[#C2DBCB] text-[11px] font-semibold text-[#244F3B] transition-colors flex items-center gap-1 cursor-pointer"
+              title="Start a new protocol"
+            >
+              <PlusCircle className="w-3 h-3" />
+              <span>New</span>
+            </button>
+          </div>
+        </div>
+      )}
 
-          {/* Primary: Export PDF (Largest button in the app) */}
+      {phase === 'approved' && !hasExported && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <CheckCircle2 className="w-4 h-4 text-[#244F3B] shrink-0" />
+              <span className="text-xs font-bold text-[#18221E] truncate">
+                Approved by you
+              </span>
+              <span className="text-[10px] text-[#55635C] truncate">
+                · {approvalTime ? (approvalTime.includes('T') || approvalTime.includes('-') ? formatLocalDateTime(approvalTime) : approvalTime) : formatLocalDateTime(new Date().toISOString())}
+              </span>
+            </div>
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#EBF3EE] text-[#244F3B] border border-[#C2DBCB] shrink-0 font-bold">
+              READY
+            </span>
+          </div>
+
+          {/* Primary: Export PDF */}
           <button
             type="button"
             onClick={handleExportClick}
             disabled={exportState === 'preparing'}
-            className="w-full py-3.5 px-5 rounded-xl bg-[#244F3B] hover:bg-[#1B3D2E] active:scale-[0.99] text-white text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B] focus-visible:ring-offset-2"
+            className="w-full py-2.5 px-4 rounded-xl bg-[#244F3B] hover:bg-[#1B3D2E] active:scale-[0.99] text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B] cursor-pointer"
           >
             {exportState === 'preparing' ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
                 <span>Preparing Clinical PDF…</span>
               </>
             ) : exportState === 'downloaded' ? (
               <>
-                <Check className="w-4 h-4 stroke-[2.5] text-emerald-300" />
+                <Check className="w-3.5 h-3.5 stroke-[2.5] text-emerald-300" />
                 <span>Downloaded ✓</span>
               </>
             ) : (
               <>
                 <Download className="w-4 h-4" />
-                <span className="text-base tracking-wide">Export Clinical PDF</span>
+                <span>Export Clinical PDF</span>
               </>
             )}
           </button>
 
-          {/* Optional review details toggle (D3 - defaults OFF) */}
-          <label className="flex items-center gap-2 text-xs text-[#55635C] cursor-pointer px-1">
-            <input
-              type="checkbox"
-              checked={includeDetailsInPdf}
-              onChange={(e) => setIncludeDetailsInPdf(e.target.checked)}
-              className="rounded text-[#244F3B] focus:ring-[#244F3B]"
-            />
-            <span>Include review details in PDF export</span>
-          </label>
+          {/* Secondary Controls: Checkbox + Copy MD + New */}
+          <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#F0ECE3] text-xs">
+            <label className="flex items-center gap-1.5 text-[11px] text-[#55635C] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeDetailsInPdf}
+                onChange={(e) => setIncludeDetailsInPdf(e.target.checked)}
+                className="rounded text-[#244F3B] focus:ring-[#244F3B] w-3.5 h-3.5"
+              />
+              <span>Include review details</span>
+            </label>
 
-          {/* Secondary Options */}
-          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#F0ECE3]">
-            <button
-              type="button"
-              onClick={handleCopyMdClick}
-              className="py-2 px-3 rounded-lg bg-[#FAF8F5] hover:bg-[#F2EFE8] border border-[#E8E4DA] text-xs font-semibold text-[#18221E] transition-colors flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B]"
-            >
-              {copiedMd ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5 text-[#55635C]" />
-                  <span>Copy Markdown</span>
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleCopyMdClick}
+                className="py-1 px-2 rounded-md hover:bg-[#F2EFE8] text-[11px] font-medium text-[#18221E] transition-colors flex items-center gap-1 cursor-pointer"
+                title="Copy Markdown"
+              >
+                {copiedMd ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-[#55635C]" />}
+                <span>{copiedMd ? 'Copied' : 'MD'}</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={onNewProtocol}
-              className="py-2 px-3 rounded-lg bg-[#FAF8F5] hover:bg-[#F2EFE8] border border-[#E8E4DA] text-xs font-semibold text-[#244F3B] transition-colors flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B]"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span>New protocol</span>
-            </button>
+              <button
+                type="button"
+                onClick={onNewProtocol}
+                className="py-1 px-2 rounded-md hover:bg-[#F2EFE8] text-[11px] font-medium text-[#244F3B] transition-colors flex items-center gap-1 cursor-pointer"
+                title="Start new protocol"
+              >
+                <PlusCircle className="w-3 h-3" />
+                <span>New</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -441,60 +476,64 @@ export default function ActionPanel({
       {/* =====================================================================
           PHASE: REVIEW (Default Review Mode)
          ===================================================================== */}
+      {/* =====================================================================
+          PHASE: REVIEW (Default Review Mode)
+         ===================================================================== */}
       {phase === 'review' && (
-        <div className="space-y-3">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-xs sm:text-sm font-bold text-[#18221E]">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h3 className="text-xs sm:text-sm font-bold text-[#18221E] truncate">
                 Your review needed
               </h3>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FBF5EB] text-[#8C5921] border border-[#EEDDC3]">
-                ACTION REQUIRED
+              <span className="text-[10px] text-[#55635C] hidden sm:inline">
+                · Locks & unlocks export
               </span>
             </div>
-            <p className="text-xs text-[#55635C]">
-              Approving locks this version and unlocks export.
-            </p>
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#FBF5EB] text-[#8C5921] border border-[#EEDDC3] shrink-0">
+              ACTION REQUIRED
+            </span>
           </div>
 
           {isRevisionRequested ? (
-            <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#CDE0D4] flex items-center justify-center gap-2 text-xs font-semibold text-[#244F3B]">
-              <Loader2 className="w-4 h-4 animate-spin text-[#244F3B]" />
+            <div className="p-2.5 rounded-xl bg-[#FAF8F5] border border-[#CDE0D4] flex items-center justify-center gap-2 text-xs font-semibold text-[#244F3B]">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#244F3B]" />
               <span>Revision requested · agents working</span>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {/* Primary: Approve & finalize */}
               <button
                 type="button"
                 onClick={onApprove}
-                className="w-full py-3 px-4 rounded-xl bg-[#244F3B] hover:bg-[#1B3D2E] active:scale-[0.99] text-white text-xs sm:text-sm font-semibold shadow-sm transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B]"
+                className="w-full py-2 px-3 rounded-xl bg-[#244F3B] hover:bg-[#1B3D2E] active:scale-[0.99] text-white text-xs sm:text-sm font-semibold shadow-xs transition-all flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B] cursor-pointer"
               >
-                <Check className="w-4 h-4 stroke-[2.5]" />
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Approve & finalize</span>
               </button>
 
-              {/* View AI Review Details Button */}
-              {onOpenReviewDetails && (
-                <button
-                  type="button"
-                  onClick={onOpenReviewDetails}
-                  className="w-full py-2 px-3 rounded-lg bg-[#FAF8F5] hover:bg-[#F2EFE8] border border-[#E8E4DA] text-xs font-semibold text-[#244F3B] transition-colors flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B]"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#244F3B]" />
-                  <span>View AI Review Details & Rubrics</span>
-                </button>
-              )}
+              {/* Secondary 3-column subgrid: AI Details, Edit draft, Revise */}
+              <div className="grid grid-cols-3 gap-1.5">
+                {onOpenReviewDetails && (
+                  <button
+                    type="button"
+                    onClick={onOpenReviewDetails}
+                    className="py-1.5 px-1.5 rounded-lg bg-[#FAF8F5] hover:bg-[#F2EFE8] border border-[#E8E4DA] text-[11px] font-medium text-[#244F3B] transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                    title="View AI Review Details & Rubrics"
+                  >
+                    <ShieldCheck className="w-3 h-3 text-[#244F3B] shrink-0" />
+                    <span className="truncate">AI Details</span>
+                  </button>
+                )}
 
-              {/* Secondary: Edit draft & Request revision */}
-              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={onStartEditing}
-                  className="py-2 px-3 rounded-lg bg-white hover:bg-[#F5F2EC] border border-[#E8E4DA] text-xs font-semibold text-[#55635C] hover:text-[#18221E] transition-colors flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B]"
+                  className="py-1.5 px-1.5 rounded-lg bg-white hover:bg-[#F5F2EC] border border-[#E8E4DA] text-[11px] font-medium text-[#55635C] hover:text-[#18221E] transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                  title="Edit draft directly"
                 >
-                  <Edit3 className="w-3.5 h-3.5 text-[#7E8F87]" />
-                  <span>Edit draft</span>
+                  <Edit3 className="w-3 h-3 text-[#7E8F87] shrink-0" />
+                  <span className="truncate">Edit draft</span>
                 </button>
 
                 {/* Request revision popover (C7) */}
@@ -502,10 +541,11 @@ export default function ActionPanel({
                   <Popover.Trigger asChild>
                     <button
                       type="button"
-                      className="py-2 px-3 rounded-lg bg-white hover:bg-[#FDF6E2] border border-[#F6E0B5] text-xs font-semibold text-[#8C4A26] transition-colors flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8C4A26]"
+                      className="py-1.5 px-1.5 rounded-lg bg-white hover:bg-[#FDF6E2] border border-[#F6E0B5] text-[11px] font-medium text-[#8C4A26] transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                      title="Request AI revision"
                     >
-                      <RotateCcw className="w-3.5 h-3.5 text-[#8C4A26]" />
-                      <span>Request revision</span>
+                      <RotateCcw className="w-3 h-3 text-[#8C4A26] shrink-0" />
+                      <span className="truncate">Revise</span>
                     </button>
                   </Popover.Trigger>
 
@@ -524,7 +564,7 @@ export default function ActionPanel({
                       {/* Concern chips if present */}
                       {majorConcerns.length > 0 && (
                         <div className="space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-[#7C8B82]">Open Concerns:</span>
+                          <span className="text-[10px] uppercase font-bold text-[#5C6A62]">Open Concerns:</span>
                           <div className="flex flex-wrap gap-1">
                             {majorConcerns.map((c) => (
                               <button

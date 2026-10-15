@@ -20,37 +20,37 @@ from llm_client import GroqAdapter, GeminiAdapter, OpenRouterAdapter
 GOOD_DRAFT_SAMPLE = """# Stimulus Control and Sleep Hygiene Protocol for Sleep-Onset Insomnia
 
 ## Introduction
-This evidence-based Cognitive Behavioral Therapy for Insomnia (CBT-I) protocol is designed for adults experiencing difficulty initiating sleep. Stimulus control strengthens the conditioned association between the bed and rapid sleep onset, while sleep hygiene optimizes physiological readiness for rest.
+Struggling with sleep can feel deeply exhausting and isolating. It is completely understandable to feel frustrated when sleep doesn't come easily despite your best efforts. This evidence-based Cognitive Behavioral Therapy for Insomnia (CBT-I) protocol is designed to gently and systematically help your mind and body reconnect the bed with restful, effortless sleep.
 
 ## Goals
-1. Re-establish the bed and bedroom as strong discriminative stimuli for sleep rather than frustration or alertness.
-2. Maintain a consistent sleep-wake schedule to consolidate homeostatic sleep drive.
-3. Eliminate sleep-incompatible autonomic arousal in the bedroom.
+1. Re-establish your bed and bedroom as a peaceful sanctuary and strong cue for natural drowsiness.
+2. Build a reliable, consistent sleep-wake rhythm that supports your body's natural restorative drive.
+3. Reduce evening tension and bedtime pressure with compassionate, evidence-based coping habits.
 
 ## Step-by-Step Instructions
-### Step 1: The 20-Minute Re-Association Rule
-Go to bed only when genuinely sleepy. If you have not fallen asleep within approximately 20 minutes:
-- Leave the bedroom immediately.
-- Move to a dimly lit room and engage in a quiet, non-screen activity (e.g., reading a physical book, gentle somatic relaxation).
-- Return to bed only when drowsiness returns. Repeat as often as necessary throughout the night.
+### Step 1: The 20-Minute Re-Association Guideline
+Give yourself permission to go to bed only when you genuinely feel sleepy, rather than watching the clock. If you find yourself lying awake for approximately 20 minutes and feeling restless:
+- Gently get out of bed without judging yourself. Remember that lying awake in frustration only strengthens nighttime worry.
+- Move to a dimly lit, comfortable room and engage in a calming, low-stimulation activity (such as listening to soft music, light reading, or progressive muscle relaxation).
+- Return to bed only when natural heaviness and drowsiness return. You may repeat this gentle process as many times as needed throughout the night.
 
-### Step 2: Bedroom Exclusivity
-Do not use the bed for any activities other than sleep and sexual intimacy. Reading, watching television, checking phones, eating, or working must occur outside the bedroom.
+### Step 2: Bedroom as a Rest Sanctuary
+Protect your sleep environment so your mind associates the bed solely with rest and intimacy. Shift activities like working, scrolling on phones, checking emails, and watching television outside the bedroom.
 
-### Step 3: Anchor Wake Time
-Set a non-negotiable wake-up time 7 days a week, regardless of how much sleep you obtained the previous night. Do not compensate with daytime naps.
+### Step 3: Anchor Your Morning Wake Time
+Choose a consistent wake-up time that works for your routine across all 7 days of the week. Waking up at the same hour each morning anchors your biological circadian clock, even if you had a difficult night. Be patient with your body during daytime adjustments.
 
-## Practice and Homework
-- Keep a 7-day sleep diary recording bed time, estimated sleep onset latency, night awakenings, and final rising time.
-- Implement the 20-minute rule consistently every night for the upcoming 14 days without exception.
+## Practice and Reflection
+- Keep a gentle 7-day sleep log noting what time you went to bed, how comfortable you felt, and your morning wake time.
+- Practice the 20-minute re-association guideline consistently over the next 14 days, remembering that habituation takes time and self-compassion.
 
 ## Reflection and Progress Review
-- Did you notice any anticipatory anxiety when getting into bed?
-- How many times did you leave the bedroom before sleep onset occurred?
-- What calming activity proved most effective during the out-of-bed interval?
+- What calming activity brought the most relief when you stepped out of bed?
+- How did your thoughts shift when you allowed yourself to rest rather than forcing sleep?
+- Did having a consistent wake time help your natural evening sleepiness arrive earlier?
 
 ## Conclusion
-Conditioned insomnia develops gradually and requires 2-4 weeks of consistent behavioral practice to extinguish. If insomnia symptoms persist beyond 4 weeks or if daytime impairment impairs safety, consult a licensed clinical psychologist or sleep medicine physician for personalized care.
+Recovering healthy sleep patterns is a gradual, rewarding journey that typically unfolds over 2 to 4 weeks of patient practice. Treat yourself with kindness throughout the process. If severe sleep difficulties persist or significantly affect your daytime safety, please consult a licensed healthcare professional or sleep specialist for comprehensive personalized care.
 """
 
 INTENTS_FOR_WRITER = [

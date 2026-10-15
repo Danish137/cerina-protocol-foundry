@@ -162,8 +162,8 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
             <Bookmark className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-[#1F2923]">Define Clinical Intent</h3>
-            <p className="text-xs text-[#7C8B82]">Specify the disorder, technique, or clinical objective</p>
+            <h2 className="text-sm font-semibold text-[#1F2923]">Define Clinical Intent</h2>
+            <p className="text-xs text-[#5C6A62]">Specify the disorder, technique, or clinical objective</p>
           </div>
         </div>
 
@@ -180,11 +180,11 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
       {recentSessions.length > 0 && onResumeSession && (
         <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#E8E4DA] flex items-center justify-between gap-3 text-xs">
           <div className="min-w-0">
-            <span className="text-[#7C8B82] font-medium">Continue: </span>
+            <span className="text-[#5C6A62] font-medium">Continue: </span>
             <span className="font-semibold text-[#1F2923] truncate inline-block max-w-[260px] sm:max-w-[340px] align-bottom">
               {recentSessions[0].intent}
             </span>
-            <span className="text-[#7C8B82] ml-1.5 capitalize">· {recentSessions[0].status}</span>
+            <span className="text-[#5C6A62] ml-1.5 capitalize">· {recentSessions[0].status}</span>
           </div>
           <button
             type="button"
@@ -213,7 +213,7 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
 
         {/* Template Pills */}
         <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-[#7C8B82]">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-[#5C6A62]">
             <Sparkles className="w-3.5 h-3.5 text-[#244F3B]" />
             <span>Clinical Templates</span>
           </div>
@@ -272,7 +272,7 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
         </div>
 
         {/* Demo Disclaimer (Decision A) */}
-        <p className="text-[11px] text-[#7C8B82] text-center pt-1">
+        <p className="text-[11px] text-[#5C6A62] text-center pt-1">
           This is a demo. Describe the situation in general terms; don't include names, contact details or personal health information.
         </p>
 

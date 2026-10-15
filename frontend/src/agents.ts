@@ -39,7 +39,7 @@ export const AGENTS: Record<string, AgentConfig> = {
   },
   supervisor: {
     id: 'supervisor',
-    label: 'Workflow Supervisor',
+    label: 'Supervisor',
     role: 'Quality Orchestration',
     description: 'Synthesizes quality metrics and governs approval gates.',
     icon: Bot,

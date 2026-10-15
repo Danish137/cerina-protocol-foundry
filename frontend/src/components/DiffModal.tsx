@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { X } from 'lucide-react'
+import { X, CheckCircle2 } from 'lucide-react'
 import * as Diff from 'diff'
 
 interface DiffModalProps {
@@ -15,7 +15,7 @@ export default function DiffModal({
   originalDraft,
   editedDraft,
 }: DiffModalProps) {
-  const diffParts = Diff.diffLines(originalDraft, editedDraft)
+  const diffParts = Diff.diffLines(originalDraft || '', editedDraft || '')
 
   let additions = 0
   let deletions = 0
@@ -68,33 +68,45 @@ export default function DiffModal({
             aria-label="Clinical draft line diff"
             className="flex-1 overflow-y-auto p-6 text-xs sm:text-sm leading-relaxed font-sans select-text focus:outline-none scrollbar-thin space-y-1"
           >
-            {diffParts.map((part, idx) => {
-              if (part.added) {
-                return (
-                  <div
-                    key={idx}
-                    className="bg-[#EBF3EE] text-[#1B3D2E] p-2 rounded-md border-l-4 border-[#244F3B] whitespace-pre-wrap font-sans"
-                  >
-                    {part.value}
-                  </div>
-                )
-              }
-              if (part.removed) {
-                return (
-                  <div
-                    key={idx}
-                    className="bg-[#FDF2F2] text-[#9B2C2C] p-2 rounded-md border-l-4 border-[#E53E3E] line-through opacity-75 whitespace-pre-wrap font-sans"
-                  >
-                    {part.value}
-                  </div>
-                )
-              }
-              return (
-                <div key={idx} className="text-[#3A4A41] py-1 whitespace-pre-wrap font-sans">
-                  {part.value}
+            {additions === 0 && deletions === 0 ? (
+              <div className="py-12 px-4 text-center space-y-2">
+                <div className="w-10 h-10 rounded-full bg-[#EBF3EE] text-[#244F3B] flex items-center justify-center mx-auto border border-[#C2DBCB]">
+                  <CheckCircle2 className="w-5 h-5 text-[#244F3B]" />
                 </div>
-              )
-            })}
+                <h4 className="text-sm font-semibold text-[#18221E]">Identical to baseline</h4>
+                <p className="text-xs text-[#55635C] max-w-sm mx-auto">
+                  No textual additions or deletions found compared to the baseline draft.
+                </p>
+              </div>
+            ) : (
+              diffParts.map((part, idx) => {
+                if (part.added) {
+                  return (
+                    <div
+                      key={idx}
+                      className="bg-[#EBF3EE] text-[#1B3D2E] p-2 rounded-md border-l-4 border-[#244F3B] whitespace-pre-wrap font-sans"
+                    >
+                      {part.value}
+                    </div>
+                  )
+                }
+                if (part.removed) {
+                  return (
+                    <div
+                      key={idx}
+                      className="bg-[#FDF2F2] text-[#9B2C2C] p-2 rounded-md border-l-4 border-[#E53E3E] line-through opacity-75 whitespace-pre-wrap font-sans"
+                    >
+                      {part.value}
+                    </div>
+                  )
+                }
+                return (
+                  <div key={idx} className="text-[#3A4A41] py-1 whitespace-pre-wrap font-sans">
+                    {part.value}
+                  </div>
+                )
+              })
+            )}
           </div>
 
           {/* Footer */}

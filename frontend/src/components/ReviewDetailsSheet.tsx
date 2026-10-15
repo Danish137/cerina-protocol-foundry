@@ -346,7 +346,7 @@ export default function ReviewDetailsSheet({
             <div className="flex justify-between items-center text-[#55635C]">
               <span className="font-medium text-[#18221E]">Review Status:</span>
               <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#EBF3EE] text-[#244F3B] border border-[#CDE0D4]">
-                {audit?.edited ? (audit.rechecked ? 'Validated (Edits re-checked)' : 'Edited (Re-check pending)') : 'Validated Baseline'}
+                {audit?.edited ? (audit.rechecked ? 'AI-reviewed (Edits re-checked)' : 'Edited (Re-check pending)') : 'AI-reviewed Baseline'}
               </span>
             </div>
             {audit?.approved_at && (
@@ -357,9 +357,9 @@ export default function ReviewDetailsSheet({
             )}
             <div className="pt-2 border-t border-[#E8E4DA] text-[11px] text-[#55635C]">
               {audit?.approved_at ? (
-                <span>Approved by you on {formatLocalDateTime(audit.approved_at)}. AI-reviewed; not clinically validated.</span>
+                <span>Approved by you on {formatLocalDateTime(audit.approved_at)} · AI-reviewed · not clinically validated.</span>
               ) : (
-                <span>AI-reviewed; not clinically validated. Pending final user approval.</span>
+                <span>AI-reviewed · not clinically validated. Pending final user approval.</span>
               )}
             </div>
           </div>
@@ -368,7 +368,7 @@ export default function ReviewDetailsSheet({
           <div className="p-3.5 rounded-xl bg-[#FFF8F0] border border-[#F7E1B5] text-xs text-[#8C5921] flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 text-[#D4882C] shrink-0 mt-0.5" />
             <div className="leading-relaxed">
-              <span className="font-semibold">Clinical Disclaimer:</span> This protocol is an AI-assisted draft designed to support certified mental health clinicians. It is not an automated medical device, formal diagnostic instrument, or prescription. Clinicians remain solely responsible for validating content before use with patients.
+              <span className="font-semibold">Clinical Disclaimer:</span> This protocol is an AI-assisted draft designed to support mental health professionals. It is not an automated medical device, formal diagnostic instrument, or prescription. Practitioners remain solely responsible for reviewing content before use.
             </div>
           </div>
         </div>

@@ -62,6 +62,7 @@ export interface ScoreData {
   delta_safety?: number
   delta_empathy?: number
   delta_clinical?: number
+  degraded_review?: boolean
 }
 
 export interface RevisionSummaryItem {

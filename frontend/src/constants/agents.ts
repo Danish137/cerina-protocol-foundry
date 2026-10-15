@@ -30,7 +30,7 @@ export const AGENTS: Record<string, AgentMeta> = {
     description: 'Evaluates therapeutic warmth, collaborative empiricism, and clarity'
   },
   Supervisor: {
-    displayName: 'Workflow Supervisor',
+    displayName: 'Supervisor',
     shortName: 'Supervisor',
     role: 'Quality & Routing Decision',
     description: 'Synthesizes rubric scores to determine human review routing'

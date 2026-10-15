@@ -55,6 +55,7 @@ interface DocumentViewerProps {
   scores?: ScoreData
   events?: ProtocolEvent[]
   audit?: ApprovalAudit
+  initialDraftBeforeEdit?: string
 }
 
 export default function DocumentViewer({
@@ -64,6 +65,7 @@ export default function DocumentViewer({
   streamingTokens = '',
   draftVersion = 1,
   hasUserEdits = false,
+  initialDraftBeforeEdit = '',
   revisionSummaries = [],
   isSafetyCriticRunning = false,
   elapsedSeconds = 0,
@@ -79,7 +81,8 @@ export default function DocumentViewer({
   onDiscardEdits,
   onExportPdf,
   onOpenReviewDetails,
-  scrollerRef: externalScrollerRef
+  scrollerRef: externalScrollerRef,
+  audit
 }: DocumentViewerProps) {
   // Default to Split view on wide displays >=1536px, Rich Editor otherwise
   const [editorViewMode, setEditorViewMode] = useState<'rich' | 'markdown' | 'split'>(() => {
@@ -98,6 +101,31 @@ export default function DocumentViewer({
   const isEditing = phase === 'editing'
   const isApproved = phase === 'approved'
   const hasDraft = Boolean(draft || editedDraft)
+
+  // Derive reliable baseline draft (pre-edit AI generated baseline)
+  const baselineDraft = useMemo(() => {
+    if (initialDraftBeforeEdit && initialDraftBeforeEdit.trim()) {
+      return initialDraftBeforeEdit
+    }
+    if (v1Draft && v1Draft.trim()) {
+      return v1Draft
+    }
+    if (sessionId) {
+      const stored = sessionStorage.getItem(`cerina_baseline_draft_${sessionId}`)
+      if (stored && stored.trim()) return stored
+    }
+    return ''
+  }, [initialDraftBeforeEdit, v1Draft, sessionId])
+
+  // Save baseline to sessionStorage whenever draft first arrives
+  useEffect(() => {
+    if (sessionId && (draft || editedDraft)) {
+      const existing = sessionStorage.getItem(`cerina_baseline_draft_${sessionId}`)
+      if (!existing) {
+        sessionStorage.setItem(`cerina_baseline_draft_${sessionId}`, draft || editedDraft)
+      }
+    }
+  }, [sessionId, draft, editedDraft])
 
   // Extract real H1 title from protocol markdown (P2)
   const realH1 = useMemo(() => {
@@ -273,7 +301,7 @@ export default function DocumentViewer({
               <Sparkles className="w-4 h-4 animate-spin" />
               <span>Writing… {wordCount} words</span>
             </div>
-            <span className="text-[11px] font-mono text-[#7C8B82]">{formatTime(elapsedSeconds)}</span>
+            <span className="text-[11px] font-mono text-[#5C6A62]">{formatTime(elapsedSeconds)}</span>
           </div>
           <article className="max-w-[68ch] mx-auto prose prose-stone cerina-prose text-[17px] leading-[1.7] focus:outline-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -585,11 +613,11 @@ export default function DocumentViewer({
           )}
         </div>
 
-        {/* Diff Modal */}
+        {/* Diff Modal in Edit Mode */}
         <DiffModal
           isOpen={showDiffModal}
           onOpenChange={setShowDiffModal}
-          originalDraft={draft}
+          originalDraft={baselineDraft || draft}
           editedDraft={editedDraft}
         />
       </div>
@@ -602,6 +630,21 @@ export default function DocumentViewer({
   // Wheel events work everywhere over center column without dead zones.
   // =========================================================================
   const displayContent = draft || editedDraft || ''
+
+  // Is this protocol edited by clinician?
+  const isClinicianEdited = Boolean(
+    audit?.edited ||
+    hasUserEdits ||
+    (baselineDraft && displayContent && baselineDraft.trim() !== displayContent.trim())
+  )
+
+  // Can show "What changed" diff?
+  const canShowDiff = Boolean(
+    (baselineDraft && displayContent && baselineDraft.trim() !== displayContent.trim()) ||
+    isClinicianEdited ||
+    hasRevisedRun ||
+    (revisionSummaries && revisionSummaries.length > 0)
+  )
 
   return (
     <div
@@ -676,6 +719,19 @@ export default function DocumentViewer({
             Review details
           </button>
 
+          {/* What changed / Diff button */}
+          {canShowDiff && (
+            <button
+              type="button"
+              onClick={() => setShowDiffModal(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#EBF3EE] hover:bg-[#DCEEE3] text-[#1E3D2F] border border-[#C2DBCB] transition-colors cursor-pointer shadow-2xs"
+              title="View what changed (additions in green, removals in red with strikethrough)"
+            >
+              <GitCompare className="w-3.5 h-3.5 text-[#244F3B]" />
+              <span>What changed</span>
+            </button>
+          )}
+
           {!isApproved && (
             <button
               type="button"
@@ -726,6 +782,33 @@ export default function DocumentViewer({
           style={{ width: `${readingProgress}%` }}
         />
       </div>
+
+      {/* Clinician Edits Banner */}
+      {isClinicianEdited && (
+        <div className="mx-6 mt-4 rounded-xl border border-[#C2DBCB] bg-[#EBF3EE] p-3 text-xs text-[#1E3D2F] shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-[#244F3B] shrink-0" />
+              <div>
+                <span className="font-semibold text-[#1E3D2F]">
+                  Protocol contains user edits
+                </span>
+                <span className="text-[11px] text-[#3D5C4C] ml-1.5 hidden sm:inline">
+                  · Re-checked & approved
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDiffModal(true)}
+              className="px-2.5 py-1 rounded-md bg-white border border-[#C2DBCB] font-semibold hover:bg-[#FAF8F5] shadow-2xs cursor-pointer text-[#1E3D2F] transition-colors flex items-center gap-1 shrink-0"
+            >
+              <GitCompare className="w-3.5 h-3.5 text-[#244F3B]" />
+              <span>View what changed</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Revision Visibility Card (C6, Round 4) */}
       {(hasRevisedRun || (revisionSummaries && revisionSummaries.length > 0)) && (
@@ -804,12 +887,12 @@ export default function DocumentViewer({
           <span>AI-generated protocol demo — not a substitute for professional clinical judgment or medical care.</span>
         </div>
 
-        {/* Diff Modal in Read-Only Mode (v1 vs v2) */}
+        {/* Diff Modal in Read-Only Mode (baseline vs current display) */}
         <DiffModal
           isOpen={showDiffModal}
           onOpenChange={setShowDiffModal}
-          originalDraft={v1Draft || draft}
-          editedDraft={draft}
+          originalDraft={baselineDraft || draft}
+          editedDraft={displayContent}
         />
       </div>
     </div>

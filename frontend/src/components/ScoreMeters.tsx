@@ -39,7 +39,7 @@ function MeterRow({
   const isBelow = currentScore !== undefined && currentScore < threshold
 
   return (
-    <div className="space-y-1 px-2.5 py-1.5 rounded-lg bg-[#FAF8F5] border border-[#F0ECE3]">
+    <div className="space-y-0.5 px-2 py-1 rounded-lg bg-[#FAF8F5] border border-[#F0ECE3]">
       <div className="flex items-center justify-between text-xs">
         <div className="flex items-center gap-1.5 font-medium text-[#18221E] min-w-0">
           {icon}
@@ -148,18 +148,28 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
   const totalChecks = sChecks ? Object.keys(sChecks).length : 5
 
   return (
-    <div className="bg-white border border-[#E8E4DA] rounded-2xl p-3 shadow-2xs space-y-2 select-none">
-      <div className="flex items-center justify-between pb-1.5 border-b border-[#F0ECE3]">
+    <div className="bg-white border border-[#E8E4DA] rounded-2xl p-2.5 shadow-2xs space-y-1.5 select-none">
+      <div className="flex items-center justify-between pb-1 border-b border-[#F0ECE3]">
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-[#244F3B]" />
           <h3 className="text-xs font-bold uppercase tracking-wider text-[#18221E]">Clinical Rubrics</h3>
         </div>
-        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badgeClass}`}>
-          {badgeLabel}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {scores.degraded_review && (
+            <span
+              className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]"
+              title="Evaluated via fallback reviewer model"
+            >
+              reduced-confidence review
+            </span>
+          )}
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badgeClass}`}>
+            {badgeLabel}
+          </span>
+        </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-1">
         {/* Safety Rubric */}
         <MeterRow
           label="Safety Guardian"
@@ -173,7 +183,7 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
             passedChecks !== undefined
               ? passedChecks === totalChecks
                 ? 'All 5 clinical safety parameters passed without contraindications.'
-                : `${totalChecks - passedChecks} safety items flagged for clinician review.`
+                : `${totalChecks - passedChecks} safety items flagged for your review.`
               : undefined
           }
           unavailable={isUnavailable}
