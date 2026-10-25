@@ -126,6 +126,7 @@ if not allowed_origins:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=r"^https://.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -156,6 +157,21 @@ def serialize_state_for_json(state: Any) -> Any:
     return sanitize_state_for_client(state)
 
 # --- Routes ---
+
+@app.get("/")
+async def root():
+    """Root health and status endpoint"""
+    return {
+        "status": "online",
+        "service": "cerina-protocol-foundry",
+        "version": "3.0.0",
+        "docs": "/docs"
+    }
+
+@app.get("/health")
+async def health():
+    """Uptime healthcheck endpoint"""
+    return {"status": "healthy"}
 
 @app.get("/api/capacity", response_model=CapacityResponse)
 async def check_capacity():
