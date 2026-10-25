@@ -182,16 +182,6 @@ async def create_protocol(request: Request, body: ProtocolRequest):
     req_id = str(uuid.uuid4())[:8]
     logger.info(f"[{req_id}] Incoming /create request: intent_len={len(body.intent)}, review_depth={body.review_depth}")
 
-    # Simulated Outage Test Hook (Security A2: ONLY active when TEST_ALLOW_OUTAGE_SIMULATION=true, default OFF)
-    if os.getenv("TEST_ALLOW_OUTAGE_SIMULATION", "").strip().lower() == "true":
-        outage_hdr = request.headers.get("x-test-outage-provider")
-        if outage_hdr:
-            os.environ["SIMULATE_OUTAGE_PROVIDER"] = outage_hdr.strip().lower()
-        else:
-            os.environ.pop("SIMULATE_OUTAGE_PROVIDER", None)
-    else:
-        os.environ.pop("SIMULATE_OUTAGE_PROVIDER", None)
-
     # 1. Capacity Guard check (A5)
     cap = get_capacity_status()
     if cap["exhausted"]:

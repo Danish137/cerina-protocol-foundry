@@ -791,19 +791,6 @@ Consistent small steps create lasting behavioral change. If symptoms worsen, ple
             is_fallback = (idx > 0)
             family = MODEL_FAMILY.get(model, "unknown")
             try:
-                # Simulated Outage Testing Hook (Security A2: ONLY active when TEST_ALLOW_OUTAGE_SIMULATION=true, default OFF)
-                if os.getenv("TEST_ALLOW_OUTAGE_SIMULATION", "").strip().lower() == "true":
-                    raw_sim = os.getenv("SIMULATE_OUTAGE_PROVIDER", "").strip().lower()
-                    sim_targets = [x.strip() for x in raw_sim.split(",") if x.strip()]
-                    should_outage = False
-                    if "all_judges" in sim_targets and role in ["safety", "critic", "judge"]:
-                        should_outage = True
-                    elif any(target == provider.lower() or target in model.lower() for target in sim_targets):
-                        should_outage = True
-                    if should_outage:
-                        logger.warning(f"[SIMULATED OUTAGE] Forcing simulated outage on '{provider}:{model}' for role={role}")
-                        raise RuntimeError(f"SIMULATED_OUTAGE_503: Provider {provider} model {model} is unavailable.")
-
                 adapter = self._get_adapter(provider)
                 logger.info(f"[LLM ROUTER] Role={role} model={model} family={family} (attempt {idx+1}/{len(plan)})")
                 res = await adapter.generate(
