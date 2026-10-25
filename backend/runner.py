@@ -1,5 +1,5 @@
 """
-Cerina Single Runner & Event Tail Architecture (A1, A2, A3)
+Cerina Single Runner & Event Tail Architecture
 - Registry enforces exactly one active runner per session (409 Conflict if active).
 - /stream NEVER executes the graph; it is a pure SSE tail.
 - Events table writes synchronously before SSE emission.
@@ -88,7 +88,7 @@ class RunnerRegistry:
 
 registry = RunnerRegistry()
 
-# --- Event Persistence & Emission (A2) ---
+# --- Event Persistence & Emission ---
 
 def emit_event(
     session_id: str,
@@ -114,7 +114,7 @@ def emit_event(
     ts_now = datetime.now(timezone.utc)
     ts_str = ts_now.strftime("%Y-%m-%dT%H:%M:%SZ")
     
-    # Tokens are live-only (not persisted per A2)
+    # Tokens are live-only (not persisted to database)
     if event_type == "token":
         payload = {
             "session_id": session_id,
@@ -182,7 +182,7 @@ def emit_event(
     finally:
         db.close()
 
-# --- Single Runner Execution (A1, A7, A8) ---
+# --- Single Runner Execution ---
 
 async def run_protocol_workflow(
     session_id: str,
@@ -211,7 +211,7 @@ async def run_protocol_workflow(
         draft_version += 1
         state["current_version"] = draft_version
 
-    # Handle human instruction injection (A8)
+    # Handle human instruction injection
     if human_instruction:
         state = add_agent_note(
             state,
@@ -341,7 +341,7 @@ async def run_protocol_workflow(
             data={"status": "error", "code": code}
         )
 
-# --- Recheck Run (A8 /revalidate) ---
+# --- Recheck Run (/revalidate) ---
 
 async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
     """

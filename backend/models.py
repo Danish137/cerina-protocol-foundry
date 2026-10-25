@@ -27,8 +27,8 @@ class AgentNote(BaseModel):
 class ProtocolRequest(BaseModel):
     intent: str = Field(..., description="User intent for the CBT exercise")
     session_id: Optional[str] = Field(None, description="Optional custom session ID")
-    review_depth: Optional[str] = Field("standard", description="standard | thorough (A7)")
-    clinician_bypass: Optional[bool] = Field(False, description="True if clinician confirms designing protocol on high-risk topic (A10)")
+    review_depth: Optional[str] = Field("standard", description="standard | thorough")
+    clinician_bypass: Optional[bool] = Field(False, description="True if clinician confirms designing protocol on high-risk topic")
     region_code: Optional[str] = Field("US", description="Region for crisis resources (US, IN, GB, IE)")
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 

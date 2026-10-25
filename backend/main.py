@@ -1,16 +1,7 @@
 """
-Cerina Protocol Foundry API (Phase A)
-Implements:
-- A1: Single Runner Registry (/stream NEVER executes graph, 409 if active)
-- A2: Events table emission synchronously before SSE tail
-- A3: SSE pure tail (id: {seq}, Last-Event-ID, 15s ping, fail-safe error propagation)
-- A4: Secure tokens (secrets.token_urlsafe, SHA-256 hash, 404 on mismatch, retention purge, slowapi)
-- A5: Capacity Guard (DAILY_LLM_CALL_BUDGET, GET /api/capacity, 429 quota_exceeded)
-- A6: Scoring Integrity & fail-closed rubrics
-- A7: Loop Policy & FORCE_REVISION
-- A8: Human Steering (/revise human_revision, /revalidate recheck)
-- A9: Draft structure template & normalization
-- A10: Crisis pre-screen & region-aware care panel
+Cerina Protocol Foundry API
+Provides clinical CBT protocol generation, multi-agent evaluation,
+real-time SSE event streaming, human steering, and safety guardrails.
 """
 
 import os
@@ -38,7 +29,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-# Configure logging: NEVER log intent text or user_id (A4)
+# Configure logging: NEVER log intent text or user_id
 logger = logging.getLogger("cerina")
 if not logger.handlers:
     logger.setLevel(logging.INFO)
@@ -67,7 +58,7 @@ from security import (
 from crisis import screen_crisis_intent, get_crisis_resources
 from normalizer import normalize_protocol_markdown
 
-# Rate limiter setup (A4: create 5/min, revise/revalidate 10/min)
+# Rate limiter setup: create 5/min, revise/revalidate 10/min
 limiter = Limiter(key_func=get_remote_address)
 
 @asynccontextmanager
@@ -85,7 +76,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Async checkpointer fallback: {e}")
 
-    # Retention purge on startup (A4)
+    # Retention purge on startup
     try:
         purged = purge_expired_sessions()
         logger.info(f"Startup retention purge cleared {purged} expired sessions.")
@@ -109,7 +100,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS configuration (A4)
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -168,7 +159,7 @@ async def health():
 
 @app.get("/api/capacity", response_model=CapacityResponse)
 async def check_capacity():
-    """Capacity Guard (A5): Get remaining runs and daily budget status"""
+    """Capacity Guard: Get remaining runs and daily budget status"""
     status = get_capacity_status()
     return CapacityResponse(**status)
 
@@ -176,13 +167,13 @@ async def check_capacity():
 @limiter.limit("5/minute")
 async def create_protocol(request: Request, body: ProtocolRequest):
     """
-    Creates a new protocol session with single runner ownership (A1, A4, A5, A10).
+    Creates a new protocol session with single runner ownership.
     Enforces rate limits (5/min/IP) and capacity budget.
     """
     req_id = str(uuid.uuid4())[:8]
     logger.info(f"[{req_id}] Incoming /create request: intent_len={len(body.intent)}, review_depth={body.review_depth}")
 
-    # 1. Capacity Guard check (A5)
+    # 1. Capacity Guard check
     cap = get_capacity_status()
     if cap["exhausted"]:
         raise HTTPException(
@@ -195,7 +186,7 @@ async def create_protocol(request: Request, body: ProtocolRequest):
             }
         )
 
-    # 2. Local Crisis Pre-Screen (A10)
+    # 2. Local Crisis Pre-Screen
     is_crisis, matched_phrase = screen_crisis_intent(body.intent)
     if is_crisis and not body.clinician_bypass:
         logger.info(f"[{req_id}] Crisis intent pre-screen matched: phrase detected.")
@@ -280,7 +271,7 @@ async def create_protocol(request: Request, body: ProtocolRequest):
     except Exception as e:
         logger.warning(f"[{req_id}] Initial aupdate_state notice: {e}")
 
-    # 4. Acquire Single Runner Task (A1)
+    # 4. Acquire Single Runner Task
     try:
         await registry.acquire_or_raise(
             session_id,
@@ -310,10 +301,10 @@ async def stream_protocol(
     after: Optional[int] = Query(None)
 ):
     """
-    Pure SSE Tail (A1, A3): NEVER executes the graph!
+    Pure SSE Tail: NEVER executes the graph!
     Supports Last-Event-ID resume, in-process queue tail, 15s ping, and fail-safe error propagation.
     """
-    # Authorization check (A4): Requires valid session token via X-Session-Token header or query token
+    # Authorization check: Requires valid session token via X-Session-Token header or query token
     raw_token = x_session_token or token
     verify_session_access(session_id, raw_token)
 
@@ -365,7 +356,7 @@ async def stream_protocol(
         try:
             while True:
                 try:
-                    # Wait for live event with 15s timeout for ping (A3)
+                    # Wait for live event with 15s timeout for ping
                     item = await asyncio.wait_for(q.get(), timeout=15.0)
                     
                     item_seq = item.get("seq", -1)
@@ -389,7 +380,7 @@ async def stream_protocol(
                         break
 
                 except asyncio.TimeoutError:
-                    # 15s heartbeat ping (A3)
+                    # 15s heartbeat ping
                     yield ": ping\n\n"
                     # Check if runner is still alive
                     is_active = await registry.is_active(session_id)
@@ -427,7 +418,7 @@ async def get_protocol_events(
     after: int = Query(0),
     x_session_token: Optional[str] = Header(None, alias="X-Session-Token")
 ):
-    """Retrieve persisted event log starting after sequence ID (A3)"""
+    """Retrieve persisted event log starting after sequence ID"""
     verify_session_access(session_id, x_session_token)
     db = get_db_session()
     try:
@@ -468,7 +459,7 @@ async def revise_protocol(
     body: ReviseRequest,
     x_session_token: Optional[str] = Header(None, alias="X-Session-Token")
 ):
-    """Human steering: starts a human_revision run on existing thread (A8)"""
+    """Human steering: starts a human_revision run on existing thread"""
     sess = verify_session_access(session_id, x_session_token)
     run_id = f"run_{secrets.token_urlsafe(8)}"
 
@@ -500,7 +491,7 @@ async def revalidate_protocol(
     body: RevalidateRequest,
     x_session_token: Optional[str] = Header(None, alias="X-Session-Token")
 ):
-    """Recheck run on edited draft (Safety -> Critic) without restarting drafting (A8)"""
+    """Recheck run on edited draft (Safety -> Critic) without restarting drafting"""
     verify_session_access(session_id, x_session_token)
     run_id = f"run_{secrets.token_urlsafe(8)}"
 
@@ -708,7 +699,7 @@ async def get_protocol_state(
 
 @app.get("/api/protocols")
 async def list_protocols(limit: int = 20, offset: int = 0):
-    """Disabled endpoint (A4): never enumerates sessions publicly"""
+    """Disabled endpoint: never enumerates sessions publicly"""
     return {"protocols": [], "limit": limit, "offset": offset}
 
 if __name__ == "__main__":

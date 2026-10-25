@@ -1,5 +1,5 @@
 """
-Security, Session Tokens, Retention Purge, and Capacity Guard (A4, A5)
+Security, Session Tokens, Retention Purge, and Capacity Guard
 """
 
 import os
@@ -59,7 +59,7 @@ def verify_session_access(
     finally:
         db.close()
 
-# --- Retention Purge (A4) ---
+# --- Retention Purge ---
 
 def purge_expired_sessions() -> int:
     """
@@ -109,7 +109,7 @@ def purge_expired_sessions() -> int:
     finally:
         db.close()
 
-# --- Capacity Guard (A5) ---
+# --- Capacity Guard ---
 
 def record_llm_call(
     session_id: Optional[str],
@@ -142,7 +142,7 @@ def record_llm_call(
 
 def get_capacity_status() -> Dict[str, Any]:
     """
-    Capacity Guard (F9):
+    Capacity Guard:
     Runs left = min(writer_runs, safety_runs, critic_runs)
     Each term is the sum over that role's providers, divided by (calls_per_run * tokens_per_call), times 0.90.
     Includes Qwen OTPM (1,000 cap) and Groq TPD (200,000 cap).

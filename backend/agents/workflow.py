@@ -390,7 +390,7 @@ async def supervisor_node(state: ProtocolState) -> ProtocolState:
         route = "human" if is_halt else ("revise" if result.get("next_agent") == "Drafter" else "halt")
         reason = result.get("reason", "Routing decision finalized.")
 
-        # Supervisor decision event (A7, P1-2)
+        # Supervisor decision event
         emit_event(
             session_id=sid,
             run_id=rid,

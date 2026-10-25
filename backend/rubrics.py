@@ -1,5 +1,5 @@
 """
-Scoring Integrity & Rubrics Engine (A6)
+Scoring Integrity & Rubrics Engine
 Replaces single LLM self-scores with domain rubrics:
 - Safety: 5 binary checks passed/total with boolean and reason.
 - Critic: 5 dimensions (warmth, validation, clarity, CBT fidelity, structure), each 1-5 with rationale.
@@ -85,33 +85,6 @@ Respond ONLY with a JSON object in this exact structure:
   "referral_language_where_risk": {{"passed": true, "reason": "Includes referral disclaimer"}}
 }}
 """
-    # 1. Backwards compatibility for mock LLMs in unit tests
-    if llm is not None and hasattr(llm, "ainvoke"):
-        score_source = "llm"
-        try:
-            response = await llm.ainvoke(prompt)
-            content = response.content if hasattr(response, 'content') else str(response)
-            clean_json = extract_json_str(content)
-            parsed = SafetyRubric.model_validate_json(clean_json)
-            res_dict = build_safety_result(parsed, score_source)
-            res_dict["model"] = getattr(llm, "model_name", "test_model")
-            res_dict["provider"] = "test_provider"
-            return res_dict
-        except Exception as e:
-            logger.warning(f"Mock LLM safety evaluation failed: {e}. Failing closed.")
-            return {
-                "score_source": "unavailable",
-                "safety_score": 0.0,
-                "passed_checks": 0,
-                "total_checks": 5,
-                "checks": {},
-                "reasons": {},
-                "issues": ["Automated safety evaluation unavailable. Requires manual clinician review."],
-                "all_passed": False,
-                "unverified": True,
-                "model": "unavailable",
-                "provider": "unavailable"
-            }
 
     # 2. Production execution via UnifiedLLMClient with failover & zero same-family grading
     try:
@@ -217,30 +190,6 @@ Respond ONLY with a JSON object in this exact structure:
   "structure": {{"score": 5, "quoted_line": "exact body sentence quoted from draft", "rationale": "flawless protocol hierarchy"}}
 }}
 """
-    # 1. Backwards compatibility for mock LLMs in unit tests
-    if llm is not None and hasattr(llm, "ainvoke"):
-        score_source = "llm"
-        try:
-            response = await llm.ainvoke(prompt)
-            content = response.content if hasattr(response, 'content') else str(response)
-            clean_json = extract_json_str(content)
-            parsed = ClinicalCriticRubric.model_validate_json(clean_json)
-            res_dict = build_critic_result(parsed, score_source, draft=draft)
-            res_dict["model"] = getattr(llm, "model_name", "test_model")
-            res_dict["provider"] = "test_provider"
-            return res_dict
-        except Exception as e:
-            logger.warning(f"Mock LLM critic evaluation failed: {e}. Failing closed.")
-            return {
-                "score_source": "unavailable",
-                "empathy_score": 0.0,
-                "clinical_score": 0.0,
-                "dimensions": {},
-                "weaknesses": ["Automated clinical critique unavailable."],
-                "unverified": True,
-                "model": "unavailable",
-                "provider": "unavailable"
-            }
 
     # 2. Production execution via UnifiedLLMClient with failover & zero same-family grading
     try:
@@ -377,7 +326,7 @@ def build_critic_result(rubric: ClinicalCriticRubric, source: str, draft: str = 
         quote = (item.quoted_line or "").strip()
         rationale = item.rationale
 
-        # Verify quote is a substantive substring of the draft (F3)
+        # Verify quote is a substantive substring of the draft
         if norm_draft and quote:
             clean_q = re.sub(r'["\']', '', quote).strip()
             norm_q = re.sub(r'\s+', ' ', clean_q).lower()

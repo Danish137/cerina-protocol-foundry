@@ -1,5 +1,5 @@
 """
-Database setup, models, and utilities for persistence (A2, A4, A5)
+Database setup, models, and utilities for persistence
 """
 
 import os
@@ -38,7 +38,7 @@ class ProtocolSession(Base):
 
 class Event(Base):
     """
-    Events table (A2)
+    Events table
     events(session_id, seq, run_id, run_kind, draft_version, agent, type, to_agent, severity, text, data JSON, ts)
     PK / Unique: (session_id, seq)
     Types: node_start, node_end, token, message, score, decision, checkpoint, human_action, approval, run_end, error
@@ -66,7 +66,7 @@ class Event(Base):
     )
 
 class LLMUsage(Base):
-    """Capacity Guard (A5): Track every LLM call to enforce daily budgets"""
+    """Capacity Guard: Track every LLM call to enforce daily budgets"""
     __tablename__ = "llm_usage"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
