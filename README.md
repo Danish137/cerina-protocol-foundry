@@ -238,21 +238,3 @@ You can prompt Claude Desktop directly:
 Claude will call `create_cbt_protocol`, inspect the scores with `get_protocol_status`, and present the drafted protocol for your review!
 
 ---
-
-## Testing & Quality Gates
-
-Run the automated test suite to verify agent logic, rate limits, and clinical compliance:
-
-```bash
-# Run unit & rubric tests (mock LLM mode)
-MOCK_LLM=true pytest backend/tests --ignore=backend/tests/test_outage_simulation.py
-
-# Run live provider outage simulation & failover test
-pytest backend/tests/test_outage_simulation.py -s
-
-# Run banned wording & allowlist compliance audit (0 violations across 5 surfaces)
-python scripts/audit_banned_wording.py
-
-# Verify audit-ready PDF export (no missing glyphs, no GMT, correct disclaimers)
-python scripts/verify_pdf_evidence.py
-```
