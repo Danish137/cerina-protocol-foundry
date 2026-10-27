@@ -1,5 +1,5 @@
 """
-Markdown Protocol Normalizer (A9)
+Markdown Protocol Normalizer
 Standardizes LLM draft variants into a canonical hierarchy:
 - Exactly one H1 (# Title)
 - Canonical H2 sections (## Introduction, ## Goals, ## Steps, ## Practice, ## Reflection, ## Conclusion)

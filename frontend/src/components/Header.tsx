@@ -196,11 +196,10 @@ export default function Header({
                     "Ask Cerina Foundry to create a sleep hygiene protocol for insomnia"
                   </p>
                 </div>
-
                 <div className="pt-1 flex items-center justify-between text-[11px] border-t border-[#F0ECE3]">
                   <span className="text-[#88978F]">Requires Python 3.10+ & local backend</span>
                   <a
-                    href="https://github.com/Danish137/cerina-protocol-foundry/blob/main/mcp_server/TEST_MCP.md"
+                    href="https://github.com/Danish137/cerina-protocol-foundry#running-the-mcp-server"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-[#244F3B] font-semibold hover:underline"

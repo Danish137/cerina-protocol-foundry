@@ -175,7 +175,7 @@ export default function ReviewDetailsSheet({
           aria-label="Review details content"
           className="flex-1 overflow-y-auto p-6 space-y-6 overscroll-contain text-sm text-[#2C3B34] focus:outline-none"
         >
-          {/* Top Plain-Language Narrative Summary (Requirement 3.2, Amendment B, F1) */}
+          {/* Top Plain-Language Narrative Summary */}
           <div className="p-4 rounded-xl bg-[#F4F1EA] border border-[#E8E4DA] space-y-2.5">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#244F3B] uppercase tracking-wider">
               <Info className="w-4 h-4" />
@@ -199,7 +199,7 @@ export default function ReviewDetailsSheet({
               </span>
             </div>
 
-            {/* Clinical & Revision Status Flags (F1) */}
+            {/* Clinical & Revision Status Flags */}
             <div className="pt-2 border-t border-[#E8E4DA] grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               <div>
                 <span className="text-[#55635C]">Revisions:</span>{' '}
@@ -346,7 +346,7 @@ export default function ReviewDetailsSheet({
             )}
           </div>
 
-          {/* Section 4: Verification Status Record (F2, E1) */}
+          {/* Section 4: Verification Status Record */}
           <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#E8E4DA] text-xs space-y-2">
             <div className="flex justify-between items-center text-[#55635C]">
               <span className="font-medium text-[#18221E]">Review Status:</span>

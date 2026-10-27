@@ -1,5 +1,5 @@
 """
-Local Pre-Screen Crisis Classifier (A10)
+Local Pre-Screen Crisis Classifier
 Additive check performed before starting any workflow generation.
 Screens user intent using deterministic keyword and regex heuristics.
 """

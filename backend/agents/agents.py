@@ -1,20 +1,17 @@
 """
-Individual Agent Implementations (A6, A7, A9)
+Individual Agent Implementations
 - DrafterAgent with explicit markdown template and revision_summary
 - SafetyGuardianAgent with 5-point fail-closed safety rubric
 - ClinicalCriticAgent with 5-dimension fail-closed clinical rubric
-- SupervisorAgent with configurable standard/thorough loop policies and FORCE_REVISION
+- SupervisorAgent with configurable standard/thorough loop policies
 """
 
 import os
 import json
 import time
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from dotenv import load_dotenv
-
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
 
 from agents.state import ProtocolState, add_agent_note, add_draft_version
 from utils import log_agent_activity
@@ -24,31 +21,8 @@ from security import record_llm_call
 load_dotenv()
 logger = logging.getLogger("cerina.agents")
 
-def get_llm(role: str = "general"):
-    """Get the LLM instance supporting pinned writer/judge models or general fallback"""
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENROUTER_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY not found in environment.")
-    
-    api_key = api_key.strip(' "\'')
-    base_url = os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
-    
-    if role == "writer":
-        model = os.getenv("OPENAI_WRITER_MODEL") or os.getenv("OPENAI_MODEL", "openrouter/free")
-    elif role == "judge":
-        model = os.getenv("OPENAI_JUDGE_MODEL") or os.getenv("OPENAI_MODEL", "openrouter/free")
-    else:
-        model = os.getenv("OPENAI_MODEL", "openrouter/free")
-    
-    return ChatOpenAI(
-        api_key=api_key,
-        base_url=base_url,
-        model=model,
-        temperature=0.7 if role == "writer" else 0.2
-    )
-
 class DrafterAgent:
-    """Creates structured CBT exercise drafts using an explicit markdown template (A9)"""
+    """Creates structured CBT exercise drafts using an explicit markdown template"""
     
     def __init__(self, llm: Optional[Any] = None):
         self.llm = llm
@@ -60,7 +34,7 @@ class DrafterAgent:
         iteration = state.get("iteration_count", 0)
         review_depth = state.get("review_depth", "standard")
         
-        # Open concerns from previous agent critiques (A7)
+        # Open concerns from previous agent critiques
         recent_notes = [n for n in state.get("agent_notes", []) if n.get("target_agent") == "Drafter"]
         feedback_context = "\n".join([f"- [{n.get('agent_name')}]: {n.get('note')}" for n in recent_notes[-5:]])
         
@@ -121,40 +95,25 @@ Produce the updated protocol with targeted improvements:"""
         else:
             user_text = f"Create a CBT protocol for: {intent}\n\nFeedback to address from reviewers:\n{feedback_context or 'No previous feedback. Create initial draft.'}"
 
-        # 1. Backwards compatibility for unit test mock LLMs
-        if self.llm is not None and hasattr(self.llm, "ainvoke"):
-            t0 = time.time()
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", system_text),
-                ("human", user_text)
-            ])
-            messages = prompt.format_messages()
-            response = await self.llm.ainvoke(messages)
-            latency_ms = (time.time() - t0) * 1000
-            draft_content = response.content if hasattr(response, 'content') else str(response)
-            serving_model = getattr(self.llm, "model_name", "test_writer")
-            serving_provider = "test_provider"
-            finish_reason = "stop"
-        else:
-            # 2. Production streaming draft via UnifiedLLMClient (raised max_tokens to 3500 for complete drafts)
-            messages_list = [
-                {"role": "system", "content": system_text},
-                {"role": "user", "content": user_text}
-            ]
-            llm_res = await llm_client.execute_with_failover(
-                role="writer",
-                messages=messages_list,
-                temperature=0.7,
-                max_tokens=3500,
-                stream_callback=stream_callback
-            )
-            draft_content = llm_res.content
-            latency_ms = llm_res.latency_ms
-            serving_model = llm_res.model
-            serving_provider = llm_res.provider
-            finish_reason = getattr(llm_res, "finish_reason", "stop")
+        # Production streaming draft via UnifiedLLMClient (raised max_tokens to 3500 for complete drafts)
+        messages_list = [
+            {"role": "system", "content": system_text},
+            {"role": "user", "content": user_text}
+        ]
+        llm_res = await llm_client.execute_with_failover(
+            role="writer",
+            messages=messages_list,
+            temperature=0.7,
+            max_tokens=3500,
+            stream_callback=stream_callback
+        )
+        draft_content = llm_res.content
+        latency_ms = llm_res.latency_ms
+        serving_model = llm_res.model
+        serving_provider = llm_res.provider
+        finish_reason = getattr(llm_res, "finish_reason", "stop")
 
-        # Record LLM call for capacity guard (A5)
+        # Record LLM call for capacity guard
         record_llm_call(
             session_id=state.get("session_id"),
             model=serving_model,
@@ -162,7 +121,7 @@ Produce the updated protocol with targeted improvements:"""
             latency_ms=latency_ms
         )
         
-        # Revision summary if revising (A7)
+        # Revision summary if revising
         revision_summary = []
         if iteration > 0 and recent_notes:
             for note in recent_notes[-3:]:
@@ -191,7 +150,7 @@ Produce the updated protocol with targeted improvements:"""
         }
 
 class SafetyGuardianAgent:
-    """Validates content using 5-point fail-closed rubric (A6)"""
+    """Validates content using 5-point fail-closed rubric"""
     
     def __init__(self, llm: Optional[Any] = None):
         self.llm = llm
@@ -260,7 +219,7 @@ class SafetyGuardianAgent:
         }
 
 class ClinicalCriticAgent:
-    """Evaluates clinical appropriateness, tone, and empathy using 5-dimension rubric (A6)"""
+    """Evaluates clinical appropriateness, tone, and empathy using 5-dimension rubric"""
     
     def __init__(self, llm: Optional[Any] = None):
         self.llm = llm
@@ -416,7 +375,7 @@ def check_draft_completeness(draft: str, finish_reason: Optional[str] = None) ->
     return (len(reasons) == 0), reasons
 
 class SupervisorAgent:
-    """Autonomous orchestrator enforcing loop policies (A7)"""
+    """Autonomous orchestrator enforcing loop policies"""
     
     def __init__(self):
         self.name = "Supervisor"

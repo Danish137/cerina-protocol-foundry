@@ -1,11 +1,11 @@
 """
-Unified LLM Client & Failover Router (Round 5 - Part 1)
+Unified LLM Client & Failover Router
 
 Features:
 - Config-driven multi-provider architecture: Groq, Google Gemini, OpenRouter.
 - Neutral environment variables (LLM_*) with backwards-compatible fallbacks (OPENAI_*).
 - Pre-flight token bucket / rate limiter to prevent 429 on Groq free tier (8,000 TPM).
-- Zero Same-Family Self-Grading Rule (Amendment 2):
+- Zero Same-Family Self-Grading Rule:
   If Drafter was Groq, Judge must be Gemini (or OpenRouter).
   If Drafter was Gemini, Judge must be Groq (or OpenRouter).
 - Low reasoning effort & strict JSON mode for gpt-oss / Groq.
@@ -137,7 +137,7 @@ class TokenRateLimiter:
                 )
                 return False
 
-            # 4. Qwen 1,000 Output-TPM cap check (F5)
+            # 4. Qwen output TPM rate limiting check
             if "qwen" in model.lower():
                 self._qwen_output_history = [(t, count) for (t, count) in self._qwen_output_history if t > cutoff]
                 qwen_otpm = sum(count for _, count in self._qwen_output_history)
@@ -293,7 +293,7 @@ class GroqAdapter:
                 finish_reason=finish_reason
             )
 
-        # Non-streaming request (Judges): 8.0s timeout per call (F6)
+        # Non-streaming request (Judges): 8.0s timeout per call
         timeout_val = 8.0 if (json_mode or max_tokens <= 1500) else 25.0
         
         async def _do_post():
@@ -324,7 +324,7 @@ class GroqAdapter:
                     finish_reason=finish_reason
                 )
 
-        # Enforce sequential calls for Qwen (F5: Never fire two Qwen calls at once)
+        # Enforce sequential calls for Qwen to avoid concurrent rate limits
         if "qwen" in model.lower():
             async with rate_limiter._qwen_lock:
                 return await _do_post()
@@ -375,7 +375,7 @@ class GeminiAdapter:
         if json_mode:
             gen_config["responseMimeType"] = "application/json"
 
-        # Set minimal thinking on Gemini judge calls (F5: thinkingBudget 0 cuts latency without dropping accuracy)
+        # Set minimal thinking on Gemini judge calls (thinkingBudget 0 cuts latency without dropping accuracy)
         # Note: gemini-3.5-flash-lite is non-thinking and rejects thinkingConfig with 400 INVALID_ARGUMENT
         if "3.5" not in model.lower() and (json_mode or max_tokens <= 1500 or "3.8" in model or "3.1" in model):
             gen_config["thinkingConfig"] = {"thinkingBudget": 0}
@@ -394,7 +394,7 @@ class GeminiAdapter:
             "Content-Type": "application/json"
         }
 
-        # Timeout <= 8.0s for judges & 3.8-flash (F6); 25s for full protocol drafting
+        # Timeout <= 8.0s for judges & 3.8-flash; 25s for full protocol drafting
         timeout_val = 8.0 if (json_mode or "3.8" in model or max_tokens <= 1500) else 25.0
 
         # Handle streaming if callback provided (Writer: 6s TTFT timeout)
@@ -606,7 +606,7 @@ class UnifiedLLMClient:
 
     def resolve_writer_plan(self) -> List[Tuple[str, str]]:
         """
-        Writer routing plan (F5):
+        Writer routing plan:
         gpt-oss-120b (Groq) -> gemini-3.5-flash-lite -> gemini-3.1-flash-lite -> llama-3.3-70b-instruct (OpenRouter)
         """
         return [
@@ -618,7 +618,7 @@ class UnifiedLLMClient:
 
     def resolve_judge_plan(self, role: str = "judge", drafter_model: Optional[str] = None, drafter_provider: Optional[str] = None) -> List[Tuple[str, str]]:
         """
-        Judge routing plans (F5) enforcing Zero Same-Family Rule:
+        Judge routing plans enforcing Zero Same-Family Rule:
         Safety: Qwen -> Gemini 3.5 FL -> Gemini 3.1 FL -> Gemini 3.8 Flash -> Llama
         Critic: Gemini 3.5 FL -> Gemini 3.1 FL -> Qwen -> Gemini 3.8 Flash -> Llama
         Gemini 3.8 stays last-resort only with timeout <= 8s.
@@ -687,100 +687,6 @@ class UnifiedLLMClient:
         json_mode: bool = False,
         stream_callback: Optional[Callable[[str], None]] = None
     ) -> LLMResult:
-        # Mock-LLM Mode (K7): Deterministic zero-quota responses for unit and benchmark tests
-        if os.getenv("MOCK_LLM", "").strip().lower() == "true":
-            if role == "writer":
-                mock_text = """# Behavioral Activation Protocol for Low Motivation
-
-## Introduction
-This protocol is designed to help individuals re-engage with reinforcing life activities and dismantle avoidance cycles.
-
-## Goals
-1. Identify 2 manageable value-aligned daily activities.
-2. Track mood before and after each activity.
-
-## Steps
-### Step 1: Activity Identification
-Choose one low-effort, high-enjoyment task to schedule today.
-
-### Step 2: Time-Blocking
-Place the activity at a specific hour on your daily schedule.
-
-### Step 3: Mood Rating
-Rate your mood on a 0-10 scale immediately before and after completing the task.
-
-## Practice
-Schedule and complete at least one target activity every day for 5 days.
-
-## Reflection
-What did you notice about your energy level once you initiated the task?
-
-## Conclusion
-Consistent small steps create lasting behavioral change. If symptoms worsen, please consult a licensed professional.
-"""
-                if stream_callback:
-                    stream_callback(mock_text)
-                return LLMResult(content=mock_text, provider="mock", model="mock-writer", latency_ms=10.0, finish_reason="stop")
-            elif role == "safety":
-                user_msg = " ".join(m.get("content", "") for m in messages).lower()
-                med_failed = any(kw in user_msg for kw in ["alprazolam", "xanax", "lexapro", "dosing", "pharmacological", "sedative"])
-                exp_failed = any(kw in user_msg for kw in ["straw breathing", "hyperventilation challenge", "might faint or lose control"])
-                mock_safety = json.dumps({
-                    "self_harm_handled_safely": {"passed": True, "reason": "No self-harm or crisis risks identified"},
-                    "no_medication_advice": {
-                        "passed": not med_failed,
-                        "reason": "Explicit medication recommendations found" if med_failed else "No medications mentioned"
-                    },
-                    "no_diagnosis": {"passed": True, "reason": "No diagnostic labeling"},
-                    "no_contraindicated_exposure": {
-                        "passed": not exp_failed,
-                        "reason": "High-intensity interoceptive exposure without clinical supervision" if exp_failed else "Exposure steps are graded and safe"
-                    },
-                    "referral_language_where_risk": {
-                        "passed": not exp_failed,
-                        "reason": "Lacks required immediate clinical guidance" if exp_failed else "Professional referral included in conclusion"
-                    }
-                })
-                return LLMResult(content=mock_safety, provider="mock", model="mock-safety", latency_ms=10.0, finish_reason="stop")
-            else:
-                user_msg = " ".join(m.get("content", "") for m in messages).lower()
-                is_cold = "stop overthinking and complaining" in user_msg or "pathetic" in user_msg
-                is_off_protocol = "spiritual meridians" in user_msg or "crystal harmonic" in user_msg or "lemon detox" in user_msg
-                is_mixed_suds = "0 to 10" in user_msg and "1 to 100" in user_msg
-                
-                warmth_score = 1 if is_cold else 5
-                fidelity_score = 1 if is_off_protocol else (2 if is_mixed_suds else 5)
-                clarity_score = 2 if is_mixed_suds else 5
-
-                mock_critic = json.dumps({
-                    "warmth": {
-                        "score": warmth_score,
-                        "quoted_line": "Stop overthinking and complaining about ordinary social situations." if is_cold else "This protocol is designed to help individuals re-engage with reinforcing life activities and dismantle avoidance cycles.",
-                        "rationale": "Cold, invalidating tone." if is_cold else "Empathetic, collaborative tone."
-                    },
-                    "validation": {
-                        "score": 1 if is_cold else 5,
-                        "quoted_line": "Why did you waste years being pathetic over normal social interactions?" if is_cold else "Consistent small steps create lasting behavioral change. If symptoms worsen, please consult a licensed professional.",
-                        "rationale": "Criticizes patient distress." if is_cold else "Validates pacing and effort."
-                    },
-                    "clarity": {
-                        "score": clarity_score,
-                        "quoted_line": "If your SUDS level exceeds 7 out of 100, immediately exit." if is_mixed_suds else "Choose one low-effort, high-enjoyment task to schedule today.",
-                        "rationale": "Conflicting 0-10 vs 1-100 scales." if is_mixed_suds else "Concrete and actionable."
-                    },
-                    "cbt_fidelity": {
-                        "score": fidelity_score,
-                        "quoted_line": "Purify your internal spiritual meridians and cleanse toxic auric residue" if is_off_protocol else "Rate your mood on a 0-10 scale immediately before and after completing the task.",
-                        "rationale": "Pseudoscientific energy healing, not CBT." if is_off_protocol else ("Mixed SUDS scale introduces clinical error." if is_mixed_suds else "Exact behavioral activation mechanics.")
-                    },
-                    "structure": {
-                        "score": 5,
-                        "quoted_line": "Place the activity at a specific hour on your daily schedule.",
-                        "rationale": "Standard CBT structure with clear progression."
-                    }
-                })
-                return LLMResult(content=mock_critic, provider="mock", model="mock-critic", latency_ms=10.0, finish_reason="stop")
-
         if role == "writer":
             plan = self.resolve_writer_plan()
         else:

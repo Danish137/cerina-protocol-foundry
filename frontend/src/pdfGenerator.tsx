@@ -10,7 +10,7 @@ import {
 import { ApprovalAudit } from './types'
 import { formatPdfDateTime } from './utils/dateFormatter'
 
-// Register bundled OFL Inter font family (F13)
+// Register bundled OFL Inter font family
 try {
   Font.register({
     family: 'Inter',
@@ -353,7 +353,7 @@ export function ClinicalPdfDoc({
 
   const approvedDate = formatPdfDateTime(audit?.approved_at || new Date().toISOString())
 
-  // F3: All 5 Critic dimensions or none. Assert quotes are substrings of exported draft.
+  // All 5 Critic dimensions or none. Assert quotes are substrings of exported draft.
   const dimKeys = ['warmth', 'validation', 'clarity', 'cbt_fidelity', 'structure']
   const hasAll5Dimensions = Boolean(
     criticDimensions &&
@@ -366,7 +366,7 @@ export function ClinicalPdfDoc({
       const d = criticDimensions[key]
       if (d?.quoted_line) {
         const cleanQuote = d.quoted_line.trim().replace(/^["']|["']$/g, '')
-        // F3: Assert quote is a substring of the exported draft text
+        // Assert quote is a substring of the exported draft text
         if (cleanQuote.length >= 5 && draftContent.includes(cleanQuote)) {
           survivingQuotes.push({
             label: key === 'cbt_fidelity' ? 'CBT Fidelity' : key.charAt(0).toUpperCase() + key.slice(1),
@@ -399,7 +399,7 @@ export function ClinicalPdfDoc({
           </View>
         </View>
 
-        {/* Approval & Audit Block (Phase E, E1, D2, F4) */}
+        {/* Approval & Audit Block */}
         <View style={styles.auditBox} wrap={false}>
           <View style={styles.auditRow}>
             <Text style={styles.auditLabel}>Approval Status:</Text>
@@ -505,7 +505,7 @@ export function ClinicalPdfDoc({
         </View>
       </Page>
 
-      {/* Optional Appendix: Review Details (Requirement 3.5, Amendment B, F3) */}
+      {/* Optional Appendix: Review Details */}
       {includeReviewDetails && (
         <Page size="A4" style={styles.page}>
           <View style={styles.headerBanner}>
@@ -535,7 +535,7 @@ export function ClinicalPdfDoc({
             <Text style={{ fontSize: 8.5, color: '#18221E' }}>• Professional Referral Language Included – Passed</Text>
           </View>
 
-          {/* Clinical Quality Rubric: All 5 Critic Dimensions or None (F3) */}
+          {/* Clinical Quality Rubric: All 5 Critic Dimensions or None */}
           {hasAll5Dimensions && criticDimensions && (
             <>
               <Text style={{ fontSize: 10.5, fontWeight: 'bold', color: '#18221E', marginTop: 8, marginBottom: 5 }}>
@@ -559,7 +559,7 @@ export function ClinicalPdfDoc({
                   <Text style={styles.auditValue}>{criticDimensions.structure.score.toFixed(1)} / 5.0</Text>
                 </View>
 
-                {/* Substring-verified quotes: assert each quote is a substring of the exported draft (F3) */}
+                {/* Substring-verified quotes: assert each quote is a substring of the exported draft */}
                 {survivingQuotes.length > 0 && (
                   <View style={{ marginTop: 6, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: '#E8E4DA' }}>
                     <Text style={{ fontSize: 7.5, color: '#55635C', fontStyle: 'italic', marginBottom: 3 }}>
