@@ -99,14 +99,20 @@ function AppContent() {
           }
         }
 
-        // On checkpoint, update session storage
+        // On checkpoint, update session storage and unlock revision requested state
         if (event.type === 'checkpoint') {
           updateSessionStatus(sessionId, event.data?.status || 'review')
+          setIsRevisionRequested(false)
         }
 
         // On approval, update session storage
         if (event.type === 'approval') {
           updateSessionStatus(sessionId, 'approved')
+          setIsRevisionRequested(false)
+        }
+
+        if (event.type === 'run_end' || (event.type === 'draft' && (event.draft_version || 1) > 1)) {
+          setIsRevisionRequested(false)
         }
       },
       onToken: (tok: string) => {
@@ -116,6 +122,14 @@ function AppContent() {
         dispatch({ type: 'SET_ERROR', code: err.code, message: err.message, retryable: err.retryable })
         if (err.code === 'QUOTA_EXCEEDED') {
           showToast('Daily demonstration quota reached.', 'error')
+        } else if (err.code === 'SESSION_NOT_FOUND') {
+          window.history.replaceState(null, '', window.location.pathname)
+          if (streamClientRef.current) streamClientRef.current.stop()
+          dispatch({ type: 'RESET' })
+          setEditedDraft('')
+          setInitialDraftBeforeEdit('')
+          setResumeBanner(null)
+          showToast('Previous session expired or not found.', 'info')
         }
       },
       onRunEnd: () => {
@@ -145,6 +159,12 @@ function AppContent() {
     streamClientRef.current = client
     client.start()
   }, [showToast])
+
+  useEffect(() => {
+    if (phase === 'review' || phase === 'approved' || phase === 'idle') {
+      setIsRevisionRequested(false)
+    }
+  }, [phase])
 
 
   // Active stage from latest unmatched node_start
@@ -212,7 +232,14 @@ function AppContent() {
               }
             }
           })
-          .catch((err) => console.warn('Could not restore snapshot:', err))
+          .catch((err) => {
+            console.warn('Could not restore snapshot:', err)
+            if (err.response?.status === 404) {
+              window.history.replaceState(null, '', window.location.pathname)
+              if (streamClientRef.current) streamClientRef.current.stop()
+              dispatch({ type: 'RESET' })
+            }
+          })
 
         // Fetch complete event history on resume
         axios
@@ -224,7 +251,14 @@ function AppContent() {
               dispatch({ type: 'BATCH_EVENTS', events: evtRes.data.events })
             }
           })
-          .catch((err) => console.warn('Could not fetch events on resume:', err))
+          .catch((err) => {
+            console.warn('Could not fetch events on resume:', err)
+            if (err.response?.status === 404) {
+              window.history.replaceState(null, '', window.location.pathname)
+              if (streamClientRef.current) streamClientRef.current.stop()
+              dispatch({ type: 'RESET' })
+            }
+          })
 
         // Connect SSE stream
         connectStream(stored.id, stored.token)
@@ -262,7 +296,14 @@ function AppContent() {
               }
             }
           })
-          .catch((err) => console.warn('Could not restore snapshot:', err))
+          .catch((err) => {
+            console.warn('Could not restore snapshot:', err)
+            if (err.response?.status === 404) {
+              window.history.replaceState(null, '', window.location.pathname)
+              if (streamClientRef.current) streamClientRef.current.stop()
+              dispatch({ type: 'RESET' })
+            }
+          })
 
         axios
           .get(`${API_BASE_URL}/api/protocols/${auto.id}/events?after=0`, {
@@ -273,7 +314,14 @@ function AppContent() {
               dispatch({ type: 'BATCH_EVENTS', events: evtRes.data.events })
             }
           })
-          .catch((err) => console.warn('Could not fetch events on auto-resume:', err))
+          .catch((err) => {
+            console.warn('Could not fetch events on auto-resume:', err)
+            if (err.response?.status === 404) {
+              window.history.replaceState(null, '', window.location.pathname)
+              if (streamClientRef.current) streamClientRef.current.stop()
+              dispatch({ type: 'RESET' })
+            }
+          })
 
         connectStream(auto.id, auto.token)
         const timeStr = new Date(auto.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -978,7 +1026,7 @@ function AppContent() {
                     <AgentPipeline events={state.events} />
                   </div>
 
-                  <div className="shrink-0 max-h-[220px] flex flex-col">
+                  <div className="shrink-0 max-h-[280px] flex flex-col min-h-0 overflow-hidden">
                     <Outline content={state.draft || editedDraft} scrollerRef={scrollerRef} />
                   </div>
                 </div>
