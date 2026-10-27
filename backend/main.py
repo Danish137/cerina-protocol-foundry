@@ -443,14 +443,21 @@ async def stream_protocol(
             logger.error(f"Error in SSE event tail for session {session_id}: {e}", exc_info=True)
             yield f"event: error\ndata: {json.dumps({'message': 'Stream encountered an error'})}\n\n"
 
+    origin = request.headers.get("origin")
+    stream_headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no"
+    }
+    if origin and ("vercel.app" in origin or "localhost" in origin or "127.0.0.1" in origin):
+        stream_headers["Access-Control-Allow-Origin"] = origin
+        stream_headers["Access-Control-Allow-Credentials"] = "true"
+        stream_headers["Access-Control-Allow-Headers"] = "*"
+
     return StreamingResponse(
         event_tail_generator(),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"
-        }
+        headers=stream_headers
     )
 
 @app.get("/api/protocols/{session_id}/events")
