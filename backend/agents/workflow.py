@@ -45,6 +45,8 @@ def get_checkpointer():
     db_path = os.getenv("DATABASE_URL", "sqlite:///./cerina_foundry.db")
     if db_path.startswith("sqlite:///"):
         db_path = db_path.replace("sqlite:///", "")
+    elif "://" in db_path:
+        db_path = "./cerina_foundry.db"
     
     # Ensure directory exists
     if os.path.dirname(db_path) and os.path.dirname(db_path) != ".":
@@ -730,6 +732,8 @@ async def init_checkpointer_async():
     db_path = os.getenv("DATABASE_URL", "sqlite:///./cerina_foundry.db")
     if db_path.startswith("sqlite:///"):
         db_path = db_path.replace("sqlite:///", "")
+    elif "://" in db_path:
+        db_path = "./cerina_foundry.db"
 
     # Ensure directory exists
     if os.path.dirname(db_path) and os.path.dirname(db_path) != ".":
