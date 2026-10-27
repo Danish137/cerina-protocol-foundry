@@ -153,6 +153,7 @@ async def root():
     }
 
 @app.get("/health")
+@app.get("/api/health")
 async def health():
     """Uptime healthcheck endpoint"""
     return {"status": "healthy"}
