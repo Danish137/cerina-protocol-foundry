@@ -155,8 +155,8 @@ export default function Outline({
   }
 
   return (
-    <div className="bg-white border border-[#E8E4DA] rounded-2xl p-4 shadow-2xs space-y-3 select-none">
-      <div className="flex items-center justify-between pb-2 border-b border-[#F0ECE3]">
+    <div className="bg-white border border-[#E8E4DA] rounded-2xl p-3.5 shadow-2xs space-y-2 select-none flex flex-col max-h-full min-h-0">
+      <div className="flex items-center justify-between pb-1.5 border-b border-[#F0ECE3] shrink-0">
         <div className="flex items-center gap-2">
           <List className="w-3.5 h-3.5 text-[#244F3B]" />
           <h3 className="text-xs font-bold uppercase tracking-wider text-[#18221E]">Document Outline</h3>
@@ -168,7 +168,7 @@ export default function Outline({
         )}
       </div>
 
-      <nav className="space-y-1 max-h-[320px] overflow-y-auto" aria-label="Table of contents">
+      <nav className="space-y-1 overflow-y-auto flex-1 min-h-0 pr-1" aria-label="Table of contents">
         {items.map((item) => {
           const isActive = activeId.includes(item.text) || item.text.includes(activeId)
           const isH3 = item.level === 3

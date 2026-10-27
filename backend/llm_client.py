@@ -394,8 +394,8 @@ class GeminiAdapter:
             "Content-Type": "application/json"
         }
 
-        # Timeout <= 8.0s for judges & 3.8-flash; 25s for full protocol drafting
-        timeout_val = 8.0 if (json_mode or "3.8" in model or max_tokens <= 1500) else 25.0
+        # Timeout <= 20.0s for judges; 35s for full protocol drafting
+        timeout_val = 20.0 if (json_mode or "3.8" in model or max_tokens <= 1500) else 35.0
 
         # Handle streaming if callback provided (Writer: 6s TTFT timeout)
         if stream_callback is not None:
@@ -510,7 +510,7 @@ class OpenRouterAdapter:
             payload["response_format"] = {"type": "json_object"}
 
         t0 = time.perf_counter()
-        timeout_val = 8.0 if (json_mode or max_tokens <= 1500) else 25.0
+        timeout_val = 20.0 if (json_mode or max_tokens <= 1500) else 35.0
 
         if stream_callback is not None:
             payload["stream"] = True

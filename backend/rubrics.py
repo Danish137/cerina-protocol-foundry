@@ -236,16 +236,6 @@ Respond ONLY with a JSON object in this exact structure:
                 return res_dict
         except Exception as retry_err:
             logger.error(f"Retry critic evaluation failed: {retry_err}.")
-            if llm_res.content and not llm_res.error:
-                clean_json = extract_json_str(llm_res.content)
-                parsed = ClinicalCriticRubric.model_validate_json(clean_json)
-                res_dict = build_critic_result(parsed, "retry")
-                res_dict["model"] = llm_res.model
-                res_dict["provider"] = llm_res.provider
-                res_dict["latency_ms"] = llm_res.latency_ms
-                return res_dict
-        except Exception as retry_err:
-            logger.error(f"Retry critic evaluation failed: {retry_err}.")
 
     # 3. Fail Closed (Unavailable)
     return {

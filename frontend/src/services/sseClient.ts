@@ -101,6 +101,18 @@ export class ProtocolStreamClient {
         }
       },
       onerror: (err) => {
+        if (err && String(err).includes('SESSION_NOT_FOUND')) {
+          this.stop()
+          if (this.options.onError) {
+            this.options.onError({
+              code: 'SESSION_NOT_FOUND',
+              message: 'Session not found or expired',
+              retryable: false
+            })
+          }
+          return
+        }
+
         console.error('SSE connection error:', err)
         // Fall back to polling /events?after=
         this.fallbackPollEvents()
@@ -123,6 +135,7 @@ export class ProtocolStreamClient {
   }
 
   private async fallbackPollEvents() {
+    if (!this.abortController) return
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/protocols/${this.options.sessionId}/events?after=${this.highestSeq}`,
@@ -132,12 +145,31 @@ export class ProtocolStreamClient {
           }
         }
       )
+      if (res.status === 404) {
+        this.stop()
+        if (this.options.onError) {
+          this.options.onError({
+            code: 'SESSION_NOT_FOUND',
+            message: 'Session not found or expired',
+            retryable: false
+          })
+        }
+        return
+      }
+
       if (res.ok) {
         const json = await res.json()
         const events = json.events || []
         for (const evt of events) {
           this.highestSeq = Math.max(this.highestSeq, evt.seq)
           this.options.onEvent(evt)
+          if (evt.type === 'run_end') {
+            if (this.options.onRunEnd) {
+              this.options.onRunEnd()
+            }
+            this.stop()
+            return
+          }
         }
       }
     } catch (err) {
