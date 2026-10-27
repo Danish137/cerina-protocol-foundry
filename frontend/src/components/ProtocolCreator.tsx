@@ -54,7 +54,7 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
     setRecentSessions(getRecentSessions())
   }, [])
 
-  // Fetch live capacity status (A5, B4)
+  // Fetch live capacity status
   useEffect(() => {
     async function fetchCapacity() {
       try {
@@ -167,7 +167,7 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
           </div>
         </div>
 
-        {/* Capacity Chip (Round 4: show only when <= 5) */}
+        {/* Capacity Chip: show only when <= 5 */}
         {capacity && capacity.remaining_runs_estimate <= 5 && (
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF8F5] border border-[#E8E4DA] text-xs font-medium text-[#55635C]">
             <span className="w-2 h-2 rounded-full bg-[#B45309]"></span>

@@ -209,7 +209,7 @@ interface InlineToken {
  */
 export function parseInlineMarkdown(rawText: string): InlineToken[] {
   if (!rawText) return []
-  // Preserve ✓ • ≥ ≤ → – while normalizing non-breaking hyphen and exotic quotes (F13)
+  // Preserve ✓ • ≥ ≤ → – while normalizing non-breaking hyphen and exotic quotes
   const text = rawText
     .replace(/\u2011/g, '-')
     .replace(/[\u2010\u2012]/g, '-')
@@ -261,7 +261,7 @@ export function FormattedText({ text, style }: { text: string; style?: any }) {
 
 export function normalizeTextForPdf(text: string): string {
   if (!text) return ''
-  // Preserve ✓ • ≥ ≤ → – without ASCII downgrades; clean asterisks and exotic quotes (F13)
+  // Preserve ✓ • ≥ ≤ → – without ASCII downgrades; clean asterisks and exotic quotes
   return text
     .replace(/\u2011/g, '-')
     .replace(/[\u2010\u2012]/g, '-')

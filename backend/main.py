@@ -61,8 +61,36 @@ from normalizer import normalize_protocol_markdown
 # Rate limiter setup: create 5/min, revise/revalidate 10/min
 limiter = Limiter(key_func=get_remote_address)
 
+# Production configuration and session secret enforcement
+APP_ENV = os.getenv("APP_ENV", os.getenv("ENV", "development")).lower()
+SESSION_SECRET = os.getenv("SESSION_SECRET")
+if APP_ENV == "production":
+    if not SESSION_SECRET or not SESSION_SECRET.strip():
+        logger.critical("FATAL: SESSION_SECRET is required in production (no default value).")
+        raise RuntimeError("SESSION_SECRET is required in production (no default value).")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Log configuration flags table on startup without exposing values
+    flags = [
+        "APP_ENV",
+        "SESSION_SECRET",
+        "DATABASE_URL",
+        "GROQ_API_KEY",
+        "GOOGLE_API_KEY",
+        "OPENROUTER_API_KEY",
+        "CORS_ORIGINS",
+        "SESSION_TTL_DAYS",
+        "DAILY_LLM_CALL_BUDGET",
+    ]
+    logger.info("================ CONFIGURATION FLAGS ================")
+    logger.info(f"{'FLAG':<26} | {'STATUS':<10}")
+    logger.info("-" * 39)
+    for flag in flags:
+        status = "SET" if os.getenv(flag) else "NOT SET"
+        logger.info(f"{flag:<26} | {status:<10}")
+    logger.info("=====================================================")
+
     logger.info("Initializing Cerina Protocol Foundry database and checkpointer...")
     init_db()
     
@@ -118,7 +146,7 @@ app.add_middleware(
 )
 
 def sanitize_data_dict(d: Any) -> Any:
-    """Recursively removes provider, model, and family identifiers from client responses (B2)"""
+    """Recursively removes provider, model, and family identifiers from client responses"""
     if isinstance(d, dict):
         clean = {}
         for k, v in d.items():
@@ -131,7 +159,7 @@ def sanitize_data_dict(d: Any) -> Any:
     return d
 
 def sanitize_state_for_client(state: Any) -> Any:
-    """Serializes LangGraph state while ensuring no provider/model leakage reaches the browser (B1, B2)"""
+    """Serializes LangGraph state while ensuring no provider/model leakage reaches the browser"""
     if state is None:
         return None
     raw = jsonable_encoder(state)
@@ -318,90 +346,102 @@ async def stream_protocol(
         resume_seq = int(last_event_id_header)
 
     async def event_tail_generator() -> AsyncGenerator[str, None]:
-        # 1. Replay missed persisted events from database
-        db = get_db_session()
-        highest_seq_sent = resume_seq
         try:
-            persisted = (
-                db.query(Event)
-                .filter(Event.session_id == session_id, Event.seq > resume_seq)
-                .order_by(Event.seq.asc())
-                .all()
-            )
-            for evt in persisted:
-                highest_seq_sent = max(highest_seq_sent, evt.seq)
-                data_payload = {
-                    "session_id": evt.session_id,
-                    "seq": evt.seq,
-                    "run_id": evt.run_id,
-                    "run_kind": evt.run_kind,
-                    "draft_version": evt.draft_version,
-                    "agent": evt.agent,
-                    "type": evt.type,
-                    "to_agent": evt.to_agent,
-                    "severity": evt.severity,
-                    "text": evt.text,
-                    "data": sanitize_data_dict(evt.data),
-                    "ts": evt.ts.strftime("%Y-%m-%dT%H:%M:%SZ") if evt.ts else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                }
-                # Structured event
-                yield f"id: {evt.seq}\nevent: {evt.type}\ndata: {json.dumps(data_payload)}\n\n"
-                
-                # Legacy event bridge for Phase A compatibility
-                yield f"event: state_update\ndata: {json.dumps({'node': evt.agent, 'agent_thought': evt.text, 'timestamp': data_payload['ts']})}\n\n"
-        finally:
-            db.close()
-
-        # 2. Subscribe to live in-process queue
-        q = registry.subscribe(session_id)
-        try:
-            while True:
-                try:
-                    # Wait for live event with 15s timeout for ping
-                    item = await asyncio.wait_for(q.get(), timeout=15.0)
+            # 1. Replay missed persisted events from database
+            db = get_db_session()
+            highest_seq_sent = resume_seq
+            has_terminal = False
+            try:
+                persisted = (
+                    db.query(Event)
+                    .filter(Event.session_id == session_id, Event.seq > resume_seq)
+                    .order_by(Event.seq.asc())
+                    .all()
+                )
+                for evt in persisted:
+                    highest_seq_sent = max(highest_seq_sent, evt.seq)
+                    if evt.type in ["run_end", "error", "approval"]:
+                        has_terminal = True
+                    data_payload = {
+                        "session_id": evt.session_id,
+                        "seq": evt.seq,
+                        "run_id": evt.run_id,
+                        "run_kind": evt.run_kind,
+                        "draft_version": evt.draft_version,
+                        "agent": evt.agent,
+                        "type": evt.type,
+                        "to_agent": evt.to_agent,
+                        "severity": evt.severity,
+                        "text": evt.text,
+                        "data": sanitize_data_dict(evt.data),
+                        "ts": evt.ts.strftime("%Y-%m-%dT%H:%M:%SZ") if evt.ts else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    }
+                    # Structured event
+                    yield f"id: {evt.seq}\nevent: {evt.type}\ndata: {json.dumps(data_payload)}\n\n"
                     
-                    item_seq = item.get("seq", -1)
-                    if item_seq > 0 and item_seq <= highest_seq_sent:
-                        continue # Deduplicate
-                    if item_seq > 0:
-                        highest_seq_sent = item_seq
+                    # Legacy event bridge for Phase A compatibility
+                    yield f"event: state_update\ndata: {json.dumps({'node': evt.agent, 'agent_thought': evt.text, 'timestamp': data_payload['ts']})}\n\n"
+            finally:
+                db.close()
 
-                    clean_item = sanitize_data_dict(item)
-                    event_type = clean_item.get("type", "message")
-                    event_id_line = f"id: {item_seq}\n" if item_seq > 0 else ""
-                    yield f"{event_id_line}event: {event_type}\ndata: {json.dumps(clean_item)}\n\n"
+            # If already terminated and not currently active, stream is complete
+            is_active = await registry.is_active(session_id)
+            if has_terminal and not is_active:
+                return
 
-                    # Legacy state_update bridge
-                    yield f"event: state_update\ndata: {json.dumps({'node': clean_item.get('agent'), 'agent_thought': clean_item.get('text'), 'timestamp': clean_item.get('ts')})}\n\n"
+            # 2. Subscribe to live in-process queue
+            q = registry.subscribe(session_id)
+            try:
+                while True:
+                    try:
+                        # Wait for live event with 15s timeout for ping
+                        item = await asyncio.wait_for(q.get(), timeout=15.0)
+                        
+                        item_seq = item.get("seq", -1)
+                        if item_seq > 0 and item_seq <= highest_seq_sent:
+                            continue # Deduplicate
+                        if item_seq > 0:
+                            highest_seq_sent = item_seq
 
-                    # Terminal check
-                    if event_type in ["run_end", "error"]:
-                        if event_type == "error":
-                            yield f"event: error\ndata: {json.dumps(clean_item.get('data', {}))}\n\n"
-                        break
+                        clean_item = sanitize_data_dict(item)
+                        event_type = clean_item.get("type", "message")
+                        event_id_line = f"id: {item_seq}\n" if item_seq > 0 else ""
+                        yield f"{event_id_line}event: {event_type}\ndata: {json.dumps(clean_item)}\n\n"
 
-                except asyncio.TimeoutError:
-                    # 15s heartbeat ping
-                    yield ": ping\n\n"
-                    # Check if runner is still alive
-                    is_active = await registry.is_active(session_id)
-                    if not is_active:
-                        # Runner finished, check if terminal event already in DB
-                        db = get_db_session()
-                        try:
-                            last_db_evt = (
-                                db.query(Event)
-                                .filter(Event.session_id == session_id)
-                                .order_by(Event.seq.desc())
-                                .first()
-                            )
-                            if last_db_evt and last_db_evt.type in ["run_end", "error", "checkpoint"]:
-                                yield f"id: {last_db_evt.seq}\nevent: run_end\ndata: {json.dumps({'status': 'finished'})}\n\n"
-                                break
-                        finally:
-                            db.close()
-        finally:
-            registry.unsubscribe(session_id, q)
+                        # Legacy state_update bridge
+                        yield f"event: state_update\ndata: {json.dumps({'node': clean_item.get('agent'), 'agent_thought': clean_item.get('text'), 'timestamp': clean_item.get('ts')})}\n\n"
+
+                        # Terminal check
+                        if event_type in ["run_end", "error"]:
+                            if event_type == "error":
+                                yield f"event: error\ndata: {json.dumps(clean_item.get('data', {}))}\n\n"
+                            break
+
+                    except asyncio.TimeoutError:
+                        # 15s heartbeat ping
+                        yield ": ping\n\n"
+                        # Check if runner is still alive
+                        is_active = await registry.is_active(session_id)
+                        if not is_active:
+                            # Runner finished, check if terminal event already in DB
+                            db = get_db_session()
+                            try:
+                                last_db_evt = (
+                                    db.query(Event)
+                                    .filter(Event.session_id == session_id)
+                                    .order_by(Event.seq.desc())
+                                    .first()
+                                )
+                                if last_db_evt and last_db_evt.type in ["run_end", "error", "checkpoint"]:
+                                    yield f"id: {last_db_evt.seq}\nevent: run_end\ndata: {json.dumps({'status': 'finished'})}\n\n"
+                                    break
+                            finally:
+                                db.close()
+            finally:
+                registry.unsubscribe(session_id, q)
+        except Exception as e:
+            logger.error(f"Error in SSE event tail for session {session_id}: {e}", exc_info=True)
+            yield f"event: error\ndata: {json.dumps({'message': 'Stream encountered an error'})}\n\n"
 
     return StreamingResponse(
         event_tail_generator(),

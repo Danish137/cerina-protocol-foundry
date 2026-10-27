@@ -127,17 +127,17 @@ export default function DocumentViewer({
     }
   }, [sessionId, draft, editedDraft])
 
-  // Extract real H1 title from protocol markdown (P2)
+  // Extract real H1 title from protocol markdown
   const realH1 = useMemo(() => {
     const text = draft || editedDraft || ''
     const match = text.match(/^#\s+(.+)$/m)
     return match ? match[1].trim() : 'CBT Protocol Specification'
   }, [draft, editedDraft])
 
-  // Real stage text from latest unmatched node_start (P0-2)
+  // Real stage text from latest unmatched node_start
   const currentStageText = activeStageText || 'Starting…'
 
-  // Live waiting-on-model timer computed client-side from last event ts (P0-2)
+  // Live waiting-on-model timer computed client-side from last event ts
   const [secondsSinceLastEvent, setSecondsSinceLastEvent] = useState(0)
   useEffect(() => {
     if (phase !== 'generating') {
@@ -669,7 +669,7 @@ export default function DocumentViewer({
                 v{draftVersion}
               </span>
 
-              {/* Single status chip, never wraps (P2) */}
+              {/* Single status chip, never wraps */}
               <span
                 className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 shrink-0 whitespace-nowrap ${
                   isApproved
@@ -809,7 +809,7 @@ export default function DocumentViewer({
         </div>
       )}
 
-      {/* Revision Visibility Card (C6, Round 4) */}
+      {/* Revision Visibility Card */}
       {(hasRevisedRun || (revisionSummaries && revisionSummaries.length > 0)) && (
         <div className="mx-6 mt-4 rounded-xl border border-[#F6E0B5] bg-[#FDF6E2] p-3 text-xs text-[#8C4A26] shrink-0">
           <div className="flex items-center justify-between">

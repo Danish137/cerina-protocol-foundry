@@ -143,9 +143,10 @@ def record_llm_call(
 def get_capacity_status() -> Dict[str, Any]:
     """
     Capacity Guard:
-    Runs left = min(writer_runs, safety_runs, critic_runs)
-    Each term is the sum over that role's providers, divided by (calls_per_run * tokens_per_call), times 0.90.
-    Includes Qwen OTPM (1,000 cap) and Groq TPD (200,000 cap).
+    Runs left = min(writer_runs, safety_runs, critic_runs) * 0.90
+    Each role's runs = its remaining quota across ALL its models, divided by the tokens or calls that role uses per run.
+    Writer role is governed by Groq gpt-oss-120b + gpt-oss-20b (200,000 TPD limit / 1,900 tokens per call = ~105 calls/day)
+    with Gemini as fallback.
     Resets at next UTC midnight.
     """
     db = get_db_session()
@@ -157,42 +158,48 @@ def get_capacity_status() -> Dict[str, Any]:
         usages = db.query(LLMUsage).filter(LLMUsage.created_at >= start_of_day_utc).all()
         calls_used = len(usages)
         
-        groq_writer_tokens = sum(u.total_tokens for u in usages if u.model and "gpt-oss" in u.model.lower())
-        groq_qwen_tokens = sum(u.total_tokens for u in usages if u.model and "qwen" in u.model.lower())
-        gemini_35_calls = sum(1 for u in usages if u.model and "3.5" in u.model)
-        gemini_31_calls = sum(1 for u in usages if u.model and "3.1" in u.model)
+        groq_writer_tokens = sum(
+            u.total_tokens for u in usages
+            if u.model and ("gpt-oss" in u.model.lower() or "groq" in u.model.lower())
+        )
+        gemini_writer_calls = sum(
+            1 for u in usages
+            if u.call_type in ("writer", "drafter") and u.model and "gemini" in u.model.lower()
+        )
+        gemini_safety_calls = sum(
+            1 for u in usages
+            if (u.call_type in ("safety", "judge") or (u.model and "gemini" in u.model.lower() and "safety" in (u.call_type or "")))
+        )
+        gemini_critic_calls = sum(
+            1 for u in usages
+            if (u.call_type in ("critic", "clinical") or (u.model and "gemini" in u.model.lower() and "critic" in (u.call_type or "")))
+        )
 
         # Provider daily limits (2026-10-14 measured)
         groq_tpd_limit = 200_000
-        gemini_35_rpd = 500
-        gemini_31_rpd = 500
+        gemini_rpd_limit = 500
+        writer_tokens_per_run = 1900.0  # 200,000 TPD / 1,900 tokens = 105.26 calls/day
+        safety_calls_per_run = 1.0
+        critic_calls_per_run = 1.0
 
-        # Remaining quotas per provider
-        rem_groq_writer = max(0, groq_tpd_limit - groq_writer_tokens)
-        rem_groq_qwen = max(0, groq_tpd_limit - groq_qwen_tokens)
-        rem_gemini_35_calls = max(0, gemini_35_rpd - gemini_35_calls)
-        rem_gemini_31_calls = max(0, gemini_31_rpd - gemini_31_calls)
+        # Remaining quotas per role across its models
+        rem_groq_writer_tokens = max(0, groq_tpd_limit - groq_writer_tokens)
+        writer_groq_runs = rem_groq_writer_tokens / writer_tokens_per_run
+        rem_gemini_writer = max(0, gemini_rpd_limit - gemini_writer_calls)
 
-        # 1. Writer term: Providers = Groq gpt-oss-120b + Gemini 3.5 FL
-        # calls_per_run = 1.0, tokens_per_call = 2,000
-        gemini_writer_tokens = rem_gemini_35_calls * 2000
-        writer_tokens_total = rem_groq_writer + gemini_writer_tokens
-        writer_runs = (writer_tokens_total / (1.0 * 2000)) * 0.90
+        # Writer runs: primary is Groq (120b + 20b), fallback Gemini if Groq exhausted
+        writer_runs = writer_groq_runs if writer_groq_runs > 0 else float(rem_gemini_writer)
 
-        # 2. Safety term: Providers = Groq Qwen (200k TPD, 1000 OTPM) + Gemini 3.5 FL
-        # calls_per_run = 1.1, tokens_per_call = 1,000
-        gemini_safety_tokens = rem_gemini_35_calls * 1000
-        safety_tokens_total = rem_groq_qwen + gemini_safety_tokens
-        safety_runs = (safety_tokens_total / (1.1 * 1000)) * 0.90
+        # Safety & Critic roles: primary is Gemini (500 RPD)
+        rem_safety_calls = max(0, gemini_rpd_limit - gemini_safety_calls)
+        safety_runs = rem_safety_calls / safety_calls_per_run
 
-        # 3. Critic term: Providers = Gemini 3.5 FL + Groq Qwen
-        # calls_per_run = 1.1, tokens_per_call = 1,200
-        gemini_critic_tokens = rem_gemini_35_calls * 1200
-        critic_tokens_total = gemini_critic_tokens + rem_groq_qwen
-        critic_runs = (critic_tokens_total / (1.1 * 1200)) * 0.90
+        rem_critic_calls = max(0, gemini_rpd_limit - gemini_critic_calls)
+        critic_runs = rem_critic_calls / critic_calls_per_run
 
-        # Final Capacity: Runs left = min(writer_runs, safety_runs, critic_runs)
-        runs_left = max(0, int(min(writer_runs, safety_runs, critic_runs)))
+        # Runs left = min(writer_runs, safety_runs, critic_runs) * 0.90
+        bottleneck_runs = min(writer_runs, safety_runs, critic_runs)
+        runs_left = max(0, int(bottleneck_runs * 0.90))
 
         # Next UTC midnight reset
         tomorrow = (now_utc + timedelta(days=1)).date()
@@ -200,9 +207,10 @@ def get_capacity_status() -> Dict[str, Any]:
         resets_at = next_midnight.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         return {
-            "daily_budget": 90,  # Baseline runs from 200k Groq TPD / 2000 tokens * 0.90 = 90 runs
+            "daily_budget": 105,  # Baseline ~105 Groq calls/day (200k TPD / 1900 tokens)
             "calls_used": calls_used,
-            "remaining_calls": rem_groq_writer,
+            "remaining_tokens": rem_groq_writer_tokens,
+            "remaining_calls": int(writer_runs),
             "remaining_runs_estimate": runs_left,
             "writer_runs": int(writer_runs),
             "safety_runs": int(safety_runs),

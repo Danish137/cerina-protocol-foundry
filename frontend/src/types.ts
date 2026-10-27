@@ -161,8 +161,12 @@ export interface CareResources {
 export interface CapacityStatus {
   daily_budget: number
   calls_used: number
+  remaining_tokens?: number
   remaining_calls: number
   remaining_runs_estimate: number
+  writer_runs?: number
+  safety_runs?: number
+  critic_runs?: number
   resets_at: string
   exhausted: boolean
 }

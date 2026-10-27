@@ -64,7 +64,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {/* Toast container: bottom-right, never covers content (F10) */}
+      {/* Toast container: bottom-right, never covers content */}
       <div
         aria-live="polite"
         aria-atomic="true"

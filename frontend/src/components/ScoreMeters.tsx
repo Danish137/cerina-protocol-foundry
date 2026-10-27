@@ -108,13 +108,13 @@ function MeterRow({
 
 export default function ScoreMeters({ scores = {}, previousScores: _previousScores = {} }: ScoreMetersProps) {
   const isUnavailable = scores.unavailable || scores.score_source === 'unavailable'
-  // All three scores must exist before evaluating pass/fail status (P0-2)
+  // All three scores must exist before evaluating pass/fail status
   const hasAllScores =
     scores.safety_score !== undefined &&
     scores.empathy_score !== undefined &&
     scores.clinical_score !== undefined
 
-  // Derive Badge per C3
+  // Derive status badge
   let badgeLabel = 'Pending'
   let badgeClass = 'bg-[#FAF8F5] text-[#55635C] border-[#E8E4DA]'
 

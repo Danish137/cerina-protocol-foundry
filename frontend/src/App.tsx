@@ -24,14 +24,13 @@ import {
   getAutoResumeSession
 } from './services/sessionStorage'
 import { StoredSession, ProtocolEvent } from './types'
-import { exportClinicalPdf } from './pdfGenerator'
 import { Activity, FileText, CheckCircle2, AlertCircle, X } from 'lucide-react'
 
 function AppContent() {
   const { showToast } = useToast()
   const shouldReduceMotion = useReducedMotion()
 
-  // Protocol Reducer (B1)
+  // Protocol Reducer
   const [state, dispatch] = useReducer(protocolReducer, initialReducerState)
   const phase = state.phase
 
@@ -90,7 +89,7 @@ function AppContent() {
       onEvent: (event: ProtocolEvent) => {
         dispatch({ type: 'ADD_EVENT', event })
 
-        // Synchronize canonical draft on draft event, Drafter node_end, checkpoint, or run_end (P0-1)
+        // Synchronize canonical draft on draft event, Drafter node_end, checkpoint, or run_end
         if ((event.type === 'draft' || (event.type === 'node_end' && event.agent === 'Drafter') || event.type === 'checkpoint' || event.type === 'run_end') && event.data?.draft) {
           dispatch({ type: 'SET_DRAFT', draft: event.data.draft, version: event.draft_version || event.data.version || 1 })
           setEditedDraft(event.data.draft)
@@ -121,7 +120,7 @@ function AppContent() {
       },
       onRunEnd: () => {
         setIsRevisionRequested(false)
-        // Refetch state from backend to guarantee latest draft sync (P0-1)
+        // Refetch state from backend to guarantee latest draft sync
         axios
           .get(`${API_BASE_URL}/api/protocols/${sessionId}/state`, {
             headers: { 'X-Session-Token': token }
@@ -148,7 +147,7 @@ function AppContent() {
   }, [showToast])
 
 
-  // Active stage from latest unmatched node_start (P0-2)
+  // Active stage from latest unmatched node_start
   const activeStageText = useMemo(() => {
     if (!state.events || state.events.length === 0) return 'Starting…'
     const starts = state.events.filter((e) => e.type === 'node_start')
@@ -215,7 +214,7 @@ function AppContent() {
           })
           .catch((err) => console.warn('Could not restore snapshot:', err))
 
-        // Fetch complete event history on resume (P0-1)
+        // Fetch complete event history on resume
         axios
           .get(`${API_BASE_URL}/api/protocols/${stored.id}/events?after=0`, {
             headers: { 'X-Session-Token': stored.token }
@@ -447,7 +446,7 @@ function AppContent() {
     }
   }
 
-  // Revalidate only (A8)
+  // Revalidate only
   const handleRevalidateOnly = async () => {
     if (!state.sessionId || !state.sessionToken) return
     setValidationStatus('checking')
@@ -492,7 +491,7 @@ function AppContent() {
     }
   }
 
-  // Save edits and approve (Round 4: Re-check & approve with live events)
+  // Save edits and approve
   const handleSaveEditsAndApprove = async () => {
     if (!state.sessionId || !state.sessionToken) return
 
@@ -633,7 +632,7 @@ function AppContent() {
     }
   }
 
-  // Human steering / Request Revision (A8, C7)
+  // Human steering / Request Revision
   const handleRequestRevision = async (instruction?: string, concernIds?: string[]) => {
     if (!state.sessionId || !state.sessionToken) return
     setIsRevisionRequested(true)
@@ -658,7 +657,7 @@ function AppContent() {
     }
   }
 
-  // Export PDF (Phase E, Round 5)
+  // Export PDF
   const handleExportPdf = async (includeDetails: boolean = false) => {
     const draftText = editedDraft || state.draft || ''
     if (!draftText.trim()) {
@@ -667,6 +666,7 @@ function AppContent() {
     }
 
     try {
+      const { exportClinicalPdf } = await import('./pdfGenerator')
       const filename = await exportClinicalPdf(
         draftText,
         state.approvalAudit,
@@ -848,7 +848,7 @@ function AppContent() {
         {/* Row 3: Main Workspace Shell */}
         <main className="min-h-0 overflow-hidden max-w-[1600px] w-full mx-auto px-3 sm:px-4 lg:px-6 py-2.5 sm:py-3 flex flex-col">
           {/* =========================================================================
-              PHASE: CARE_PANEL (A10 Crisis Pre-Screen)
+              PHASE: CARE_PANEL (Crisis Pre-Screen)
              ========================================================================= */}
           {phase === 'care_panel' ? (
             <CarePanel
@@ -889,7 +889,7 @@ function AppContent() {
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                 className="h-full flex flex-col justify-center max-w-5xl mx-auto space-y-4 sm:space-y-6"
               >
-                {/* Hero Header (P2) */}
+                {/* Hero Header */}
                 <div className="text-center space-y-2 pt-2">
                   <div className="flex items-center justify-center">
                     <svg className="w-5 h-5 text-[#244F3B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">

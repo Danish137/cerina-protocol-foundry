@@ -74,7 +74,7 @@ from normalizer import normalize_protocol_markdown
 from database import get_db_session, ProtocolSession
 
 async def draft_node(state: ProtocolState) -> ProtocolState:
-    """Node: Drafter creates/revises draft with real event lifecycle and empty-draft guard (P0-1, P0-2)"""
+    """Node: Drafter creates/revises draft with real event lifecycle and empty-draft guard"""
     from runner import emit_event
     sid = state.get("session_id", "default")
     rid = state.get("run_id") or f"run_{sid}"
@@ -145,7 +145,7 @@ async def draft_node(state: ProtocolState) -> ProtocolState:
         dver = state["current_version"]
         rev_summary = result.get("revision_summary", [])
 
-        # Emit dedicated draft event (P0-1)
+        # Emit dedicated draft event
         emit_event(
             session_id=sid,
             run_id=rid,
@@ -205,7 +205,7 @@ async def draft_node(state: ProtocolState) -> ProtocolState:
         )
 
 async def safety_review_node(state: ProtocolState) -> ProtocolState:
-    """Node: Safety Guardian reviews with in-node event lifecycle (P0-2)"""
+    """Node: Safety Guardian reviews with in-node event lifecycle"""
     from runner import emit_event
     sid = state.get("session_id", "default")
     rid = state.get("run_id") or f"run_{sid}"
@@ -283,7 +283,7 @@ async def safety_review_node(state: ProtocolState) -> ProtocolState:
         )
 
 async def clinical_critique_node(state: ProtocolState) -> ProtocolState:
-    """Node: Clinical Critic evaluates with in-node event lifecycle (P0-2)"""
+    """Node: Clinical Critic evaluates with in-node event lifecycle"""
     from runner import emit_event
     sid = state.get("session_id", "default")
     rid = state.get("run_id") or f"run_{sid}"
@@ -357,7 +357,7 @@ async def clinical_critique_node(state: ProtocolState) -> ProtocolState:
         )
 
 async def supervisor_node(state: ProtocolState) -> ProtocolState:
-    """Node: Supervisor decides next action with in-node event lifecycle (P0-2, P1-2)"""
+    """Node: Supervisor decides next action with in-node event lifecycle"""
     from runner import emit_event
     sid = state.get("session_id", "default")
     rid = state.get("run_id") or f"run_{sid}"

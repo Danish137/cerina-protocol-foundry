@@ -28,13 +28,13 @@ export default function AgentPipeline({
   const shouldReduceMotion = useReducedMotion()
   const [now, setNow] = useState<number>(Date.now())
 
-  // Shared 1s tick driving live elapsed times on working nodes (P0-2)
+  // Shared 1s tick driving live elapsed times on working nodes
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
 
-  // Derive node states purely from events (C1)
+  // Derive node states purely from events
   const { nodes, revisionCount } = useMemo(() => {
     let revCount = 0
 
@@ -245,7 +245,7 @@ export default function AgentPipeline({
     )
   }
 
-  // Full Left Rail layout (flex to available height with own scroll & bottom fade) (F11)
+  // Full Left Rail layout (flex to available height with own scroll & bottom fade)
   return (
     <div className="bg-white border border-[#E8E4DA] rounded-2xl shadow-2xs flex flex-col h-full min-h-0 overflow-hidden">
       <div className="flex items-center justify-between p-3.5 pb-2 border-b border-[#F0ECE3] shrink-0">
@@ -273,7 +273,7 @@ export default function AgentPipeline({
             const isConcern = node.status === 'concern'
             const isWaiting = node.status === 'waiting'
 
-            // Single-line collapsed layout once complete (F11)
+            // Single-line collapsed layout once complete
             if (isDone) {
               return (
                 <div key={node.id} className="relative">
@@ -400,7 +400,7 @@ export default function AgentPipeline({
           )}
         </div>
 
-        {/* Bottom edge fade when scrollable (F11) */}
+        {/* Bottom edge fade when scrollable */}
         {isScrollable && (
           <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white via-white/80 to-transparent z-10" />
         )}

@@ -137,7 +137,7 @@ export function protocolReducer(state: ReducerState, action: ProtocolAction): Re
         nextDraftVersion = Math.max(nextDraftVersion, e.draft_version)
       }
 
-      // Extract draft text from draft events, node_end, checkpoint or run_end (P0-1)
+      // Extract draft text from draft events, node_end, checkpoint or run_end
       if (e.data?.draft && typeof e.data.draft === 'string' && e.data.draft.trim().length > 0) {
         nextDraft = e.data.draft
         if (e.data.version || e.draft_version) {

@@ -68,8 +68,12 @@ class ValidationResult(BaseModel):
 class CapacityResponse(BaseModel):
     daily_budget: int
     calls_used: int
+    remaining_tokens: int
     remaining_calls: int
     remaining_runs_estimate: int
+    writer_runs: Optional[int] = None
+    safety_runs: Optional[int] = None
+    critic_runs: Optional[int] = None
     resets_at: str
     exhausted: bool
 

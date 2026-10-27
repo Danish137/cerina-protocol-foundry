@@ -1,5 +1,5 @@
 /**
- * AGENTS Registry and Status Labels Map (P1-3)
+ * AGENTS Registry and Status Labels Map
  * Provides human-readable display names, roles, and status strings across the entire application.
  */
 
