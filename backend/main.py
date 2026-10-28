@@ -150,7 +150,7 @@ def sanitize_data_dict(d: Any) -> Any:
     if isinstance(d, dict):
         clean = {}
         for k, v in d.items():
-            if k in ["provider", "model", "drafter_provider", "drafter_model", "serving_provider", "serving_model"]:
+            if k in ["provider", "model", "drafter_provider", "drafter_model", "serving_provider", "serving_model", "degraded_review", "score_source"]:
                 continue
             clean[k] = sanitize_data_dict(v)
         return clean

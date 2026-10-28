@@ -111,6 +111,11 @@ function AppContent() {
           setIsRevisionRequested(false)
         }
 
+        if (event.data?.code === 'revision_unchanged' || event.data?.error === 'revision_unchanged') {
+          showToast("I couldn't apply that change. Try rephrasing it.", 'info')
+          setIsRevisionRequested(false)
+        }
+
         if (event.type === 'run_end' || (event.type === 'draft' && (event.draft_version || 1) > 1)) {
           setIsRevisionRequested(false)
         }
@@ -160,11 +165,7 @@ function AppContent() {
     client.start()
   }, [showToast])
 
-  useEffect(() => {
-    if (phase === 'review' || phase === 'approved' || phase === 'idle') {
-      setIsRevisionRequested(false)
-    }
-  }, [phase])
+
 
 
   // Active stage from latest unmatched node_start
@@ -1011,7 +1012,7 @@ function AppContent() {
                 {/* =====================================================================
                     1. LEFT RAIL
                    ===================================================================== */}
-                <div className="hidden 2xl:flex w-[310px] shrink-0 flex-col gap-2.5 h-full overflow-hidden min-h-0 pr-1.5 pb-2">
+                <div className="hidden xl:flex w-[310px] shrink-0 flex-col gap-2.5 h-full overflow-hidden min-h-0 pr-1.5 pb-2">
                   <div className="shrink-0">
                     <IntentSummary
                       intent={state.userIntent || ''}
@@ -1055,7 +1056,10 @@ function AppContent() {
                       editedDraft={editedDraft}
                       streamingTokens={state.streamingTokenBuffer}
                       draftVersion={state.draftVersion}
-                      hasUserEdits={editedDraft !== initialDraftBeforeEdit}
+                      hasUserEdits={
+                        state.events.some((e) => e.data?.provenance === 'human_edit' || (e.type === 'draft' && e.agent === 'Human')) ||
+                        (phase === 'editing' && Boolean(initialDraftBeforeEdit && editedDraft.trim() !== initialDraftBeforeEdit.trim()))
+                      }
                       initialDraftBeforeEdit={initialDraftBeforeEdit}
                       revisionSummaries={state.revisionSummaries}
                       isSafetyCriticRunning={phase === 'generating' && Boolean(state.draft)}

@@ -107,7 +107,7 @@ function MeterRow({
 }
 
 export default function ScoreMeters({ scores = {}, previousScores: _previousScores = {} }: ScoreMetersProps) {
-  const isUnavailable = scores.unavailable || scores.score_source === 'unavailable'
+  const isUnavailable = Boolean(scores.unavailable)
   // All three scores must exist before evaluating pass/fail status
   const hasAllScores =
     scores.safety_score !== undefined &&
@@ -149,21 +149,13 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
 
   return (
     <div className="bg-white border border-[#E8E4DA] rounded-2xl p-2.5 shadow-2xs space-y-1.5 select-none">
-      <div className="flex items-center justify-between pb-1 border-b border-[#F0ECE3]">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-[#244F3B]" />
-          <h3 className="text-xs font-bold uppercase tracking-wider text-[#18221E]">Clinical Rubrics</h3>
+      <div className="flex items-center justify-between gap-1.5 pb-1 border-b border-[#F0ECE3] min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <ShieldCheck className="w-4 h-4 text-[#244F3B] shrink-0" />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[#18221E] truncate">Clinical Rubrics</h3>
         </div>
-        <div className="flex items-center gap-1.5">
-          {scores.degraded_review && (
-            <span
-              className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#78350F] border border-[#FDE68A]"
-              title="Evaluated via fallback reviewer model"
-            >
-              reduced-confidence review
-            </span>
-          )}
-          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badgeClass}`}>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${badgeClass}`}>
             {badgeLabel}
           </span>
         </div>

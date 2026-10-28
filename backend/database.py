@@ -131,7 +131,7 @@ def init_db():
     # Create tables
     Base.metadata.create_all(bind=engine)
 
-    # Lightweight SQLite column migrations
+    # Lightweight column migrations
     if "sqlite" in str(engine.url):
         with engine.connect() as conn:
             for col_def in [
@@ -141,6 +141,19 @@ def init_db():
             ]:
                 try:
                     conn.execute(text(f"ALTER TABLE protocol_sessions ADD COLUMN {col_def[0]} {col_def[1]};"))
+                    conn.commit()
+                except Exception:
+                    pass
+    else:
+        # Postgres or other SQL backend: use IF NOT EXISTS
+        with engine.connect() as conn:
+            for col_def in [
+                ("token_hash", "TEXT"),
+                ("review_depth", "TEXT DEFAULT 'standard'"),
+                ("current_run_id", "TEXT")
+            ]:
+                try:
+                    conn.execute(text(f"ALTER TABLE protocol_sessions ADD COLUMN IF NOT EXISTS {col_def[0]} {col_def[1]};"))
                     conn.commit()
                 except Exception:
                     pass

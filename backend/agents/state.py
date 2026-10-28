@@ -26,6 +26,7 @@ class ProtocolDraft(TypedDict):
     version: int
     iteration: int
     created_by: str
+    provenance: str  # ai_initial | ai_revision | human_edit | human_requested_revision
     timestamp: str  # ISO UTC with Z
     safety_score: Optional[float]
     empathy_score: Optional[float]
@@ -136,6 +137,7 @@ def add_draft_version(
     state: ProtocolState,
     content: str,
     created_by: str,
+    provenance: str = "ai_initial",
     safety_score: Optional[float] = None,
     empathy_score: Optional[float] = None,
     clinical_score: Optional[float] = None,
@@ -149,6 +151,7 @@ def add_draft_version(
         "version": new_version,
         "iteration": state.get("iteration_count", 0),
         "created_by": created_by,
+        "provenance": provenance,
         "timestamp": utc_iso(),
         "safety_score": safety_score,
         "empathy_score": empathy_score,

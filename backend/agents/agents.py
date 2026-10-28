@@ -10,6 +10,7 @@ import os
 import json
 import time
 import logging
+import hashlib
 from typing import Dict, Any, List, Optional, Tuple
 from dotenv import load_dotenv
 
@@ -37,6 +38,9 @@ class DrafterAgent:
         # Open concerns from previous agent critiques
         recent_notes = [n for n in state.get("agent_notes", []) if n.get("target_agent") == "Drafter"]
         feedback_context = "\n".join([f"- [{n.get('agent_name')}]: {n.get('note')}" for n in recent_notes[-5:]])
+        feedback_bytes = (feedback_context or "").encode("utf-8")
+        feedback_hash = hashlib.sha256(feedback_bytes).hexdigest()[:16]
+        logger.info(f"[DRAFTER] Feedback section: length={len(feedback_context)}, hash={feedback_hash}")
         
         system_text = """You are a clinical psychologist specializing in Cognitive Behavioral Therapy (CBT).
 Your task is to create structured, empathetic, and evidence-based CBT exercises.
@@ -77,7 +81,8 @@ CRITICAL CONTENT RESTRICTIONS (STRICTLY ENFORCED):
 - No academic citations or authors: Do NOT include academic citations, author names, publication years, or literature references (e.g. do NOT write '(Beck et al., 1979)', 'Linehan (1993)'). Deliver clinical guidance directly without academic bibliography citations."""
 
         existing_draft = (state.get("current_draft") or "").strip()
-        if iteration > 0 and existing_draft:
+        is_revising = bool(existing_draft and (iteration > 0 or len(state.get("draft_history", [])) > 0 or state.get("run_kind") in ["revision", "human_revision"]))
+        if is_revising:
             user_text = f"""You are revising an existing CBT protocol based on reviewer and clinician feedback.
 
 PRESERVATION & TARGETED REVISION RULES:
@@ -394,10 +399,11 @@ class SupervisorAgent:
         # Dev flag FORCE_REVISION
         force_revision = (os.getenv("FORCE_REVISION", "0") == "1") and (iteration == 0)
         
-        # Fail closed check: if automated checks are unavailable, route immediately to human
-        if unverified:
-            reason = "Automated checks unavailable. Routing to human with unverified status."
-            state = add_agent_note(state, self.name, reason, priority="warning")
+        # Fail closed check: if automated checks are unavailable, halt once with "Not verified"
+        is_unavailable = unverified or (state.get("score_source") == "unavailable") or (safety_score == 0.0 and state.get("safety_score") is None)
+        if is_unavailable:
+            reason = "Not verified"
+            state = add_agent_note(state, self.name, "Automated checks unavailable. Halting once with Not verified.", priority="warning")
             return {
                 "next_agent": "HALT",
                 "status": "awaiting_approval",

@@ -82,7 +82,8 @@ export default function DocumentViewer({
   onExportPdf,
   onOpenReviewDetails,
   scrollerRef: externalScrollerRef,
-  audit
+  audit,
+  events = []
 }: DocumentViewerProps) {
   // Default to Split view on wide displays >=1536px, Rich Editor otherwise
   const [editorViewMode, setEditorViewMode] = useState<'rich' | 'markdown' | 'split'>(() => {
@@ -133,6 +134,18 @@ export default function DocumentViewer({
     const match = text.match(/^#\s+(.+)$/m)
     return match ? match[1].trim() : 'CBT Protocol Specification'
   }, [draft, editedDraft])
+
+  // Determine current draft provenance at top level before conditional returns
+  const currentProvenance = useMemo(() => {
+    const draftEvents = events?.filter((e) => e.type === 'draft') || []
+    if (draftEvents.length > 0) {
+      const lastDraft = draftEvents[draftEvents.length - 1]
+      if (lastDraft.data?.provenance) return lastDraft.data.provenance
+      if (lastDraft.agent === 'Human') return 'human_edit'
+    }
+    if (hasRevisedRun) return 'human_requested_revision'
+    return 'ai_initial'
+  }, [events, hasRevisedRun])
 
   // Real stage text from latest unmatched node_start
   const currentStageText = activeStageText || 'Starting…'
@@ -630,11 +643,10 @@ export default function DocumentViewer({
   // =========================================================================
   const displayContent = draft || editedDraft || ''
 
-  // Is this protocol edited by clinician?
+  // Is this protocol edited by clinician? ONLY if a human_edit exists or approved with edits
   const isClinicianEdited = Boolean(
     audit?.edited ||
-    hasUserEdits ||
-    (baselineDraft && displayContent && baselineDraft.trim() !== displayContent.trim())
+    events?.some((e) => e.data?.provenance === 'human_edit' || (e.type === 'draft' && e.agent === 'Human'))
   )
 
   // Can show "What changed" diff?
@@ -676,9 +688,9 @@ export default function DocumentViewer({
                     ? 'bg-[#EBF3EE] text-[#244F3B] border border-[#CDE0D4]'
                     : isSafetyCriticRunning
                     ? 'bg-[#FEF9EE] text-[#8C5921] border border-[#F7E1B5]'
-                    : !isReplay && hasUserEdits
+                    : !isReplay && currentProvenance === 'human_edit'
                     ? 'bg-[#EBF3EE] text-[#244F3B] border border-[#C2DBCB]'
-                    : hasRevisedRun
+                    : currentProvenance === 'ai_revision' || currentProvenance === 'human_requested_revision'
                     ? 'bg-[#FDF6E2] text-[#8C4A26] border border-[#F6E0B5]'
                     : 'bg-[#FAF8F5] text-[#55635C] border border-[#E8E4DA]'
                 }`}
@@ -693,9 +705,9 @@ export default function DocumentViewer({
                     <Clock className="w-3 h-3 animate-spin text-[#8C5921]" />
                     <span>Review in progress</span>
                   </>
-                ) : !isReplay && hasUserEdits ? (
+                ) : !isReplay && currentProvenance === 'human_edit' ? (
                   <span>Edited by you</span>
-                ) : hasRevisedRun ? (
+                ) : currentProvenance === 'ai_revision' || currentProvenance === 'human_requested_revision' ? (
                   <span>AI-revised</span>
                 ) : (
                   <>

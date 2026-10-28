@@ -133,6 +133,46 @@ async def draft_node(state: ProtocolState) -> ProtocolState:
             state["halted"] = True
             return state
 
+        existing_draft = (state.get("current_draft") or "").strip()
+        is_revising_run = (rkind in ["revision", "human_revision"] or len(state.get("draft_history", [])) > 0)
+        
+        # B1 & B3 Guard: If new text equals previous text, do NOT create new version
+        if is_revising_run and existing_draft and normalized_draft.strip() == existing_draft:
+            msg = "I couldn't apply that change. Try rephrasing it."
+            emit_event(
+                session_id=sid,
+                run_id=rid,
+                run_kind=rkind,
+                draft_version=state.get("current_version", 1),
+                agent="Drafter",
+                event_type="error",
+                text_content=msg,
+                severity="warning",
+                data={"code": "revision_unchanged", "message": msg, "retryable": True}
+            )
+            emit_event(
+                session_id=sid,
+                run_id=rid,
+                run_kind=rkind,
+                draft_version=state.get("current_version", 1),
+                agent="System",
+                event_type="run_end",
+                text_content=f"Run finished: {msg}",
+                severity="warning",
+                data={"status": "awaiting_approval", "error": "revision_unchanged", "message": msg}
+            )
+            state["status"] = "awaiting_approval"
+            state["halted"] = True
+            return state
+
+        # Determine provenance
+        if rkind == "human_revision":
+            provenance = "human_requested_revision"
+        elif rkind == "revision" or len(state.get("draft_history", [])) > 0:
+            provenance = "ai_revision"
+        else:
+            provenance = "ai_initial"
+
         # Update state with valid normalized draft and serving provider
         state["current_draft"] = normalized_draft
         state["drafter_provider"] = result.get("drafter_provider", "groq")
@@ -141,7 +181,7 @@ async def draft_node(state: ProtocolState) -> ProtocolState:
         state["status"] = "drafting"
         state["iteration_count"] = state.get("iteration_count", 0) + 1
 
-        state = add_draft_version(state, normalized_draft, "Drafter")
+        state = add_draft_version(state, normalized_draft, "Drafter", provenance=provenance)
         dver = state["current_version"]
         rev_summary = result.get("revision_summary", [])
 
@@ -158,6 +198,7 @@ async def draft_node(state: ProtocolState) -> ProtocolState:
             data={
                 "draft": normalized_draft,
                 "version": dver,
+                "provenance": provenance,
                 "revision_summary": rev_summary
             }
         )
@@ -483,12 +524,9 @@ async def parallel_review_node(state: ProtocolState) -> ProtocolState:
                     "metric": "safety",
                     "score": s_score,
                     "checks_passed": checks_passed,
-                    "checks_total": checks_total,
-                    "score_source": s_source,
                     "checks": s_checks,
                     "reasons": s_reasons,
-                    "unavailable": (s_source == "unavailable"),
-                    "degraded_review": s_result.get("degraded_review", False)
+                    "unavailable": (s_source == "unavailable")
                 }
             )
             return s_result
@@ -528,10 +566,8 @@ async def parallel_review_node(state: ProtocolState) -> ProtocolState:
                     "metric": "clinical",
                     "empathy_score": emp_score,
                     "clinical_score": clin_score,
-                    "score_source": c_source,
                     "dimensions": c_result.get("dimensions", {}),
-                    "unavailable": (c_source == "unavailable"),
-                    "degraded_review": c_result.get("degraded_review", False)
+                    "unavailable": (c_source == "unavailable")
                 }
             )
             return c_result

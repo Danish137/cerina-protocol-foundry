@@ -86,7 +86,7 @@ Respond ONLY with a JSON object in this exact structure:
 }}
 """
 
-    # 2. Production execution via UnifiedLLMClient with failover & zero same-family grading
+    # Production execution via UnifiedLLMClient with failover & zero same-family grading
     try:
         messages = [{"role": "user", "content": prompt}]
         llm_res = await llm_client.execute_with_failover(
@@ -191,7 +191,7 @@ Respond ONLY with a JSON object in this exact structure:
 }}
 """
 
-    # 2. Production execution via UnifiedLLMClient with failover & zero same-family grading
+    # Production execution via UnifiedLLMClient with failover & zero same-family grading
     try:
         messages = [{"role": "user", "content": prompt}]
         llm_res = await llm_client.execute_with_failover(
