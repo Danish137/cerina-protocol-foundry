@@ -100,39 +100,23 @@ Produce the updated protocol with targeted improvements:"""
         else:
             user_text = f"Create a CBT protocol for: {intent}\n\nFeedback to address from reviewers:\n{feedback_context or 'No previous feedback. Create initial draft.'}"
 
-        # 1. Backwards compatibility for unit test mock LLMs
-        if self.llm is not None and hasattr(self.llm, "ainvoke"):
-            t0 = time.time()
-            from langchain_core.prompts import ChatPromptTemplate
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", system_text),
-                ("human", user_text)
-            ])
-            messages = prompt.format_messages()
-            response = await self.llm.ainvoke(messages)
-            latency_ms = (time.time() - t0) * 1000
-            draft_content = response.content if hasattr(response, 'content') else str(response)
-            serving_model = getattr(self.llm, "model_name", "test_writer")
-            serving_provider = "test_provider"
-            finish_reason = "stop"
-        else:
-            # 2. Production streaming draft via UnifiedLLMClient (raised max_tokens to 3500 for complete drafts)
-            messages_list = [
-                {"role": "system", "content": system_text},
-                {"role": "user", "content": user_text}
-            ]
-            llm_res = await llm_client.execute_with_failover(
-                role="writer",
-                messages=messages_list,
-                temperature=0.7,
-                max_tokens=3500,
-                stream_callback=stream_callback
-            )
-            draft_content = llm_res.content
-            latency_ms = llm_res.latency_ms
-            serving_model = llm_res.model
-            serving_provider = llm_res.provider
-            finish_reason = getattr(llm_res, "finish_reason", "stop")
+        # Production streaming draft via UnifiedLLMClient (raised max_tokens to 3500 for complete drafts)
+        messages_list = [
+            {"role": "system", "content": system_text},
+            {"role": "user", "content": user_text}
+        ]
+        llm_res = await llm_client.execute_with_failover(
+            role="writer",
+            messages=messages_list,
+            temperature=0.7,
+            max_tokens=3500,
+            stream_callback=stream_callback
+        )
+        draft_content = llm_res.content
+        latency_ms = llm_res.latency_ms
+        serving_model = llm_res.model
+        serving_provider = llm_res.provider
+        finish_reason = getattr(llm_res, "finish_reason", "stop")
 
         # Record LLM call for capacity guard
         record_llm_call(
