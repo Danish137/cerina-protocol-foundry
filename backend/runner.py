@@ -433,6 +433,10 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
     async def recheck_safety():
         s_res = await safety_guardian.review(state)
         s_score = s_res.get("safety_score", 0.0)
+        s_checks = s_res.get("safety_checks", {})
+        passed_count = sum(1 for v in s_checks.values() if v) if s_checks else (5 if s_score >= 1.0 else int(round(s_score * 5)))
+        total_count = len(s_checks) if s_checks else 5
+        pct = int(round(s_score * 100))
         emit_event(
             session_id=session_id,
             run_id=run_id,
@@ -440,11 +444,13 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
             draft_version=draft_version,
             agent="SafetyGuardian",
             event_type="score",
-            text_content=f"Safety score after edits: {s_score:.2f}",
+            text_content=f"Safety checks passed: {passed_count}/{total_count} ({pct}%)",
             severity="critical" if s_score < 0.8 else "info",
             data={
                 "metric": "safety",
                 "score": s_score,
+                "passed_checks": passed_count,
+                "total_checks": total_count,
                 "checks": s_res.get("safety_checks", {}),
                 "reasons": s_res.get("safety_reasons", {})
             }

@@ -15,7 +15,7 @@ export default function DiffModal({
   originalDraft,
   editedDraft,
 }: DiffModalProps) {
-  const diffParts = Diff.diffLines(originalDraft || '', editedDraft || '')
+  const diffParts = Diff.diffWordsWithSpace(originalDraft || '', editedDraft || '')
 
   let additions = 0
   let deletions = 0
@@ -61,12 +61,12 @@ export default function DiffModal({
             </Dialog.Close>
           </div>
 
-          {/* Scrollable Diff View Container (H2: paragraph/section-level readable highlights) */}
+          {/* Scrollable Diff View Container (inline word-level readable highlights) */}
           <div
             tabIndex={0}
             role="region"
             aria-label="Clinical draft line diff"
-            className="flex-1 overflow-y-auto p-6 text-xs sm:text-sm leading-relaxed font-sans select-text focus:outline-none scrollbar-thin space-y-1"
+            className="flex-1 overflow-y-auto p-6 text-xs sm:text-sm leading-relaxed font-sans select-text focus:outline-none scrollbar-thin"
           >
             {additions === 0 && deletions === 0 ? (
               <div className="py-12 px-4 text-center space-y-2">
@@ -79,33 +79,35 @@ export default function DiffModal({
                 </p>
               </div>
             ) : (
-              diffParts.map((part, idx) => {
-                if (part.added) {
+              <div className="whitespace-pre-wrap font-sans text-[#3A4A41] leading-relaxed">
+                {diffParts.map((part, idx) => {
+                  if (part.added) {
+                    return (
+                      <span
+                        key={idx}
+                        className="bg-[#EBF3EE] text-[#1B3D2E] px-1 py-0.5 rounded font-medium border border-[#C2DBCB]"
+                      >
+                        {part.value}
+                      </span>
+                    )
+                  }
+                  if (part.removed) {
+                    return (
+                      <span
+                        key={idx}
+                        className="bg-[#FDF2F2] text-[#9B2C2C] px-1 py-0.5 rounded line-through opacity-75 border border-[#F5C6C6]"
+                      >
+                        {part.value}
+                      </span>
+                    )
+                  }
                   return (
-                    <div
-                      key={idx}
-                      className="bg-[#EBF3EE] text-[#1B3D2E] p-2 rounded-md border-l-4 border-[#244F3B] whitespace-pre-wrap font-sans"
-                    >
+                    <span key={idx}>
                       {part.value}
-                    </div>
+                    </span>
                   )
-                }
-                if (part.removed) {
-                  return (
-                    <div
-                      key={idx}
-                      className="bg-[#FDF2F2] text-[#9B2C2C] p-2 rounded-md border-l-4 border-[#E53E3E] line-through opacity-75 whitespace-pre-wrap font-sans"
-                    >
-                      {part.value}
-                    </div>
-                  )
-                }
-                return (
-                  <div key={idx} className="text-[#3A4A41] py-1 whitespace-pre-wrap font-sans">
-                    {part.value}
-                  </div>
-                )
-              })
+                })}
+              </div>
             )}
           </div>
 
