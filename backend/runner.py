@@ -246,6 +246,7 @@ async def run_protocol_workflow(
         except Exception:
             pass
 
+    run_end_emitted = False
     try:
         async for _ in workflow.astream(None, config, stream_mode="updates"):
             # Check state after each graph node update
@@ -280,6 +281,7 @@ async def run_protocol_workflow(
                     severity="info",
                     data={"status": "awaiting_approval", "draft": curr_draft, "version": dver}
                 )
+                run_end_emitted = True
 
                 # Persist to protocol_sessions DB
                 db = get_db_session()
@@ -311,6 +313,7 @@ async def run_protocol_workflow(
             severity="info",
             data={"status": "completed", "draft": curr_draft, "version": dver}
         )
+        run_end_emitted = True
 
     except Exception as e:
         logger.error(f"[RUNNER] Exception during workflow for {session_id}: {e}", exc_info=True)
@@ -340,6 +343,39 @@ async def run_protocol_workflow(
             severity="critical",
             data={"status": "error", "code": code}
         )
+        run_end_emitted = True
+    finally:
+        if not run_end_emitted:
+            try:
+                st = await workflow.aget_state(config)
+                curr_values = st.values if st else {}
+                curr_draft = curr_values.get("current_draft", "")
+                dver = curr_values.get("current_version", draft_version)
+                emit_event(
+                    session_id=session_id,
+                    run_id=run_id,
+                    run_kind=run_kind,
+                    draft_version=dver,
+                    agent="System",
+                    event_type="run_end",
+                    text_content="Run finished.",
+                    severity="info",
+                    data={"status": curr_values.get("status", "awaiting_approval"), "draft": curr_draft, "version": dver}
+                )
+            except Exception:
+                pass
+
+        # Ensure DB session status is not stuck in generating/revising
+        db = get_db_session()
+        try:
+            db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+            if db_sess and db_sess.status in ["generating", "revising"]:
+                db_sess.status = "awaiting_approval"
+                db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
 
 # --- Recheck Run (/revalidate) ---
 
@@ -410,9 +446,7 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
                 "metric": "safety",
                 "score": s_score,
                 "checks": s_res.get("safety_checks", {}),
-                "reasons": s_res.get("safety_reasons", {}),
-                "model": s_res.get("model", "judge_model"),
-                "provider": s_res.get("provider", "judge_provider")
+                "reasons": s_res.get("safety_reasons", {})
             }
         )
         emit_event(
@@ -444,9 +478,7 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
                 "metric": "clinical",
                 "empathy_score": emp,
                 "clinical_score": fid,
-                "dimensions": c_res.get("dimensions", {}),
-                "model": c_res.get("model", "judge_model"),
-                "provider": c_res.get("provider", "judge_provider")
+                "dimensions": c_res.get("dimensions", {})
             }
         )
         emit_event(
@@ -465,6 +497,19 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
     s_score = s_res.get("safety_score", 0.0)
     emp = c_res.get("empathy_score", 0.0)
     fid = c_res.get("clinical_score", 0.0)
+
+    # Add human edited draft to history with provenance="human_edit"
+    from agents.state import add_draft_version
+    state = add_draft_version(
+        state,
+        clean_draft,
+        created_by="Human",
+        provenance="human_edit",
+        safety_score=s_score,
+        empathy_score=emp,
+        clinical_score=fid
+    )
+    draft_version = state["current_version"]
 
     # Update state
     v_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
@@ -494,6 +539,22 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
         db.rollback()
     finally:
         db.close()
+
+    emit_event(
+        session_id=session_id,
+        run_id=run_id,
+        run_kind="recheck",
+        draft_version=draft_version,
+        agent="Human",
+        event_type="draft",
+        text_content=f"Draft version {draft_version} updated with clinician edits",
+        severity="info",
+        data={
+            "draft": clean_draft,
+            "version": draft_version,
+            "provenance": "human_edit"
+        }
+    )
 
     emit_event(
         session_id=session_id,

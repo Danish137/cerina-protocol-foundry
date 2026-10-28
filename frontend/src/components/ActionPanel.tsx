@@ -479,38 +479,58 @@ export default function ActionPanel({
       {/* =====================================================================
           PHASE: REVIEW (Default Review Mode)
          ===================================================================== */}
-      {phase === 'review' && (
+      {phase === 'review' && isRevisionRequested && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-[#EBF3EE] text-[#244F3B] flex items-center justify-center shrink-0 border border-[#CDE0D4]">
+              <Loader2 className="w-4 h-4 animate-spin text-[#244F3B]" />
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-semibold text-[#18221E]">
+                Revision requested · agents working
+              </h3>
+              <p className="text-[11px] text-[#55635C]">
+                Updating protocol to incorporate requested clinical adjustments…
+              </p>
+            </div>
+          </div>
+          <button
+            disabled
+            type="button"
+            className="w-full py-2 px-3 rounded-xl bg-[#FAF8F5] border border-[#E8E4DA] text-[#88978F] text-xs font-semibold cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <Clock className="w-3.5 h-3.5 text-[#88978F]" />
+            <span>Review controls unlock when ready</span>
+          </button>
+        </div>
+      )}
+
+      {phase === 'review' && !isRevisionRequested && (
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-1.5">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <h3 className="text-xs sm:text-sm font-bold text-[#18221E] truncate">
-                Your review needed
+            <div className="min-w-0">
+              <h3 className="text-xs sm:text-sm font-bold text-[#18221E]">
+                Your review is needed
               </h3>
-              <span className="text-[10px] text-[#55635C] hidden sm:inline">
-                · Locks & unlocks export
-              </span>
+              <p className="text-[11px] text-[#55635C]">
+                Approving locks this version and unlocks export.
+              </p>
             </div>
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#FBF5EB] text-[#8C5921] border border-[#EEDDC3] shrink-0">
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#FBF5EB] text-[#8C5921] border border-[#EEDDC3] shrink-0 self-start">
               ACTION REQUIRED
             </span>
           </div>
 
-          {isRevisionRequested ? (
-            <div className="p-2.5 rounded-xl bg-[#FAF8F5] border border-[#CDE0D4] flex items-center justify-center gap-2 text-xs font-semibold text-[#244F3B]">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#244F3B]" />
-              <span>Revision requested · agents working</span>
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              {/* Primary: Approve & finalize */}
-              <button
-                type="button"
-                onClick={onApprove}
-                className="w-full py-2 px-3 rounded-xl bg-[#244F3B] hover:bg-[#1B3D2E] active:scale-[0.99] text-white text-xs sm:text-sm font-semibold shadow-xs transition-all flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B] cursor-pointer"
-              >
-                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Approve & finalize</span>
-              </button>
+          <div className="space-y-1.5">
+            {/* Primary: Approve & finalize */}
+            <button
+              type="button"
+              onClick={onApprove}
+              className="w-full py-2 px-3 rounded-xl bg-[#244F3B] hover:bg-[#1B3D2E] active:scale-[0.99] text-white text-xs sm:text-sm font-semibold shadow-xs transition-all flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B] cursor-pointer"
+            >
+              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Approve & finalize</span>
+            </button>
 
               {/* Secondary 3-column subgrid: AI Details, Edit draft, Revise */}
               <div className="grid grid-cols-3 gap-1.5">
@@ -613,8 +633,7 @@ export default function ActionPanel({
                 </Popover.Root>
               </div>
             </div>
-          )}
-        </div>
+          </div>
       )}
     </motion.div>
   )

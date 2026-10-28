@@ -111,6 +111,11 @@ function AppContent() {
           setIsRevisionRequested(false)
         }
 
+        if (event.data?.code === 'revision_unchanged' || event.data?.error === 'revision_unchanged') {
+          showToast("I couldn't apply that change. Try rephrasing it.", 'info')
+          setIsRevisionRequested(false)
+        }
+
         if (event.type === 'run_end' || (event.type === 'draft' && (event.draft_version || 1) > 1)) {
           setIsRevisionRequested(false)
         }
@@ -1055,7 +1060,10 @@ function AppContent() {
                       editedDraft={editedDraft}
                       streamingTokens={state.streamingTokenBuffer}
                       draftVersion={state.draftVersion}
-                      hasUserEdits={editedDraft !== initialDraftBeforeEdit}
+                      hasUserEdits={
+                        state.events.some((e) => e.data?.provenance === 'human_edit' || (e.type === 'draft' && e.agent === 'Human')) ||
+                        (phase === 'editing' && Boolean(initialDraftBeforeEdit && editedDraft.trim() !== initialDraftBeforeEdit.trim()))
+                      }
                       initialDraftBeforeEdit={initialDraftBeforeEdit}
                       revisionSummaries={state.revisionSummaries}
                       isSafetyCriticRunning={phase === 'generating' && Boolean(state.draft)}

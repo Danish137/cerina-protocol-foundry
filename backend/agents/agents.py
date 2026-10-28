@@ -10,6 +10,7 @@ import os
 import json
 import time
 import logging
+import hashlib
 from typing import Dict, Any, List, Optional, Tuple
 from dotenv import load_dotenv
 
@@ -37,6 +38,9 @@ class DrafterAgent:
         # Open concerns from previous agent critiques
         recent_notes = [n for n in state.get("agent_notes", []) if n.get("target_agent") == "Drafter"]
         feedback_context = "\n".join([f"- [{n.get('agent_name')}]: {n.get('note')}" for n in recent_notes[-5:]])
+        feedback_bytes = (feedback_context or "").encode("utf-8")
+        feedback_hash = hashlib.sha256(feedback_bytes).hexdigest()[:16]
+        logger.info(f"[DRAFTER] Feedback section: length={len(feedback_context)}, hash={feedback_hash}")
         
         system_text = """You are a clinical psychologist specializing in Cognitive Behavioral Therapy (CBT).
 Your task is to create structured, empathetic, and evidence-based CBT exercises.
@@ -77,7 +81,8 @@ CRITICAL CONTENT RESTRICTIONS (STRICTLY ENFORCED):
 - No academic citations or authors: Do NOT include academic citations, author names, publication years, or literature references (e.g. do NOT write '(Beck et al., 1979)', 'Linehan (1993)'). Deliver clinical guidance directly without academic bibliography citations."""
 
         existing_draft = (state.get("current_draft") or "").strip()
-        if iteration > 0 and existing_draft:
+        is_revising = bool(existing_draft and (iteration > 0 or len(state.get("draft_history", [])) > 0 or state.get("run_kind") in ["revision", "human_revision"]))
+        if is_revising:
             user_text = f"""You are revising an existing CBT protocol based on reviewer and clinician feedback.
 
 PRESERVATION & TARGETED REVISION RULES:
@@ -95,23 +100,39 @@ Produce the updated protocol with targeted improvements:"""
         else:
             user_text = f"Create a CBT protocol for: {intent}\n\nFeedback to address from reviewers:\n{feedback_context or 'No previous feedback. Create initial draft.'}"
 
-        # Production streaming draft via UnifiedLLMClient (raised max_tokens to 3500 for complete drafts)
-        messages_list = [
-            {"role": "system", "content": system_text},
-            {"role": "user", "content": user_text}
-        ]
-        llm_res = await llm_client.execute_with_failover(
-            role="writer",
-            messages=messages_list,
-            temperature=0.7,
-            max_tokens=3500,
-            stream_callback=stream_callback
-        )
-        draft_content = llm_res.content
-        latency_ms = llm_res.latency_ms
-        serving_model = llm_res.model
-        serving_provider = llm_res.provider
-        finish_reason = getattr(llm_res, "finish_reason", "stop")
+        # 1. Backwards compatibility for unit test mock LLMs
+        if self.llm is not None and hasattr(self.llm, "ainvoke"):
+            t0 = time.time()
+            from langchain_core.prompts import ChatPromptTemplate
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", system_text),
+                ("human", user_text)
+            ])
+            messages = prompt.format_messages()
+            response = await self.llm.ainvoke(messages)
+            latency_ms = (time.time() - t0) * 1000
+            draft_content = response.content if hasattr(response, 'content') else str(response)
+            serving_model = getattr(self.llm, "model_name", "test_writer")
+            serving_provider = "test_provider"
+            finish_reason = "stop"
+        else:
+            # 2. Production streaming draft via UnifiedLLMClient (raised max_tokens to 3500 for complete drafts)
+            messages_list = [
+                {"role": "system", "content": system_text},
+                {"role": "user", "content": user_text}
+            ]
+            llm_res = await llm_client.execute_with_failover(
+                role="writer",
+                messages=messages_list,
+                temperature=0.7,
+                max_tokens=3500,
+                stream_callback=stream_callback
+            )
+            draft_content = llm_res.content
+            latency_ms = llm_res.latency_ms
+            serving_model = llm_res.model
+            serving_provider = llm_res.provider
+            finish_reason = getattr(llm_res, "finish_reason", "stop")
 
         # Record LLM call for capacity guard
         record_llm_call(
@@ -394,10 +415,11 @@ class SupervisorAgent:
         # Dev flag FORCE_REVISION
         force_revision = (os.getenv("FORCE_REVISION", "0") == "1") and (iteration == 0)
         
-        # Fail closed check: if automated checks are unavailable, route immediately to human
-        if unverified:
-            reason = "Automated checks unavailable. Routing to human with unverified status."
-            state = add_agent_note(state, self.name, reason, priority="warning")
+        # Fail closed check: if automated checks are unavailable, halt once with "Not verified"
+        is_unavailable = unverified or (state.get("score_source") == "unavailable") or (safety_score == 0.0 and state.get("safety_score") is None)
+        if is_unavailable:
+            reason = "Not verified"
+            state = add_agent_note(state, self.name, "Automated checks unavailable. Halting once with Not verified.", priority="warning")
             return {
                 "next_agent": "HALT",
                 "status": "awaiting_approval",

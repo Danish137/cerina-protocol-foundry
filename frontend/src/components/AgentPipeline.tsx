@@ -202,13 +202,13 @@ export default function AgentPipeline({
   // Compact horizontal strip mode (height <700px or width 1024-1535) per C1
   if (compact) {
     return (
-      <div className="h-12 w-full px-4 rounded-xl bg-white border border-[#E8E4DA] flex items-center justify-between text-xs shadow-2xs">
-        <div className="flex items-center gap-1.5 font-semibold text-[#18221E]">
+      <div className="h-12 w-full px-3 sm:px-4 rounded-xl bg-white border border-[#E8E4DA] flex items-center justify-between text-xs shadow-2xs gap-2 min-w-0 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1.5 font-semibold text-[#18221E] shrink-0">
           <span className="w-2 h-2 rounded-full bg-[#244F3B]" />
           <span>Pipeline</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {nodes.map((node, i) => (
             <React.Fragment key={node.id}>
               <div
