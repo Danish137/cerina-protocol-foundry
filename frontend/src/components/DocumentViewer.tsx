@@ -794,67 +794,7 @@ export default function DocumentViewer({
         />
       </div>
 
-      {/* User Edits Banner */}
-      {isClinicianEdited && (
-        <div className="mx-6 mt-4 rounded-xl border border-[#C2DBCB] bg-[#EBF3EE] p-3 text-xs text-[#1E3D2F] shrink-0">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-[#244F3B] shrink-0" />
-              <div>
-                <span className="font-semibold text-[#1E3D2F]">
-                  Protocol contains user edits
-                </span>
-                <span className="text-[11px] text-[#3D5C4C] ml-1.5 hidden sm:inline">
-                  · Re-checked & approved
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowDiffModal(true)}
-              className="px-2.5 py-1 rounded-md bg-white border border-[#C2DBCB] font-semibold hover:bg-[#FAF8F5] shadow-2xs cursor-pointer text-[#1E3D2F] transition-colors flex items-center gap-1 shrink-0"
-            >
-              <GitCompare className="w-3.5 h-3.5 text-[#244F3B]" />
-              <span>View what changed</span>
-            </button>
-          </div>
-        </div>
-      )}
 
-      {/* Revision Visibility Card */}
-      {(hasRevisedRun || (revisionSummaries && revisionSummaries.length > 0)) && (
-        <div className="mx-6 mt-4 rounded-xl border border-[#F6E0B5] bg-[#FDF6E2] p-3 text-xs text-[#8C4A26] shrink-0">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-[#8C4A26]">
-              {hasRevisedRun
-                ? 'Revised after your request'
-                : `Refined by AI pipeline · ${revisionSummaries.length} improvements`}
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowDiffModal(true)}
-              className="px-2.5 py-1 rounded-md bg-white border border-[#F6E0B5] font-semibold hover:bg-[#FAF8F5] shadow-2xs cursor-pointer text-[#8C4A26] transition-colors"
-            >
-              View changes
-            </button>
-          </div>
-          {revisionSummaries && revisionSummaries.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-[#F6E0B5]/60 space-y-1.5 font-sans">
-              {revisionSummaries.map((item, idx) => (
-                <div key={idx} className="flex items-start gap-1.5 text-[11px]">
-                  <span className="font-bold">•</span>
-                  <div>
-                    <span className="font-medium text-[#18221E]">{item.change}</span>
-                    {item.responding_to && (
-                      <span className="text-[#8C4A26] block text-[10px]">← responding to: {item.responding_to}</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* In-Flight Review Banner (When draft exists but critics still running) */}
       {isSafetyCriticRunning && (
