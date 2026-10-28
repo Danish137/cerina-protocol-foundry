@@ -165,11 +165,7 @@ function AppContent() {
     client.start()
   }, [showToast])
 
-  useEffect(() => {
-    if (phase === 'review' || phase === 'approved' || phase === 'idle') {
-      setIsRevisionRequested(false)
-    }
-  }, [phase])
+
 
 
   // Active stage from latest unmatched node_start
@@ -1016,7 +1012,7 @@ function AppContent() {
                 {/* =====================================================================
                     1. LEFT RAIL
                    ===================================================================== */}
-                <div className="hidden 2xl:flex w-[310px] shrink-0 flex-col gap-2.5 h-full overflow-hidden min-h-0 pr-1.5 pb-2">
+                <div className="hidden xl:flex w-[310px] shrink-0 flex-col gap-2.5 h-full overflow-hidden min-h-0 pr-1.5 pb-2">
                   <div className="shrink-0">
                     <IntentSummary
                       intent={state.userIntent || ''}

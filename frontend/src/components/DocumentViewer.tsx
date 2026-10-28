@@ -135,6 +135,18 @@ export default function DocumentViewer({
     return match ? match[1].trim() : 'CBT Protocol Specification'
   }, [draft, editedDraft])
 
+  // Determine current draft provenance at top level before conditional returns
+  const currentProvenance = useMemo(() => {
+    const draftEvents = events?.filter((e) => e.type === 'draft') || []
+    if (draftEvents.length > 0) {
+      const lastDraft = draftEvents[draftEvents.length - 1]
+      if (lastDraft.data?.provenance) return lastDraft.data.provenance
+      if (lastDraft.agent === 'Human') return 'human_edit'
+    }
+    if (hasRevisedRun) return 'human_requested_revision'
+    return 'ai_initial'
+  }, [events, hasRevisedRun])
+
   // Real stage text from latest unmatched node_start
   const currentStageText = activeStageText || 'Starting…'
 
@@ -636,18 +648,6 @@ export default function DocumentViewer({
     audit?.edited ||
     events?.some((e) => e.data?.provenance === 'human_edit' || (e.type === 'draft' && e.agent === 'Human'))
   )
-
-  // Determine current draft provenance
-  const currentProvenance = useMemo(() => {
-    const draftEvents = events?.filter((e) => e.type === 'draft') || []
-    if (draftEvents.length > 0) {
-      const lastDraft = draftEvents[draftEvents.length - 1]
-      if (lastDraft.data?.provenance) return lastDraft.data.provenance
-      if (lastDraft.agent === 'Human') return 'human_edit'
-    }
-    if (hasRevisedRun) return 'human_requested_revision'
-    return 'ai_initial'
-  }, [events, hasRevisedRun])
 
   // Can show "What changed" diff?
   const canShowDiff = Boolean(
