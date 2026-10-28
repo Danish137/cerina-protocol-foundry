@@ -2,12 +2,12 @@
 Unified LLM Client & Failover Router
 
 Features:
-- Config-driven multi-provider architecture: Groq, Google Gemini, OpenRouter.
+- Config-driven multi-provider architecture: Groq, Google Gemini.
 - Neutral environment variables (LLM_*) with backwards-compatible fallbacks (OPENAI_*).
 - Pre-flight token bucket / rate limiter to prevent 429 on Groq free tier (8,000 TPM).
 - Zero Same-Family Self-Grading Rule:
-  If Drafter was Groq, Judge must be Gemini (or OpenRouter).
-  If Drafter was Gemini, Judge must be Groq (or OpenRouter).
+  If Drafter was Groq (OpenAI), Judge must be Gemini (Google) or Qwen (Alibaba).
+  If Drafter was Gemini (Google), Judge must be Groq (Alibaba/OpenAI).
 - Low reasoning effort & strict JSON mode for gpt-oss / Groq.
 - Fallback chain: Primary -> Fallback -> Last Resort.
 - Telemetry recording: provider, model, latency, tokens, fallback flag.
@@ -52,8 +52,8 @@ LLM_JUDGE_MODEL = get_env_var("LLM_JUDGE_MODEL", "OPENAI_JUDGE_MODEL", "gemini-3
 LLM_JUDGE_FALLBACK_PROVIDER = get_env_var("LLM_JUDGE_FALLBACK_PROVIDER", default="groq")
 LLM_JUDGE_FALLBACK_MODEL = get_env_var("LLM_JUDGE_FALLBACK_MODEL", default="qwen/qwen3.8-27b")
 
-LAST_RESORT_PROVIDER = "openrouter"
-LAST_RESORT_MODEL = get_env_var("LLM_LAST_RESORT_MODEL", "OPENAI_MODEL", "openrouter/free")
+LAST_RESORT_PROVIDER = "gemini"
+LAST_RESORT_MODEL = get_env_var("LLM_LAST_RESORT_MODEL", "OPENAI_MODEL", "gemini-3.8-flash")
 
 from config import MODEL_FAMILY, MEASURED_LIMITS
 
@@ -478,110 +478,6 @@ class GeminiAdapter:
             )
 
 
-class OpenRouterAdapter:
-    """OpenRouter API Adapter (Last Resort Fallback)"""
-    def __init__(self):
-        self.api_key = (os.getenv("OPENAI_API_KEY") or os.getenv("OPENROUTER_API_KEY") or "").strip(' "\'')
-        self.base_url = os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
-
-    async def generate(
-        self,
-        model: str,
-        messages: List[Dict[str, str]],
-        temperature: float = 0.2,
-        max_tokens: int = 1500,
-        json_mode: bool = False,
-        stream_callback: Optional[Callable[[str], None]] = None
-    ) -> LLMResult:
-        if not self.api_key:
-            raise ValueError("OPENROUTER_API_KEY / OPENAI_API_KEY is not configured.")
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        payload: Dict[str, Any] = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens
-        }
-        if json_mode:
-            payload["response_format"] = {"type": "json_object"}
-
-        t0 = time.perf_counter()
-        timeout_val = 10.0 if (json_mode or max_tokens <= 1500) else 35.0
-
-        if stream_callback is not None:
-            payload["stream"] = True
-            content_chunks: List[str] = []
-            finish_reason = "stop"
-            first_token_time = None
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                async with client.stream("POST", f"{self.base_url}/chat/completions", headers=headers, json=payload) as resp:
-                    if resp.status_code != 200:
-                        err_text = await resp.aread()
-                        raise RuntimeError(f"OpenRouter stream error {resp.status_code}: {err_text.decode('utf-8', errors='ignore')}")
-                    async for line in resp.aiter_lines():
-                        if not line or not line.startswith("data: "):
-                            continue
-                        line_data = line[6:].strip()
-                        if line_data == "[DONE]":
-                            break
-                        try:
-                            chunk_obj = json.loads(line_data)
-                            choice = chunk_obj["choices"][0]
-                            delta = choice.get("delta", {}).get("content", "")
-                            if choice.get("finish_reason"):
-                                finish_reason = choice.get("finish_reason")
-                            if delta:
-                                if first_token_time is None:
-                                    first_token_time = time.perf_counter()
-                                    if (first_token_time - t0) > 6.0:
-                                        raise TimeoutError(f"Writer TTFT exceeded 6.0s threshold ({(first_token_time - t0):.2f}s)")
-                                content_chunks.append(delta)
-                                stream_callback(delta)
-                        except TimeoutError:
-                            raise
-                        except Exception:
-                            continue
-            if first_token_time is None and (time.perf_counter() - t0) > 6.0:
-                raise TimeoutError("Writer failed to return first token within 6.0s timeout")
-
-            latency_ms = round((time.perf_counter() - t0) * 1000, 2)
-            full_content = "".join(content_chunks)
-            comp_tokens = int(len(full_content) / 4)
-            return LLMResult(
-                content=full_content,
-                provider="openrouter",
-                model=model,
-                latency_ms=latency_ms,
-                prompt_tokens=600,
-                completion_tokens=comp_tokens,
-                finish_reason=finish_reason
-            )
-
-        async with httpx.AsyncClient(timeout=timeout_val) as client:
-            resp = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
-            latency_ms = round((time.perf_counter() - t0) * 1000, 2)
-            if resp.status_code != 200:
-                raise RuntimeError(f"OpenRouter API error {resp.status_code}: {resp.text}")
-
-            data = resp.json()
-            choice = data["choices"][0]
-            content = choice["message"]["content"]
-            finish_reason = choice.get("finish_reason", "stop")
-            usage = data.get("usage", {})
-            return LLMResult(
-                content=content,
-                provider="openrouter",
-                model=model,
-                latency_ms=latency_ms,
-                prompt_tokens=usage.get("prompt_tokens", 0),
-                completion_tokens=usage.get("completion_tokens", 0),
-                finish_reason=finish_reason
-            )
-
 
 # --- Unified LLM Client with Router & Zero Same-Family Grading ---
 
@@ -592,28 +488,24 @@ class UnifiedLLMClient:
     def __init__(self):
         self.groq = GroqAdapter()
         self.gemini = GeminiAdapter()
-        self.openrouter = OpenRouterAdapter()
 
     def _get_adapter(self, provider: str):
         p = provider.lower()
-        if p == "groq":
+        if p in ["groq", "openai"]:
             return self.groq
         if p in ["gemini", "google"]:
             return self.gemini
-        if p in ["openrouter", "openai"]:
-            return self.openrouter
         raise ValueError(f"Unknown LLM provider: {provider}")
 
     def resolve_writer_plan(self) -> List[Tuple[str, str]]:
         """
         Writer routing plan:
-        gpt-oss-120b (Groq) -> gemini-3.5-flash-lite -> gemini-3.1-flash-lite -> llama-3.3-70b-instruct (OpenRouter)
+        gpt-oss-120b (Groq) -> gemini-3.5-flash-lite -> gemini-3.1-flash-lite
         """
         return [
             ("groq", "openai/gpt-oss-120b"),
             ("gemini", "gemini-3.5-flash-lite"),
-            ("gemini", "gemini-3.1-flash-lite"),
-            ("openrouter", "meta-llama/llama-3.3-70b-instruct")
+            ("gemini", "gemini-3.1-flash-lite")
         ]
 
     def resolve_judge_plan(self, role: str = "judge", drafter_model: Optional[str] = None, drafter_provider: Optional[str] = None) -> List[Tuple[str, str]]:
@@ -641,21 +533,19 @@ class UnifiedLLMClient:
                 ("groq", "qwen/qwen3.8-27b"),
                 ("gemini", "gemini-3.5-flash-lite"),
                 ("gemini", "gemini-3.1-flash-lite"),
-                ("gemini", "gemini-3.8-flash"),
-                ("openrouter", "meta-llama/llama-3.3-70b-instruct")
+                ("gemini", "gemini-3.8-flash")
             ]
         elif role == "critic":
             raw_plan = [
                 ("gemini", "gemini-3.5-flash-lite"),
                 ("gemini", "gemini-3.1-flash-lite"),
-                ("openrouter", "meta-llama/llama-3.3-70b-instruct"),
+                ("groq", "qwen/qwen3.8-27b"),
                 ("gemini", "gemini-3.8-flash")
             ]
         else:
             raw_plan = [
                 ("groq", "qwen/qwen3.8-27b"),
-                ("gemini", "gemini-3.5-flash-lite"),
-                ("openrouter", "meta-llama/llama-3.3-70b-instruct")
+                ("gemini", "gemini-3.5-flash-lite")
             ]
 
         # Enforce Zero Same-Family Rule: A judge may NEVER share a family with the writer
@@ -669,9 +559,9 @@ class UnifiedLLMClient:
         # Guarantee non-empty plan across families if primary filtered
         if not filtered_plan:
             if drafter_family == "google":
-                filtered_plan = [("openrouter", "meta-llama/llama-3.3-70b-instruct"), ("groq", "qwen/qwen3.8-27b")] if role == "critic" else [("groq", "qwen/qwen3.8-27b"), ("openrouter", "meta-llama/llama-3.3-70b-instruct")]
+                filtered_plan = [("groq", "qwen/qwen3.8-27b")]
             else:
-                filtered_plan = [("gemini", "gemini-3.5-flash-lite"), ("openrouter", "meta-llama/llama-3.3-70b-instruct")]
+                filtered_plan = [("gemini", "gemini-3.5-flash-lite")]
 
         return filtered_plan
 
@@ -801,8 +691,6 @@ Consistent small steps create lasting behavioral change. If symptoms worsen, ple
                     stream_callback=stream_callback
                 )
                 res.fallback_used = is_fallback
-                if "llama" in model.lower() and role in ["safety", "critic", "judge"]:
-                    res.degraded = True
                 return res
             except Exception as e:
                 last_error = e

@@ -121,7 +121,6 @@ flowchart TD
 - Provider API keys:
   - `GROQ_API_KEY` (Free tier from [console.groq.com](https://console.groq.com))
   - `GOOGLE_API_KEY` (Free tier from [aistudio.google.com](https://aistudio.google.com))
-  - `OPENROUTER_API_KEY` (*Optional fallback* from [openrouter.ai](https://openrouter.ai))
 
 ---
 
@@ -152,7 +151,6 @@ flowchart TD
    ```env
    GROQ_API_KEY=gsk_your_groq_api_key_here
    GOOGLE_API_KEY=AIzaSy_your_google_api_key_here
-   OPENROUTER_API_KEY=sk-or-v1_your_openrouter_api_key_here
 
    # Optional defaults
    HOST=0.0.0.0

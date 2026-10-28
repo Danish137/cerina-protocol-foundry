@@ -78,7 +78,6 @@ async def lifespan(app: FastAPI):
         "DATABASE_URL",
         "GROQ_API_KEY",
         "GOOGLE_API_KEY",
-        "OPENROUTER_API_KEY",
         "CORS_ORIGINS",
         "SESSION_TTL_DAYS",
         "DAILY_LLM_CALL_BUDGET",

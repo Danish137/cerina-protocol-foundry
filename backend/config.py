@@ -19,13 +19,7 @@ MODEL_FAMILY = {
     "gemini-3.8-flash": "google",
     
     # Alibaba family
-    "qwen/qwen3.8-27b": "alibaba",
-    
-    # NVIDIA family
-    "nvidia/nemotron-3-super-120b-a12b": "nvidia",
-    
-    # Meta family
-    "meta-llama/llama-3.3-70b-instruct": "meta"
+    "qwen/qwen3.8-27b": "alibaba"
 }
 
 # Measured limits from AI Studio and Groq Console (2026-10-14)
