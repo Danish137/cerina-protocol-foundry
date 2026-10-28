@@ -131,22 +131,48 @@ class TokenRateLimiter:
             self._groq_token_history = [(t, count) for (t, count) in self._groq_token_history if t > cutoff]
             current_window_tokens = sum(count for _, count in self._groq_token_history)
             if current_window_tokens + estimated_tokens > 7500:
-                logger.warning(
-                    f"[RATE LIMIT] Groq sliding TPM budget near capacity ({current_window_tokens} + {estimated_tokens} > 7500 / 8000). "
-                    "Preemptively failing over to prevent 429."
-                )
-                return False
+                has_gemini = bool((os.getenv("GOOGLE_API_KEY") or "").strip())
+                if not has_gemini and self._groq_token_history:
+                    oldest_t, _ = self._groq_token_history[0]
+                    wait_time = max(0.5, (oldest_t + 61.0) - now)
+                    if wait_time <= 15.0:
+                        logger.info(f"[RATE LIMIT] Groq sliding window near capacity ({current_window_tokens}). Pausing {wait_time:.1f}s for budget decay...")
+                        await asyncio.sleep(wait_time)
+                        now = time.time()
+                        cutoff = now - 60.0
+                        self._groq_token_history = [(t, count) for (t, count) in self._groq_token_history if t > cutoff]
+                        current_window_tokens = sum(count for _, count in self._groq_token_history)
+
+                if current_window_tokens + estimated_tokens > 7500:
+                    logger.warning(
+                        f"[RATE LIMIT] Groq sliding TPM budget near capacity ({current_window_tokens} + {estimated_tokens} > 7500 / 8000). "
+                        "Preemptively failing over to prevent 429."
+                    )
+                    return False
 
             # 4. Qwen output TPM rate limiting check
             if "qwen" in model.lower():
                 self._qwen_output_history = [(t, count) for (t, count) in self._qwen_output_history if t > cutoff]
                 qwen_otpm = sum(count for _, count in self._qwen_output_history)
                 if qwen_otpm + estimated_output_tokens > 850:
-                    logger.warning(
-                        f"[RATE LIMIT] Qwen output TPM near 1,000 cap ({qwen_otpm} + {estimated_output_tokens} > 850). "
-                        "Preemptively failing over to prevent 429."
-                    )
-                    return False
+                    has_gemini = bool((os.getenv("GOOGLE_API_KEY") or "").strip())
+                    if not has_gemini and self._qwen_output_history:
+                        oldest_ot, _ = self._qwen_output_history[0]
+                        wait_time = max(0.5, (oldest_ot + 61.0) - now)
+                        if wait_time <= 15.0:
+                            logger.info(f"[RATE LIMIT] Qwen OTPM near cap ({qwen_otpm}). Pausing {wait_time:.1f}s for budget decay...")
+                            await asyncio.sleep(wait_time)
+                            now = time.time()
+                            cutoff = now - 60.0
+                            self._qwen_output_history = [(t, count) for (t, count) in self._qwen_output_history if t > cutoff]
+                            qwen_otpm = sum(count for _, count in self._qwen_output_history)
+
+                    if qwen_otpm + estimated_output_tokens > 850:
+                        logger.warning(
+                            f"[RATE LIMIT] Qwen output TPM near 1,000 cap ({qwen_otpm} + {estimated_output_tokens} > 850). "
+                            "Preemptively failing over to prevent 429."
+                        )
+                        return False
 
             return True
 

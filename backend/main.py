@@ -14,7 +14,7 @@ import asyncio
 import hashlib
 import logging
 from datetime import datetime, timezone
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, AsyncGenerator
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
