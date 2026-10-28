@@ -6,24 +6,27 @@ An autonomous multi-agent clinical drafting system that designs, audits, and ite
 
 ## Architecture Diagram
 
+<details>
+<summary><b>📐 View System Architecture Diagram</b> (click to expand)</summary>
+
 ```mermaid
-flowchart TD
+flowchart LR
     subgraph Clients["Client Layer"]
-        UI["React 18 Dashboard\n(Human-in-the-Loop)"]
-        MCP["MCP Protocol Client\n(Claude Desktop / Cursor)"]
+        UI["React 18 Dashboard<br/>(Human-in-the-Loop)"]
+        MCP["MCP Client<br/>(Claude Desktop / Cursor)"]
     end
 
     subgraph Backend["FastAPI Backend (Port 8000)"]
-        API["REST & SSE Streaming Endpoints\n/api/protocols/create | /stream | /approve"]
-        Router["Resilient LLM Router\n(Zero Same-Family Rule & Rate Limiter)"]
+        API["REST & SSE Endpoints<br/>/create | /stream | /approve"]
+        Router["Resilient LLM Router<br/>(Zero Same-Family Rule)"]
     end
 
-    subgraph LangGraph["LangGraph Multi-Agent Workflow"]
-        Drafter["Drafter Agent\n(7 Mandatory Sections)"]
-        Safety["Safety Guardian\n(Crisis & Medication Audit)"]
-        Critic["Clinical Critic\n(Warmth & Rubrics)"]
-        Supervisor["Supervisor Evaluator\n(Completeness & Approval Gate)"]
-        State[("Shared Blackboard State\n(SQLite WAL Checkpointer)")]
+    subgraph LangGraph["LangGraph Workflow"]
+        Drafter["Drafter Agent<br/>(7 Mandatory Sections)"]
+        Safety["Safety Guardian<br/>(Crisis & Medication Audit)"]
+        Critic["Clinical Critic<br/>(Warmth & Rubrics)"]
+        Supervisor["Supervisor Evaluator<br/>(Approval Gate)"]
+        State[("Blackboard State<br/>(SQLite WAL)")]
     end
 
     UI -->|HTTP / SSE| API
@@ -37,62 +40,10 @@ flowchart TD
     Supervisor -->|Awaiting Approval| UI
 ```
 
-### System Architecture Overview
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                          USER INTERFACE LAYER                          │
-├──────────────────────────────┬─────────────────────────────────────────┤
-│   React 18 / Vite Dashboard  │               MCP Client                │
-│    (Human-in-the-Loop Review)│          (Machine-to-Machine)           │
-│   - Real-time SSE streaming  │     - Claude Desktop / Cursor IDE       │
-│   - Split-screen rich editor │     - Programmatic tool execution       │
-│   - Score rubrics & metrics  │     - Autonomous protocol generation    │
-└──────────────┬───────────────┴────────────────────┬────────────────────┘
-               │                                    │
-               │ HTTP / SSE                         │ JSON-RPC (stdio)
-               │                                    │
-┌──────────────▼────────────────────────────────────▼────────────────────┐
-│                            FASTAPI BACKEND                             │
-│   - Endpoints: /create, /{id}/stream, /{id}/state, /{id}/approve       │
-│   - Resilient LLM Router: Pre-flight rate limits & failover            │
-│   - Zero Same-Family Rule: Drafter model never grades its own draft    │
-└──────────────────────────────┬─────────────────────────────────────────┘
-                               │
-                   ┌───────────▼───────────┐
-                   │   LANGGRAPH WORKFLOW  │
-                   │  (Supervisor-Worker)  │
-                   └───────────┬───────────┘
-                               │
-           ┌───────────────────┼───────────────────┐
-           │                   │                   │
-   ┌───────▼────────┐  ┌───────▼────────┐  ┌───────▼────────┐
-   │  DRAFTER       │  │ SAFETY         │  │ CLINICAL       │
-   │  AGENT         │  │ GUARDIAN       │  │ CRITIC         │
-   │ - 7 Sections   │  │ - Medication   │  │ - CBT Fidelity │
-   │ - Revisions    │  │ - Crisis Lines │  │ - Warmth/Tone  │
-   │ - Token Stream │  │ - 1-5 Rubric   │  │ - Verbatim Cit.│
-   └───────┬────────┘  └───────┬────────┘  └───────┬────────┘
-           │                   │                   │
-           └───────────────────┼───────────────────┘
-                               │
-                       ┌───────▼────────┐
-                       │  SUPERVISOR    │
-                       │  AGENT         │
-                       │ - Completeness │
-                       │ - 3 Iterations │
-                       │ - Approval Gate│
-                       └───────┬────────┘
-                               │
-                   ┌───────────▼───────────┐
-                   │  SHARED STATE (DB)    │
-                   │  - Blackboard State   │
-                   │  - SQLite WAL Journal │
-                   │  - Audit History      │
-                   └───────────────────────┘
-```
+</details>
 
 ---
+
 
 ## Key Agent Roles & Workflow
 
