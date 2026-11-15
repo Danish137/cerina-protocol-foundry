@@ -93,7 +93,7 @@ async def draft_node(state: ProtocolState) -> ProtocolState:
         draft_version=dver,
         agent="Drafter",
         event_type="node_start",
-        text_content="Synthesizing structured CBT protocol...",
+        text_content="Synthesizing structured CBT exercise...",
         severity="info",
         data={"node": "draft"}
     )
@@ -211,7 +211,7 @@ async def draft_node(state: ProtocolState) -> ProtocolState:
             draft_version=dver,
             agent="Drafter",
             event_type="message",
-            text_content=f"Draft version {dver} generated with structured clinical hierarchy",
+            text_content=f"Draft version {dver} generated with structured steps",
             severity="info",
             to_agent="SafetyGuardian",
             data={"draft": normalized_draft, "version": dver, "revision_summary": rev_summary}
@@ -371,7 +371,7 @@ async def clinical_critique_node(state: ProtocolState) -> ProtocolState:
             draft_version=dver,
             agent="ClinicalCritic",
             event_type="score",
-            text_content=f"Empathy: {emp_score:.1f}/5, Clinical fidelity: {clin_score:.1f}/5",
+            text_content=f"Empathy: {emp_score:.1f}/5, Exercise quality: {clin_score:.1f}/5",
             severity="warning" if (emp_score < 3.5 or clin_score < 3.5) else "info",
             data={
                 "metric": "clinical",
@@ -414,7 +414,7 @@ async def supervisor_node(state: ProtocolState) -> ProtocolState:
         draft_version=dver,
         agent="Supervisor",
         event_type="node_start",
-        text_content="Evaluating clinical rubrics & determining routing...",
+        text_content="Evaluating quality checks & determining routing...",
         severity="info",
         data={"node": "supervisor"}
     )
@@ -560,7 +560,7 @@ async def parallel_review_node(state: ProtocolState) -> ProtocolState:
                 draft_version=dver,
                 agent="ClinicalCritic",
                 event_type="score",
-                text_content=f"Empathy: {emp_score:.1f}/5, Clinical fidelity: {clin_score:.1f}/5",
+                text_content=f"Empathy: {emp_score:.1f}/5, Exercise quality: {clin_score:.1f}/5",
                 severity="warning" if (emp_score < 3.5 or clin_score < 3.5) else "info",
                 data={
                     "metric": "clinical",

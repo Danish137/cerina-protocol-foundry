@@ -266,7 +266,7 @@ async def run_protocol_workflow(
                     draft_version=dver,
                     agent="System",
                     event_type="checkpoint",
-                    text_content="Protocol paused for clinician review and sign-off.",
+                    text_content="Your turn: read it, change anything, then approve",
                     severity="info",
                     data={"status": "awaiting_approval", "draft": curr_draft, "version": dver}
                 )
@@ -402,13 +402,13 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
         draft_version=draft_version,
         agent="Human",
         event_type="human_action",
-        text_content="Clinician triggered re-check on edited draft",
+        text_content="Re-check triggered on edited draft",
         severity="info"
     )
 
     state["current_draft"] = clean_draft
     
-    # Run Safety Guardian and Clinical Critic concurrently on edited draft (Amendment 6)
+    # Run Safety Check and Quality Reviewer concurrently on edited draft (Amendment 6)
     emit_event(
         session_id=session_id,
         run_id=run_id,
@@ -416,7 +416,7 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
         draft_version=draft_version,
         agent="SafetyGuardian",
         event_type="node_start",
-        text_content="Safety Guardian reviewing edited draft",
+        text_content="Safety check reviewing edited draft",
         severity="info"
     )
     emit_event(
@@ -426,7 +426,7 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
         draft_version=draft_version,
         agent="ClinicalCritic",
         event_type="node_start",
-        text_content="Clinical Critic reviewing edited draft",
+        text_content="Quality reviewer evaluating edited draft",
         severity="info"
     )
 
@@ -478,7 +478,7 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
             draft_version=draft_version,
             agent="ClinicalCritic",
             event_type="score",
-            text_content=f"Empathy: {emp:.1f}/5, Clinical fidelity: {fid:.1f}/5",
+            text_content=f"Empathy: {emp:.1f}/5, Exercise quality: {fid:.1f}/5",
             severity="info",
             data={
                 "metric": "clinical",
@@ -494,7 +494,7 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
             draft_version=draft_version,
             agent="ClinicalCritic",
             event_type="node_end",
-            text_content="Clinical critique complete",
+            text_content="Quality review complete",
             severity="info"
         )
         return c_res
@@ -553,7 +553,7 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
         draft_version=draft_version,
         agent="Human",
         event_type="draft",
-        text_content=f"Draft version {draft_version} updated with clinician edits",
+        text_content=f"Draft version {draft_version} updated with your edits",
         severity="info",
         data={
             "draft": clean_draft,

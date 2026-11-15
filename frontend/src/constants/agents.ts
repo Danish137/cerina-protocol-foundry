@@ -12,40 +12,40 @@ export interface AgentMeta {
 
 export const AGENTS: Record<string, AgentMeta> = {
   Drafter: {
-    displayName: 'Protocol Drafter',
+    displayName: 'Exercise Drafter',
     shortName: 'Drafter',
-    role: 'CBT Protocol Architect',
-    description: 'Designs evidence-based cognitive and behavioral exercise structures'
+    role: 'Exercise Drafter',
+    description: 'Designs step-by-step cognitive and behavioral exercises'
   },
   SafetyGuardian: {
-    displayName: 'Safety Guardian',
+    displayName: 'Safety Check',
     shortName: 'Safety',
-    role: 'Contraindication & Risk Audit',
-    description: 'Screens protocols against 5 clinical safety rubrics and medical boundaries'
+    role: 'Safety & Risk Check',
+    description: 'Screens exercises against 5 safety checks and health boundaries'
   },
   ClinicalCritic: {
-    displayName: 'Clinical Critic',
-    shortName: 'Critic',
-    role: 'CBT Fidelity & Empathy',
-    description: 'Evaluates therapeutic warmth, collaborative empiricism, and clarity'
+    displayName: 'Quality Reviewer',
+    shortName: 'Quality',
+    role: 'Quality & Clarity',
+    description: 'Evaluates supportive tone, clarity, and practical guidance'
   },
   Supervisor: {
     displayName: 'Supervisor',
     shortName: 'Supervisor',
     role: 'Quality & Routing Decision',
-    description: 'Synthesizes rubric scores to determine human review routing'
+    description: 'Synthesizes review scores to prepare exercise for your review'
   },
   Human: {
-    displayName: 'Reviewer (You)',
+    displayName: 'You',
     shortName: 'You',
-    role: 'Final Verification & Approval',
-    description: 'Providing final sign-off and practice tailoring'
+    role: 'Review & Approval',
+    description: 'Read, modify anything you like, and approve'
   },
   System: {
-    displayName: 'Cerina Foundry',
+    displayName: 'Cerina',
     shortName: 'System',
     role: 'Orchestrator',
-    description: 'Manages multi-agent workflow checkpoints and execution lifecycle'
+    description: 'Manages exercise workflow checkpoints and review pipeline'
   }
 }
 
@@ -60,14 +60,14 @@ export function getAgentShortName(agentKey?: string): string {
 }
 
 export const STATUS_LABELS: Record<string, string> = {
-  idle: 'Ready to design',
-  generating: 'Generating protocol',
-  review: 'Awaiting your review',
-  awaiting_approval: 'Awaiting your review',
-  editing: 'Editing draft',
+  idle: 'Ready',
+  generating: 'Creating exercise',
+  review: 'Ready for your review',
+  awaiting_approval: 'Ready for your review',
+  editing: "You're editing",
   approving: 'Finalizing approval',
-  approved: 'Approved & Locked',
-  care_panel: 'Crisis resources active',
+  approved: 'Approved & Saved',
+  care_panel: 'Support resources active',
   quota_exhausted: 'Daily quota reached',
   error: 'Review needed'
 }

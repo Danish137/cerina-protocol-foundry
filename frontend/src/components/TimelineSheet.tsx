@@ -120,7 +120,7 @@ export default function TimelineSheet({
               <History className="w-5 h-5 text-[#244F3B]" />
               <div>
                 <Dialog.Title className="text-base font-serif font-bold text-[#18221E]">
-                  Protocol Execution Timeline
+                  Exercise Timeline
                 </Dialog.Title>
                 <p className="text-xs text-[#5C6A62]">Complete chronological activity log</p>
               </div>
@@ -167,12 +167,12 @@ export default function TimelineSheet({
                 onChange={(e) => setAgentFilter(e.target.value)}
                 className="px-2 py-1 rounded-md border border-[#E8E4DA] bg-[#FAF8F5] text-xs font-medium focus:outline-none"
               >
-                <option value="all">All Agents</option>
-                <option value="Drafter">Protocol Drafter</option>
-                <option value="SafetyGuardian">Safety Guardian</option>
-                <option value="ClinicalCritic">Clinical Critic</option>
+                <option value="all">All Reviewers</option>
+                <option value="Drafter">Exercise Drafter</option>
+                <option value="SafetyGuardian">Safety Check</option>
+                <option value="ClinicalCritic">Quality Reviewer</option>
                 <option value="Supervisor">Supervisor</option>
-                <option value="Human">Reviewer (You)</option>
+                <option value="Human">You</option>
               </select>
             </div>
           </div>
@@ -249,9 +249,9 @@ export default function TimelineSheet({
                                   <div className="flex items-center justify-between text-[11px]">
                                     <div className="flex items-center gap-1.5 font-semibold text-[#18221E]">
                                       <span className="font-mono text-[#5C6A62] text-[10px]">#{evt.seq}</span>
-                                      <span>{evt.agent === 'SafetyGuardian' ? 'Safety Guardian' : evt.agent === 'ClinicalCritic' ? 'Clinical Critic' : evt.agent}</span>
+                                      <span>{evt.agent === 'SafetyGuardian' ? 'Safety Check' : evt.agent === 'ClinicalCritic' ? 'Quality Reviewer' : evt.agent === 'Drafter' ? 'Exercise Drafter' : evt.agent === 'Human' ? 'You' : evt.agent}</span>
                                       {evt.to_agent && (
-                                        <span className="text-[#5C6A62]">→ {evt.to_agent === 'SafetyGuardian' ? 'Safety Guardian' : evt.to_agent === 'ClinicalCritic' ? 'Clinical Critic' : evt.to_agent}</span>
+                                        <span className="text-[#5C6A62]">→ {evt.to_agent === 'SafetyGuardian' ? 'Safety Check' : evt.to_agent === 'ClinicalCritic' ? 'Quality Reviewer' : evt.to_agent === 'Drafter' ? 'Exercise Drafter' : evt.to_agent === 'Human' ? 'You' : evt.to_agent}</span>
                                       )}
                                       <span className="font-normal text-[10px] text-[#5C6A62]">
                                         ({evt.type})
