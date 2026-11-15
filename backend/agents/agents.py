@@ -274,7 +274,7 @@ class ClinicalCriticAgent:
             state = add_agent_note(
                 state,
                 self.name,
-                f"Clinical critique passed. Empathy: {empathy_score:.1f}/5, Fidelity: {clinical_score:.1f}/5",
+                f"Quality review passed. Empathy: {empathy_score:.1f}/5, Quality: {clinical_score:.1f}/5",
                 priority="info"
             )
             
@@ -427,7 +427,7 @@ class SupervisorAgent:
 
         # Check max iterations
         if iteration >= max_iterations:
-            reason = f"Max iterations ({max_iterations}) reached. Halting for human sign-off."
+            reason = f"Max iterations ({max_iterations}) reached. Halting for your review."
             state = add_agent_note(state, self.name, reason, priority="warning")
             return {
                 "next_agent": "HALT",
@@ -454,7 +454,7 @@ class SupervisorAgent:
         if meets_safety and meets_empathy and meets_clinical:
             checks_passed = sum(1 for v in state.get("safety_checks", {}).values() if v)
             checks_total = max(len(state.get("safety_checks", {})), 5)
-            reason = f"Empathy {empathy_score:.1f}/5 \u2265 {thresholds['min_empathy_score']}, Fidelity {clinical_score:.1f}/5 \u2265 {thresholds['min_clinical_score']}, Safety {checks_passed}/{checks_total} \u2192 human review"
+            reason = f"Empathy {empathy_score:.1f}/5 \u2265 {thresholds['min_empathy_score']}, Quality {clinical_score:.1f}/5 \u2265 {thresholds['min_clinical_score']}, Safety {checks_passed}/{checks_total} \u2192 your review"
             state = add_agent_note(state, self.name, reason, priority="info")
             return {
                 "next_agent": "HALT",

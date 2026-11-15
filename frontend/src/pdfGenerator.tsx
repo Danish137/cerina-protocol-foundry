@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
 
 export function generatePdfFilename(draftContent: string): string {
   const titleMatch = draftContent.match(/^#+\s*(.+)$/m)
-  const rawTitle = titleMatch ? titleMatch[1] : 'clinical-cbt-protocol'
+  const rawTitle = titleMatch ? titleMatch[1] : 'personalised-exercise'
 
   const stopWords = new Set([
     'a', 'an', 'the', 'and', 'or', 'for', 'of', 'with', 'in', 'to', 'on', 'at',
@@ -180,7 +180,7 @@ export function generatePdfFilename(draftContent: string): string {
     .filter((w) => w.length > 1 && !stopWords.has(w))
     .slice(0, 5)
 
-  const slug = words.length > 0 ? words.join('-') : 'protocol'
+  const slug = words.length > 0 ? words.join('-') : 'exercise'
   const dateStr = new Date().toISOString().split('T')[0]
 
   return `cerina-${slug}-${dateStr}.pdf`
@@ -384,8 +384,8 @@ export function ClinicalPdfDoc({
         {/* Header Wordmark */}
         <View style={styles.headerBanner}>
           <View>
-            <Text style={styles.brandTitle}>CERINA PROTOCOL FOUNDRY</Text>
-            <Text style={styles.brandSubtitle}>Clinical CBT Protocol Specification</Text>
+            <Text style={styles.brandTitle}>CERINA</Text>
+            <Text style={styles.brandSubtitle}>Personalised Self-Help Exercise</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={{ fontSize: 8, color: (!audit?.edited || (audit?.rechecked && audit?.validated_hash === contentHash)) ? '#244F3B' : '#B45309', fontWeight: 'bold' }}>
@@ -404,13 +404,13 @@ export function ClinicalPdfDoc({
           <View style={styles.auditRow}>
             <Text style={styles.auditLabel}>Approval Status:</Text>
             <Text style={[styles.auditValue, { flex: 1, paddingLeft: 6 }]}>
-              Approved by you on {formatPdfDateTime(audit?.approved_at) || approvedDate} · AI-reviewed · not clinically validated
+              Approved by you on {formatPdfDateTime(audit?.approved_at) || approvedDate} · AI-reviewed · not therapy or medical advice
             </Text>
           </View>
 
           {clinicalGoal && (
             <View style={styles.auditRow}>
-              <Text style={styles.auditLabel}>Clinical Goal:</Text>
+              <Text style={styles.auditLabel}>Situation / Goal:</Text>
               <Text style={[styles.auditValue, { flex: 1, paddingLeft: 6 }]}>{clinicalGoal}</Text>
             </View>
           )}
@@ -420,13 +420,13 @@ export function ClinicalPdfDoc({
             <Text style={[styles.auditValue, { marginRight: 10 }]}>
               {safetyScore !== undefined ? `${Math.round(safetyScore * 100)}% (5/5 checks passed)` : 'Automated check unavailable'}
             </Text>
-            <Text style={styles.auditLabel}>Empathy & Alliance:</Text>
+            <Text style={styles.auditLabel}>Empathy & Warmth:</Text>
             <Text style={[styles.auditValue, { marginRight: 10 }]}>
-              {empathyScore !== undefined ? `${empathyScore.toFixed(1)} / 5 (req: 3.5)` : 'Automated check unavailable'}
+              {empathyScore !== undefined ? `${empathyScore.toFixed(1)} / 5 (target: 3.5)` : 'Automated check unavailable'}
             </Text>
-            <Text style={styles.auditLabel}>CBT Fidelity:</Text>
+            <Text style={styles.auditLabel}>Exercise Quality:</Text>
             <Text style={styles.auditValue}>
-              {clinicalScore !== undefined ? `${clinicalScore.toFixed(1)} / 5 (req: 3.5)` : 'Automated check unavailable'}
+              {clinicalScore !== undefined ? `${clinicalScore.toFixed(1)} / 5 (target: 3.5)` : 'Automated check unavailable'}
             </Text>
           </View>
 
@@ -500,7 +500,7 @@ export function ClinicalPdfDoc({
 
         {/* Running Footer on Every Page (Phase E) */}
         <View style={styles.footer} fixed>
-          <Text>Cerina Clinical Protocol Specification | Not a substitute for professional clinical care.</Text>
+          <Text>Cerina Personalised Exercise | For personal practice; not therapy or medical advice.</Text>
           <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
         </View>
       </Page>
@@ -510,7 +510,7 @@ export function ClinicalPdfDoc({
         <Page size="A4" style={styles.page}>
           <View style={styles.headerBanner}>
             <View>
-              <Text style={styles.brandTitle}>CERINA PROTOCOL FOUNDRY</Text>
+              <Text style={styles.brandTitle}>CERINA</Text>
               <Text style={styles.brandSubtitle}>Appendix: Independent Review Details</Text>
             </View>
             <Text style={{ fontSize: 8, color: '#55635C' }}>Verification Audit</Text>
@@ -520,26 +520,26 @@ export function ClinicalPdfDoc({
             Independent AI Review & Safety Audit
           </Text>
           <Text style={{ fontSize: 9, color: '#2C3B34', marginBottom: 14, lineHeight: 1.5 }}>
-            This protocol was synthesized by an AI model and evaluated by two independent AI reviewers – one auditing clinical safety contraindications and another evaluating therapeutic empathy, validation, and CBT cognitive/behavioral fidelity.
+            This exercise was synthesized by an AI model and evaluated by two independent AI reviewers – one auditing safety and medical boundaries and another evaluating supportive tone, validation, and exercise clarity.
           </Text>
 
           {/* Safety Criteria */}
           <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#18221E', marginBottom: 6 }}>
-            Safety Rubric Criteria (5 Core Checks)
+            Safety Criteria (5 Core Checks)
           </Text>
           <View style={styles.auditBox}>
-            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>• Self-Harm & Crisis Protocol Handled Safely – Passed</Text>
+            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>• Self-Harm & Crisis Handled Safely – Passed</Text>
             <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>• No Prescription Medication or Dosing Advice – Passed</Text>
-            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>• No Diagnostic Labeling of User – Passed</Text>
-            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>• No Hazardous or Contraindicated Exposure – Passed</Text>
-            <Text style={{ fontSize: 8.5, color: '#18221E' }}>• Professional Referral Language Included – Passed</Text>
+            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>• No Diagnostic Labeling – Passed</Text>
+            <Text style={{ fontSize: 8.5, marginBottom: 4, color: '#18221E' }}>• No Hazardous or Contraindicated Activities – Passed</Text>
+            <Text style={{ fontSize: 8.5, color: '#18221E' }}>• Professional Support Resources Included – Passed</Text>
           </View>
 
           {/* Clinical Quality Rubric: All 5 Critic Dimensions or None */}
           {hasAll5Dimensions && criticDimensions && (
             <>
               <Text style={{ fontSize: 10.5, fontWeight: 'bold', color: '#18221E', marginTop: 8, marginBottom: 5 }}>
-                Clinical Quality Dimensions (All 5 Assessed) & Verbatim Evidence
+                Quality Dimensions (All 5 Assessed) & Verbatim Evidence
               </Text>
               <View style={styles.auditBox}>
                 <View style={styles.auditRow}>
@@ -551,11 +551,11 @@ export function ClinicalPdfDoc({
                 <View style={styles.auditRow}>
                   <Text style={styles.auditLabel}>3. Clarity & Concreteness:</Text>
                   <Text style={styles.auditValue}>{criticDimensions.clarity.score.toFixed(1)} / 5.0</Text>
-                  <Text style={styles.auditLabel}>4. CBT Fidelity:</Text>
+                  <Text style={styles.auditLabel}>4. Exercise Fidelity:</Text>
                   <Text style={styles.auditValue}>{criticDimensions.cbt_fidelity.score.toFixed(1)} / 5.0</Text>
                 </View>
                 <View style={styles.auditRow}>
-                  <Text style={styles.auditLabel}>5. Protocol Structure:</Text>
+                  <Text style={styles.auditLabel}>5. Exercise Structure:</Text>
                   <Text style={styles.auditValue}>{criticDimensions.structure.score.toFixed(1)} / 5.0</Text>
                 </View>
 
@@ -563,7 +563,7 @@ export function ClinicalPdfDoc({
                 {survivingQuotes.length > 0 && (
                   <View style={{ marginTop: 6, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: '#E8E4DA' }}>
                     <Text style={{ fontSize: 7.5, color: '#55635C', fontStyle: 'italic', marginBottom: 3 }}>
-                      Verbatim Critic Evidence (Verified Draft Substrings):
+                      Verbatim Evidence (Verified Draft Substrings):
                     </Text>
                     {survivingQuotes.map((q, qIdx) => (
                       <Text key={qIdx} style={{ fontSize: 7.5, color: '#18221E', marginBottom: 2 }}>
@@ -588,7 +588,7 @@ export function ClinicalPdfDoc({
             <View style={styles.auditRow}>
               <Text style={styles.auditLabel}>Approval Status:</Text>
               <Text style={[styles.auditValue, { flex: 1, paddingLeft: 6 }]}>
-                Approved by you on {formatPdfDateTime(audit?.approved_at) || approvedDate} · AI-reviewed · not clinically validated
+                Approved by you on {formatPdfDateTime(audit?.approved_at) || approvedDate} · AI-reviewed · not therapy or medical advice
               </Text>
             </View>
           </View>
@@ -596,12 +596,12 @@ export function ClinicalPdfDoc({
           {/* Educational Demo Disclaimer */}
           <View style={{ marginTop: 8, padding: 8, backgroundColor: '#FFF8F0', borderRadius: 4, borderWidth: 0.5, borderColor: '#F7E1B5' }}>
             <Text style={{ fontSize: 7.5, color: '#8C5921', lineHeight: 1.4 }}>
-              Demonstration Disclaimer: This protocol was generated with AI assistance for educational and evaluation demonstration purposes only. It has not received formal clinical validation and must not be used for medical diagnosis, treatment, or real patient care.
+              Demonstration Disclaimer: This exercise was generated with AI assistance for personal educational and self-help practice. It is not therapy and not medical advice. The user reviews, edits, and approves the exercise themselves.
             </Text>
           </View>
 
           <View style={styles.footer} fixed>
-            <Text>Cerina Clinical Protocol Specification | Appendix: Review Details</Text>
+            <Text>Cerina Personalised Exercise | Appendix: Review Details</Text>
             <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
           </View>
         </Page>

@@ -39,22 +39,22 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="create_cbt_protocol",
-            description="""Create a CBT (Cognitive Behavioral Therapy) exercise protocol using the Cerina Protocol Foundry.
+            description="""Create a self-help exercise (based on CBT) using Cerina.
             
-This tool uses a multi-agent system to autonomously design, critique, and refine CBT exercises.
+This tool uses a multi-agent system to design, check for safety, and refine exercises.
 The system includes:
-- Drafter Agent: Creates initial drafts
-- Safety Guardian: Audits for safety and medical advice
-- Clinical Critic: Evaluates tone, empathy, and clinical appropriateness
+- Drafter Agent: Creates initial exercise drafts
+- Safety Check: Audits against 5 safety checks and health boundaries
+- Quality Reviewer: Evaluates tone, clarity, and practical guidance
 - Supervisor: Orchestrates the workflow
 
-The system will iterate until quality thresholds are met, then pause for human approval.""",
+The system will iterate until quality thresholds are met, then pause for your approval. Not therapy or medical advice.""",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "intent": {
                         "type": "string",
-                        "description": "Description of the CBT exercise to create (e.g., 'Create an exposure hierarchy for agoraphobia')"
+                        "description": "Description of the exercise to create (e.g., 'An exposure hierarchy for public speaking anxiety')"
                     },
                     "session_id": {
                         "type": "string",
@@ -67,7 +67,7 @@ The system will iterate until quality thresholds are met, then pause for human a
         ),
         Tool(
             name="get_protocol_status",
-            description="Get the current status and draft of a protocol generation session",
+            description="Get the current status and draft of an exercise generation session",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -81,7 +81,7 @@ The system will iterate until quality thresholds are met, then pause for human a
         ),
         Tool(
             name="approve_protocol",
-            description="Approve a protocol draft (human-in-the-loop). Optionally provide edited content.",
+            description="Approve an exercise draft (user review). Optionally provide edited content.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -129,7 +129,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 
                 return [TextContent(
                     type="text",
-                    text=f"""Protocol generation started!
+                    text=f"""Exercise creation started!
 
 Session ID: {sid}
 Session Token: {stok or 'N/A'}
@@ -166,7 +166,7 @@ The multi-agent system is now working on your request. Use get_protocol_status w
                 iteration = state.get("iteration_count", 0)
                 halted = state.get("halted", False)
                 
-                status_text = f"""Protocol Status Report
+                status_text = f"""Exercise Status Report
 
 Session ID: {session_id}
 Status: {status}
@@ -176,7 +176,7 @@ Halted for Review: {halted}
 Quality Scores:
 - Safety: {f'{safety_score * 100:.1f}%' if safety_score is not None else 'N/A'}
 - Empathy: {f'{empathy_score * 100:.1f}%' if empathy_score is not None else 'N/A'}
-- Clinical: {f'{clinical_score * 100:.1f}%' if clinical_score is not None else 'N/A'}
+- Quality: {f'{clinical_score * 100:.1f}%' if clinical_score is not None else 'N/A'}
 
 Current Draft:
 {draft}
@@ -184,7 +184,7 @@ Current Draft:
 """
                 
                 if halted:
-                    status_text += "\n⚠️ This protocol is awaiting human approval. Use approve_protocol to approve it."
+                    status_text += "\n⚠️ This exercise is awaiting your review. Use approve_protocol to approve it."
                 
                 return [TextContent(type="text", text=status_text)]
             
@@ -211,12 +211,12 @@ Current Draft:
                 
                 return [TextContent(
                     type="text",
-                    text=f"""Protocol approved!
+                    text=f"""Exercise approved!
 
 Status: {data['status']}
 Message: {data['message']}
 
-The workflow will now continue and finalize the protocol."""
+The workflow will now continue and finalize the exercise."""
                 )]
             
             else:

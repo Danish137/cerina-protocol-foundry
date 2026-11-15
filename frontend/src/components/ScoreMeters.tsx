@@ -152,7 +152,7 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
       <div className="flex items-center justify-between gap-1.5 pb-1 border-b border-[#F0ECE3] min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
           <ShieldCheck className="w-4 h-4 text-[#244F3B] shrink-0" />
-          <h3 className="text-xs font-bold uppercase tracking-wider text-[#18221E] truncate">Clinical Rubrics</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[#18221E] truncate">Quality Checks</h3>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${badgeClass}`}>
@@ -164,7 +164,7 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
       <div className="space-y-1">
         {/* Safety Rubric */}
         <MeterRow
-          label="Safety Guardian"
+          label="Safety Check"
           icon={<ShieldCheck className="w-3.5 h-3.5 text-[#244F3B]" />}
           currentScore={scores.safety_score !== undefined ? scores.safety_score * 5 : undefined}
           maxScore={5}
@@ -174,7 +174,7 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
           rationale={
             passedChecks !== undefined
               ? passedChecks === totalChecks
-                ? 'All 5 clinical safety parameters passed without contraindications.'
+                ? 'All 5 safety parameters passed without contraindications.'
                 : `${totalChecks - passedChecks} safety items flagged for your review.`
               : undefined
           }
@@ -183,7 +183,7 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
 
         {/* Empathy Dimension */}
         <MeterRow
-          label="Empathy & Alliance"
+          label="Empathy & Warmth"
           icon={<Heart className="w-3.5 h-3.5 text-[#244F3B]" />}
           currentScore={scores.empathy_score}
           maxScore={5}
@@ -192,14 +192,14 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
           delta={scores.delta_empathy}
           rationale={
             scores.dimensions?.warmth?.rationale ||
-            'Evaluates emotional validation, tone warmth, and therapeutic alliance.'
+            'Evaluates emotional validation, tone warmth, and supportive guidance.'
           }
           unavailable={isUnavailable}
         />
 
-        {/* Clinical Fidelity Dimension */}
+        {/* Exercise Quality Dimension */}
         <MeterRow
-          label="CBT Fidelity"
+          label="Exercise Quality"
           icon={<Stethoscope className="w-3.5 h-3.5 text-[#244F3B]" />}
           currentScore={scores.clinical_score}
           maxScore={5}
@@ -208,7 +208,7 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
           delta={scores.delta_clinical}
           rationale={
             scores.dimensions?.structure?.rationale ||
-            'Verifies evidence-based cognitive restructuring and behavioral steps.'
+            'Verifies practical steps, clear exercises, and sequential pacing.'
           }
           unavailable={isUnavailable}
         />

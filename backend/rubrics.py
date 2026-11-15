@@ -140,7 +140,7 @@ Respond ONLY with a JSON object in this exact structure:
         "total_checks": 5,
         "checks": {},
         "reasons": {},
-        "issues": ["Automated safety evaluation unavailable. Requires manual clinician review."],
+        "issues": ["Automated safety evaluation unavailable. Requires your review."],
         "all_passed": False,
         "unverified": True,
         "model": "unavailable",
@@ -243,7 +243,7 @@ Respond ONLY with a JSON object in this exact structure:
         "empathy_score": 0.0,
         "clinical_score": 0.0,
         "dimensions": {},
-        "weaknesses": ["Automated clinical critique unavailable."],
+        "weaknesses": ["Automated quality review unavailable."],
         "unverified": True,
         "model": "unavailable",
         "provider": "unavailable"

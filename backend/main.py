@@ -246,7 +246,7 @@ async def create_protocol(request: Request, body: ProtocolRequest):
             draft_version=1,
             agent="System",
             event_type="checkpoint",
-            text_content="Self-harm / crisis intent detected. Displaying clinical care resources.",
+            text_content="Self-harm / crisis intent detected. Displaying care resources.",
             severity="major",
             data={"status": "care_panel", "matched": True}
         )
@@ -255,7 +255,7 @@ async def create_protocol(request: Request, body: ProtocolRequest):
             session_id=session_id,
             session_token=session_token,
             status="care_panel",
-            message="Active crisis indicators identified. Clinical resources displayed.",
+            message="Active crisis indicators identified. Support resources displayed.",
             run_id=f"run_{req_id}",
             care_resources=care_resources
         )
@@ -315,7 +315,7 @@ async def create_protocol(request: Request, body: ProtocolRequest):
         session_id=session_id,
         session_token=session_token,
         status="generating",
-        message="Protocol generation initialized. Single runner task active.",
+        message="Exercise creation initialized. Single runner task active.",
         run_id=run_id,
         review_depth=body.review_depth or "standard"
     )
@@ -510,7 +510,7 @@ async def revise_protocol(
     sess = verify_session_access(session_id, x_session_token)
     run_id = f"run_{secrets.token_urlsafe(8)}"
 
-    instruction = body.instruction or "Please refine the draft based on clinical concerns."
+    instruction = body.instruction or "Please refine the draft based on user feedback."
     try:
         await registry.acquire_or_raise(
             session_id,
@@ -629,7 +629,7 @@ async def approve_protocol(
                 status_code=409,
                 detail={
                     "code": "recheck_required",
-                    "message": "Edits must be re-checked by AI safety and clinical review before approval."
+                    "message": "Edits must be re-checked by AI safety and quality review before approval."
                 }
             )
 
@@ -681,7 +681,7 @@ async def approve_protocol(
         draft_version=len(updated_state.get("draft_history", [])) or updated_state.get("current_version", 1),
         agent="Human",
         event_type="approval",
-        text_content=f"Protocol approved by {approver}",
+        text_content=f"Exercise approved by {approver}",
         severity="info",
         data=audit
     )
@@ -693,7 +693,7 @@ async def approve_protocol(
         draft_version=len(updated_state.get("draft_history", [])) or updated_state.get("current_version", 1),
         agent="System",
         event_type="run_end",
-        text_content="Workflow completed and protocol finalized.",
+        text_content="Workflow completed and exercise finalized.",
         severity="info",
         data={"status": "approved", "audit": audit}
     )
@@ -701,7 +701,7 @@ async def approve_protocol(
     return {
         "session_id": session_id,
         "status": "approved",
-        "message": "Protocol approved and finalized",
+        "message": "Exercise approved and finalized",
         "approval_audit": audit,
         "audit": audit,
         "final_state": serialize_state_for_json(updated_state)

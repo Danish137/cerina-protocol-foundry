@@ -132,7 +132,7 @@ export default function DocumentViewer({
   const realH1 = useMemo(() => {
     const text = draft || editedDraft || ''
     const match = text.match(/^#\s+(.+)$/m)
-    return match ? match[1].trim() : 'CBT Protocol Specification'
+    return match ? match[1].trim() : 'Exercise'
   }, [draft, editedDraft])
 
   // Determine current draft provenance at top level before conditional returns
@@ -219,7 +219,7 @@ export default function DocumentViewer({
     content: editedDraft || draft || '',
     editorProps: {
       attributes: {
-        'aria-label': 'Clinical protocol rich text editor',
+        'aria-label': 'Exercise rich text editor',
         class: 'prose prose-stone cerina-prose max-w-[68ch] mx-auto min-h-[300px] focus:outline-none text-[17px] leading-[1.7]',
       },
     },
@@ -307,7 +307,7 @@ export default function DocumentViewer({
         <div
           tabIndex={0}
           role="region"
-          aria-label="Progressive protocol drafting"
+          aria-label="Progressive exercise drafting"
           className="h-full overflow-y-auto bg-white border border-[#E8E4DA] rounded-2xl shadow-2xs overscroll-contain focus:outline-none p-6 sm:p-10 relative flex flex-col"
         >
           <div className="flex items-center justify-between pb-3 mb-4 border-b border-[#F0ECE3]">
@@ -331,7 +331,7 @@ export default function DocumentViewer({
       <div
         tabIndex={0}
         role="region"
-        aria-label="Generating protocol draft"
+        aria-label="Creating exercise draft"
         className="h-full bg-white border border-[#E8E4DA] rounded-2xl p-6 sm:p-8 flex flex-col justify-between overflow-hidden shadow-2xs animate-in fade-in focus:outline-none"
       >
         <div className="flex items-center justify-between pb-4 border-b border-[#F0ECE3]">
@@ -341,7 +341,7 @@ export default function DocumentViewer({
             </div>
             <div>
               <h3 className="font-serif text-lg font-bold text-[#18221E]">
-                Designing CBT Protocol…
+                Designing Exercise…
               </h3>
               <p className="text-xs text-[#55635C]">
                 Active stage:{' '}
@@ -407,7 +407,7 @@ export default function DocumentViewer({
               </span>
             ) : (
               <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-[#FAF8F5] text-[#55635C] border border-[#E8E4DA] whitespace-nowrap">
-                v{draftVersion} · Protocol Editor
+                v{draftVersion} · Exercise Editor
               </span>
             )}
           </div>
@@ -591,7 +591,7 @@ export default function DocumentViewer({
               value={editedDraft}
               onChange={(e) => onDraftChange(e.target.value)}
               aria-label="Markdown text editor"
-              placeholder="CBT Protocol Markdown…"
+              placeholder="Exercise Markdown…"
               className="w-full h-full p-6 sm:p-8 font-mono text-xs sm:text-sm text-[#18221E] leading-relaxed resize-none focus:outline-none scrollbar-thin bg-white"
             />
           ) : (
@@ -643,8 +643,8 @@ export default function DocumentViewer({
   // =========================================================================
   const displayContent = draft || editedDraft || ''
 
-  // Is this protocol edited by clinician? ONLY if a human_edit exists or approved with edits
-  const isClinicianEdited = Boolean(
+  // Is this exercise edited by user? ONLY if a human_edit exists or approved with edits
+  const isUserEdited = Boolean(
     audit?.edited ||
     events?.some((e) => e.data?.provenance === 'human_edit' || (e.type === 'draft' && e.agent === 'Human'))
   )
@@ -652,7 +652,7 @@ export default function DocumentViewer({
   // Can show "What changed" diff?
   const canShowDiff = Boolean(
     (baselineDraft && displayContent && baselineDraft.trim() !== displayContent.trim()) ||
-    isClinicianEdited ||
+    isUserEdited ||
     hasRevisedRun ||
     (revisionSummaries && revisionSummaries.length > 0)
   )
@@ -663,7 +663,7 @@ export default function DocumentViewer({
       onScroll={handleOutermostScroll}
       tabIndex={0}
       role="region"
-      aria-label="Protocol Document"
+      aria-label="Exercise Document"
       className="h-full overflow-y-auto bg-white border border-[#E8E4DA] rounded-2xl shadow-2xs overscroll-contain focus:outline-none scrollbar-thin relative flex flex-col"
     >
       {/* Sticky Document Toolbar (D1: Fully Opaque bg-white, alpha = 1) */}
@@ -675,7 +675,7 @@ export default function DocumentViewer({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-sans text-xs font-bold uppercase tracking-wider text-[#18221E]">
-                Clinical Protocol
+                Exercise
               </span>
               <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-[#FAF8F5] border border-[#E8E4DA] text-[#18221E] shrink-0 whitespace-nowrap">
                 v{draftVersion}
@@ -778,7 +778,7 @@ export default function DocumentViewer({
             {!isApproved && (
               <div className="absolute right-0 top-full mt-1.5 hidden group-hover:block z-50 pointer-events-none">
                 <div className="bg-[#18221E] text-white text-[11px] rounded-lg py-1 px-2.5 whitespace-nowrap shadow-md">
-                  Approve protocol to export
+                  Approve to unlock download
                 </div>
               </div>
             )}
@@ -801,12 +801,12 @@ export default function DocumentViewer({
         <div className="mx-6 mt-4 p-3 rounded-xl bg-[#FAF8F5] border border-[#CDE0D4] flex items-center gap-2.5 text-xs text-[#244F3B] shrink-0">
           <Sparkles className="w-4 h-4 text-[#244F3B] animate-spin shrink-0" />
           <span>
-            Safety Guardian and Clinical Critic are evaluating this draft. You may read through while checks complete.
+            Safety and quality checks are running. You can read through while checks complete.
           </span>
         </div>
       )}
 
-      {/* Document Prose Body (Capped at 68ch for optimal clinical readability) */}
+      {/* Document Prose Body (Capped at 68ch for optimal readability) */}
       <div className="flex-1 p-6 sm:p-10">
         <article className="max-w-[68ch] mx-auto prose prose-stone cerina-prose text-[17px] leading-[1.7] focus:outline-none">
           <ReactMarkdown
@@ -833,9 +833,9 @@ export default function DocumentViewer({
           </ReactMarkdown>
         </article>
 
-        {/* Quiet Clinical Disclaimer at bottom of document */}
+        {/* Quiet Disclaimer at bottom of document */}
         <div className="max-w-[68ch] mx-auto mt-12 pt-6 border-t border-[#F0ECE3] text-[12px] text-[#55635C] text-center">
-          <span>AI-generated protocol demo — not a substitute for professional clinical judgment or medical care.</span>
+          <span>AI-generated exercise demo — for self-help practice; not therapy or medical advice.</span>
         </div>
 
         {/* Diff Modal in Read-Only Mode (baseline vs current display) */}

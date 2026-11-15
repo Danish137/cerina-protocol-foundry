@@ -177,7 +177,7 @@ export default function CarePanel({
           onClick={onStartNew}
           className="w-full sm:w-auto px-4 py-2 rounded-lg border border-[#D5C9B5] text-xs font-medium text-[#55635C] hover:bg-[#F5EDE0] transition-colors"
         >
-          Start New Protocol
+          Start New Exercise
         </button>
 
         <button
@@ -186,7 +186,7 @@ export default function CarePanel({
           className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#FAF8F5] border border-[#8C4A26] text-xs font-semibold text-[#8C4A26] hover:bg-[#F5EDE0] transition-colors shadow-2xs"
         >
           <ShieldAlert className="w-3.5 h-3.5" />
-          <span>I am designing a clinical protocol on this topic</span>
+          <span>I understand and wish to explore an educational exercise on this topic</span>
           <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>

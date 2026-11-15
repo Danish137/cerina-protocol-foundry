@@ -108,7 +108,7 @@ def normalize_protocol_markdown(raw_markdown: str) -> str:
                 first_heading_seen = True
                 # If first heading is a canonical section (like 'Introduction'), prepend default title
                 if title_clean.lower() in section_names_lower:
-                    output_lines.append("# Clinical CBT Protocol")
+                    output_lines.append("# Personalised Exercise")
                     output_lines.append("")
                     output_lines.append(f"## {section_names_lower[title_clean.lower()]}")
                     continue
@@ -145,7 +145,7 @@ def normalize_protocol_markdown(raw_markdown: str) -> str:
             if candidate.lower() in section_names_lower:
                 canonical = section_names_lower[candidate.lower()]
                 if not first_heading_seen:
-                    output_lines.append("# Clinical CBT Protocol")
+                    output_lines.append("# Personalised Exercise")
                     output_lines.append("")
                     first_heading_seen = True
                 output_lines.append(f"## {canonical}")
@@ -159,7 +159,7 @@ def normalize_protocol_markdown(raw_markdown: str) -> str:
         if plain_candidate.lower() in section_names_lower:
             canonical = section_names_lower[plain_candidate.lower()]
             if not first_heading_seen:
-                output_lines.append("# Clinical CBT Protocol")
+                output_lines.append("# Personalised Exercise")
                 output_lines.append("")
                 first_heading_seen = True
             output_lines.append(f"## {canonical}")

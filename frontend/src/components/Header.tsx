@@ -88,7 +88,7 @@ export default function Header({
             </span>
             <span className="text-[#D8D2C4] font-light hidden sm:inline">|</span>
             <span className="text-xs font-sans text-[#55635C] font-medium tracking-normal hidden md:inline">
-              Protocol Foundry
+              Self-Help Exercises
             </span>
           </div>
         </div>
@@ -133,7 +133,7 @@ export default function Header({
                       <h4>Model Context Protocol (MCP)</h4>
                     </div>
                     <p className="text-[11px] text-[#55635C] mt-0.5">
-                      Control Cerina's multi-agent workflow directly from Claude Desktop
+                      Connect AI apps directly to Cerina to create exercises
                     </p>
                   </div>
                   <Popover.Close
@@ -146,20 +146,20 @@ export default function Header({
 
                 <div className="space-y-2 text-[11px] text-[#33423B] leading-relaxed">
                   <p>
-                    Cerina Protocol Foundry runs an embedded MCP server exposing 3 tools to external LLM clients like Claude:
+                    Cerina provides tools to create and review exercises:
                   </p>
                   <ul className="space-y-1 pl-1 font-mono text-[10.5px]">
                     <li className="flex items-baseline gap-1.5">
                       <span className="font-bold text-[#244F3B]">• create_cbt_protocol:</span>
-                      <span className="font-sans text-[#55635C]">Starts autonomous drafting & checks</span>
+                      <span className="font-sans text-[#55635C]">Starts drafting & safety checks</span>
                     </li>
                     <li className="flex items-baseline gap-1.5">
                       <span className="font-bold text-[#244F3B]">• get_protocol_status:</span>
-                      <span className="font-sans text-[#55635C]">Inspects live draft & rubric scores</span>
+                      <span className="font-sans text-[#55635C]">Inspects live draft & quality scores</span>
                     </li>
                     <li className="flex items-baseline gap-1.5">
                       <span className="font-bold text-[#244F3B]">• approve_protocol:</span>
-                      <span className="font-sans text-[#55635C]">Human sign-off and finalization</span>
+                      <span className="font-sans text-[#55635C]">Your review and approval</span>
                     </li>
                   </ul>
                 </div>
@@ -193,7 +193,7 @@ export default function Header({
                 <div className="p-2.5 bg-[#EBF3EE] rounded-lg border border-[#CDE0D4] text-[11px] text-[#244F3B]">
                   <span className="font-semibold">Example Claude prompt:</span>
                   <p className="font-serif italic mt-0.5 text-[#18221E]">
-                    "Ask Cerina Foundry to create a sleep hygiene protocol for insomnia"
+                    "Ask Cerina to create a sleep routine for bedtime worry"
                   </p>
                 </div>
                 <div className="pt-1 flex items-center justify-between text-[11px] border-t border-[#F0ECE3]">
@@ -231,15 +231,15 @@ export default function Header({
                 className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-[#E8E4DA] bg-[#FAF8F5] p-2 shadow-xl backdrop-blur-md z-50 text-xs animate-in fade-in slide-in-from-top-1"
               >
                 <div className="px-3 py-2 border-b border-[#F0ECE3] mb-1">
-                  <p className="font-semibold text-[#18221E]">Clinical Practitioner</p>
-                  <p className="text-[11px] text-[#55635C]">Active Protocol Session</p>
+                  <p className="font-semibold text-[#18221E]">You</p>
+                  <p className="text-[11px] text-[#55635C]">Active Exercise Session</p>
                 </div>
 
                 {/* Recent Sessions list (max 5) per B2 */}
                 {recentSessions.length > 0 && (
                   <div className="mb-2 border-b border-[#F0ECE3] pb-2">
                     <p className="px-2 py-1 text-[10px] font-semibold text-[#88978F] uppercase tracking-wider">
-                      Recent Protocols
+                      Recent Exercises
                     </p>
                     <div className="space-y-1">
                       {recentSessions.map((s) => (
@@ -255,7 +255,7 @@ export default function Header({
                             s.id === sessionId ? 'bg-[#EBF3EE] text-[#244F3B]' : 'hover:bg-white text-[#18221E]'
                           }`}
                         >
-                          <span className="font-medium truncate text-xs">{s.intent || 'Untitled protocol'}</span>
+                          <span className="font-medium truncate text-xs">{s.intent || 'Untitled exercise'}</span>
                           <span className="text-[10px] text-[#55635C] capitalize">
                             {s.status} · {new Date(s.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
@@ -277,7 +277,7 @@ export default function Header({
                     className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[#18221E] hover:bg-white transition-colors font-medium cursor-pointer"
                   >
                     <PlusCircle className="w-3.5 h-3.5 text-[#244F3B]" />
-                    <span>Start new protocol</span>
+                    <span>Start new exercise</span>
                   </button>
                 )}
 
@@ -289,7 +289,7 @@ export default function Header({
                   className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[#55635C] hover:bg-white transition-colors"
                 >
                   <HelpCircle className="w-3.5 h-3.5 text-[#7E8F87]" />
-                  <span>Protocol Foundry docs</span>
+                  <span>Cerina documentation</span>
                 </a>
               </div>
             )}

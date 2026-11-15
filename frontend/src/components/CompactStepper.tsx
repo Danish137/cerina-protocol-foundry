@@ -12,66 +12,66 @@ export function getStepperSteps(phase: Phase, activeAgent?: string): StepConfig[
   switch (phase) {
     case 'idle':
       return [
-        { number: 1, title: 'User intent', subtitle: 'Clinical goal', state: 'current' },
-        { number: 2, title: 'Drafting', subtitle: 'Structured exercise', state: 'upcoming' },
-        { number: 3, title: 'Specialist review', subtitle: 'Safety & critique', state: 'upcoming' },
-        { number: 4, title: 'Human review', subtitle: 'Edit & approve', state: 'upcoming' },
-        { number: 5, title: 'Final protocol', subtitle: 'Ready & export', state: 'upcoming' },
+        { number: 1, title: 'Your situation', subtitle: 'What you want to work on', state: 'current' },
+        { number: 2, title: 'Drafting', subtitle: 'Writing exercise', state: 'upcoming' },
+        { number: 3, title: 'Review team', subtitle: 'Safety & quality checks', state: 'upcoming' },
+        { number: 4, title: 'Your turn', subtitle: 'Read & approve', state: 'upcoming' },
+        { number: 5, title: 'Exercise ready', subtitle: 'Download & keep', state: 'upcoming' },
       ]
 
     case 'generating':
       if (activeAgent === 'SafetyGuardian' || activeAgent === 'ClinicalCritic' || activeAgent === 'Supervisor') {
         return [
-          { number: 1, title: 'User intent', subtitle: 'Clinical goal', state: 'completed' },
-          { number: 2, title: 'Drafting', subtitle: 'Structured exercise', state: 'completed' },
-          { number: 3, title: 'Specialist review', subtitle: 'Safety & critique', state: 'current' },
-          { number: 4, title: 'Human review', subtitle: 'Edit & approve', state: 'upcoming' },
-          { number: 5, title: 'Final protocol', subtitle: 'Ready & export', state: 'upcoming' },
+          { number: 1, title: 'Your situation', subtitle: 'What you want to work on', state: 'completed' },
+          { number: 2, title: 'Drafting', subtitle: 'Writing exercise', state: 'completed' },
+          { number: 3, title: 'Review team', subtitle: 'Safety & quality checks', state: 'current' },
+          { number: 4, title: 'Your turn', subtitle: 'Read & approve', state: 'upcoming' },
+          { number: 5, title: 'Exercise ready', subtitle: 'Download & keep', state: 'upcoming' },
         ]
       }
       return [
-        { number: 1, title: 'User intent', subtitle: 'Clinical goal', state: 'completed' },
-        { number: 2, title: 'Drafting', subtitle: 'Structured exercise', state: 'current' },
-        { number: 3, title: 'Specialist review', subtitle: 'Safety & critique', state: 'upcoming' },
-        { number: 4, title: 'Human review', subtitle: 'Edit & approve', state: 'upcoming' },
-        { number: 5, title: 'Final protocol', subtitle: 'Ready & export', state: 'upcoming' },
+        { number: 1, title: 'Your situation', subtitle: 'What you want to work on', state: 'completed' },
+        { number: 2, title: 'Drafting', subtitle: 'Writing exercise', state: 'current' },
+        { number: 3, title: 'Review team', subtitle: 'Safety & quality checks', state: 'upcoming' },
+        { number: 4, title: 'Your turn', subtitle: 'Read & approve', state: 'upcoming' },
+        { number: 5, title: 'Exercise ready', subtitle: 'Download & keep', state: 'upcoming' },
       ]
 
     case 'review':
     case 'editing':
       return [
-        { number: 1, title: 'User intent', subtitle: 'Clinical goal', state: 'completed' },
-        { number: 2, title: 'Drafting', subtitle: 'Structured exercise', state: 'completed' },
-        { number: 3, title: 'Specialist review', subtitle: 'Safety & critique', state: 'completed' },
-        { number: 4, title: 'Human review', subtitle: phase === 'editing' ? 'Active edits' : 'Edit & approve', state: 'current' },
-        { number: 5, title: 'Final protocol', subtitle: 'Ready & export', state: 'upcoming' },
+        { number: 1, title: 'Your situation', subtitle: 'What you want to work on', state: 'completed' },
+        { number: 2, title: 'Drafting', subtitle: 'Writing exercise', state: 'completed' },
+        { number: 3, title: 'Review team', subtitle: 'Safety & quality checks', state: 'completed' },
+        { number: 4, title: 'Your turn', subtitle: phase === 'editing' ? 'Active edits' : 'Read & approve', state: 'current' },
+        { number: 5, title: 'Exercise ready', subtitle: 'Download & keep', state: 'upcoming' },
       ]
 
     case 'approving':
       return [
-        { number: 1, title: 'User intent', subtitle: 'Clinical goal', state: 'completed' },
-        { number: 2, title: 'Drafting', subtitle: 'Structured exercise', state: 'completed' },
-        { number: 3, title: 'Specialist review', subtitle: 'Safety & critique', state: 'completed' },
-        { number: 4, title: 'Human review', subtitle: 'Finalizing...', state: 'current' },
-        { number: 5, title: 'Final protocol', subtitle: 'Ready & export', state: 'upcoming' },
+        { number: 1, title: 'Your situation', subtitle: 'What you want to work on', state: 'completed' },
+        { number: 2, title: 'Drafting', subtitle: 'Writing exercise', state: 'completed' },
+        { number: 3, title: 'Review team', subtitle: 'Safety & quality checks', state: 'completed' },
+        { number: 4, title: 'Your turn', subtitle: 'Finalizing...', state: 'current' },
+        { number: 5, title: 'Exercise ready', subtitle: 'Download & keep', state: 'upcoming' },
       ]
 
     case 'approved':
       return [
-        { number: 1, title: 'User intent', subtitle: 'Clinical goal', state: 'completed' },
-        { number: 2, title: 'Drafting', subtitle: 'Structured exercise', state: 'completed' },
-        { number: 3, title: 'Specialist review', subtitle: 'Safety & critique', state: 'completed' },
-        { number: 4, title: 'Human review', subtitle: 'Approved', state: 'completed' },
-        { number: 5, title: 'Final protocol', subtitle: 'Export unlocked', state: 'completed' },
+        { number: 1, title: 'Your situation', subtitle: 'What you want to work on', state: 'completed' },
+        { number: 2, title: 'Drafting', subtitle: 'Writing exercise', state: 'completed' },
+        { number: 3, title: 'Review team', subtitle: 'Safety & quality checks', state: 'completed' },
+        { number: 4, title: 'Your turn', subtitle: 'Approved', state: 'completed' },
+        { number: 5, title: 'Exercise ready', subtitle: 'Download unlocked', state: 'completed' },
       ]
 
     default:
       return [
-        { number: 1, title: 'User intent', subtitle: 'Clinical goal', state: 'current' },
-        { number: 2, title: 'Drafting', subtitle: 'Structured exercise', state: 'upcoming' },
-        { number: 3, title: 'Specialist review', subtitle: 'Safety & critique', state: 'upcoming' },
-        { number: 4, title: 'Human review', subtitle: 'Edit & approve', state: 'upcoming' },
-        { number: 5, title: 'Final protocol', subtitle: 'Ready & export', state: 'upcoming' },
+        { number: 1, title: 'Your situation', subtitle: 'What you want to work on', state: 'current' },
+        { number: 2, title: 'Drafting', subtitle: 'Writing exercise', state: 'upcoming' },
+        { number: 3, title: 'Review team', subtitle: 'Safety & quality checks', state: 'upcoming' },
+        { number: 4, title: 'Your turn', subtitle: 'Read & approve', state: 'upcoming' },
+        { number: 5, title: 'Exercise ready', subtitle: 'Download & keep', state: 'upcoming' },
       ]
   }
 }

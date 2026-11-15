@@ -49,38 +49,38 @@ export default function AgentPipeline({
     const initialNodes: Record<string, NodeInfo> = {
       drafter: {
         id: 'drafter',
-        name: 'Protocol Drafter',
-        role: 'CBT Protocol Architect',
+        name: 'Exercise Drafter',
+        role: 'Exercise Drafter',
         status: isIdle ? 'idle' : 'idle',
-        statusLine: 'Drafting structured clinical exercise',
+        statusLine: 'Drafting structured step-by-step exercise',
       },
       safety: {
         id: 'safety',
-        name: 'Safety Guardian',
-        role: 'Contraindication & Risk Audit',
+        name: 'Safety Check',
+        role: 'Safety & Risk Check',
         status: isIdle ? 'idle' : 'idle',
-        statusLine: 'Auditing 5 clinical safety rubrics',
+        statusLine: 'Auditing 5 safety checks & health boundaries',
       },
       critic: {
         id: 'critic',
-        name: 'Clinical Critic',
-        role: 'CBT Fidelity & Empathy',
+        name: 'Quality Reviewer',
+        role: 'Quality & Clarity',
         status: isIdle ? 'idle' : 'idle',
-        statusLine: 'Evaluating warmth & therapeutic alliance',
+        statusLine: 'Evaluating supportive tone & exercise clarity',
       },
       supervisor: {
         id: 'supervisor',
         name: 'Supervisor',
         role: 'Quality & Routing Decision',
         status: isIdle ? 'idle' : 'idle',
-        statusLine: 'Synthesizing rubric thresholds',
+        statusLine: 'Synthesizing review scores',
       },
       human: {
         id: 'human',
-        name: 'Reviewer (You)',
-        role: 'Final Verification & Approval',
+        name: 'You',
+        role: 'Your Review & Approval',
         status: isIdle ? 'idle' : 'idle',
-        statusLine: 'User verification sign-off',
+        statusLine: 'Read, modify anything you like, and approve',
       },
     }
 
@@ -122,13 +122,13 @@ export default function AgentPipeline({
           target.durationText = `${(e.data.latency_ms / 1000).toFixed(1)}s`
         }
         if (agentKey === 'drafter') {
-          target.statusLine = 'Draft generated with required clinical sections'
+          target.statusLine = 'Draft generated with clear exercise steps'
         } else if (agentKey === 'safety') {
           target.statusLine = 'Checked 5 safety criteria, all passed'
         } else if (agentKey === 'critic') {
-          target.statusLine = 'Completed CBT fidelity and empathy review'
+          target.statusLine = 'Completed quality and clarity review'
         } else if (agentKey === 'supervisor') {
-          target.statusLine = 'Synthesized rubric thresholds and approved progression'
+          target.statusLine = 'Synthesized quality checks and approved progression'
         }
       } else if (e.type === 'message') {
         target.statusLine = e.text || ''
@@ -144,25 +144,25 @@ export default function AgentPipeline({
             target.statusLine = 'Checked 5 safety criteria, all passed'
           }
         } else if (agentKey === 'critic' && e.data.empathy_score !== undefined) {
-          target.metricPill = `Empathy ${e.data.empathy_score.toFixed(1)} · Clinical ${e.data.clinical_score?.toFixed(1) || '—'}`
-          target.statusLine = 'Completed CBT fidelity and empathy review'
+          target.metricPill = `Empathy ${e.data.empathy_score.toFixed(1)} · Quality ${e.data.clinical_score?.toFixed(1) || '—'}`
+          target.statusLine = 'Completed quality and clarity review'
         }
       } else if (e.type === 'decision' && agentKey === 'supervisor') {
         target.status = 'done'
         if (e.data?.route === 'revise') {
           target.status = 'concern'
           target.metricPill = `Revise (loop ${revCount})`
-          target.statusLine = 'Rubric threshold not met; routing revision back to Drafter'
+          target.statusLine = 'Quality check not met; routing revision back to Drafter'
         } else {
           target.metricPill = 'Ready for Review'
-          target.statusLine = 'All clinical thresholds satisfied; ready for sign-off'
+          target.statusLine = 'All quality checks satisfied; ready for your review'
         }
       } else if (e.type === 'checkpoint') {
         initialNodes.human.status = 'waiting'
-        initialNodes.human.statusLine = 'Waiting for your review and approval'
+        initialNodes.human.statusLine = 'Your turn: read it, change anything, then approve'
       } else if (e.type === 'approval') {
         initialNodes.human.status = 'done'
-        initialNodes.human.statusLine = 'Protocol approved and locked'
+        initialNodes.human.statusLine = 'Exercise approved and saved'
       }
     }
 
@@ -202,7 +202,12 @@ export default function AgentPipeline({
   // Compact horizontal strip mode (height <700px or width 1024-1535) per C1
   if (compact) {
     return (
-      <div className="h-12 w-full px-3 sm:px-4 rounded-xl bg-white border border-[#E8E4DA] flex items-center justify-between text-xs shadow-2xs gap-2 min-w-0 overflow-x-auto scrollbar-none">
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label="Exercise review pipeline stages"
+        className="h-12 w-full px-3 sm:px-4 rounded-xl bg-white border border-[#E8E4DA] flex items-center justify-between text-xs shadow-2xs gap-2 min-w-0 overflow-x-auto scrollbar-none focus:outline-none focus-visible:ring-1 focus-visible:ring-[#244F3B]"
+      >
         <div className="flex items-center gap-1.5 font-semibold text-[#18221E] shrink-0">
           <span className="w-2 h-2 rounded-full bg-[#244F3B]" />
           <span>Pipeline</span>
@@ -251,7 +256,7 @@ export default function AgentPipeline({
       <div className="flex items-center justify-between p-3.5 pb-2 border-b border-[#F0ECE3] shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[#244F3B]" />
-          <h3 className="text-xs font-bold uppercase tracking-wider text-[#18221E]">Agent Pipeline</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[#18221E]">AI Review Team</h3>
         </div>
         {revisionCount > 0 && (
           <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-[#FDF6E2] text-[#8C4A26] border border-[#F6E0B5] flex items-center gap-1">
@@ -265,7 +270,10 @@ export default function AgentPipeline({
         <div
           ref={containerRef}
           onScroll={checkScroll}
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 space-y-1.5 scrollbar-thin"
+          tabIndex={0}
+          role="region"
+          aria-label="AI review team stages"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 space-y-1.5 scrollbar-thin focus:outline-none focus-visible:ring-1 focus-visible:ring-[#244F3B]"
         >
           {nodes.map((node, index) => {
             const isWorking = node.status === 'working'

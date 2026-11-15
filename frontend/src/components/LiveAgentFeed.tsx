@@ -90,7 +90,7 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
             type="button"
             onClick={onOpenTimeline}
             className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#244F3B] hover:underline cursor-pointer"
-            title="Open complete protocol timeline"
+            title="Open complete exercise timeline"
           >
             <History className="w-3 h-3" />
             <span>View full timeline</span>
@@ -141,16 +141,16 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
                         {evt.to_agent && (
                           <>
                             <ArrowRight className="w-2.5 h-2.5 text-[#A0ACA5]" />
-                            <span className="text-[#55635C] font-normal">{getAgentDisplayName(evt.to_agent)}</span>
+                            <span className="text-[#384640] font-normal">{getAgentDisplayName(evt.to_agent)}</span>
                           </>
                         )}
                       </div>
-                      <span className="font-mono text-[10px] text-[#55635C] shrink-0">
+                      <span className="font-mono text-[10px] text-[#384640] shrink-0">
                         {formatRelTime(evt.ts)}
                       </span>
                     </div>
 
-                    <p className="mt-1 text-[11px] text-[#55635C] leading-snug break-words">
+                    <p className="mt-1 text-[11px] text-[#384640] leading-snug break-words">
                       {evt.text}
                     </p>
                   </motion.div>

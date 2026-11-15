@@ -28,19 +28,19 @@ interface ReviewDetailsSheetProps {
 }
 
 const SAFETY_CHECK_LABELS: Record<string, string> = {
-  self_harm: 'Self-Harm & Crisis Protocol Handled Safely',
+  self_harm: 'Self-Harm & Crisis Handled Safely',
   no_medication: 'No Prescription Medication or Dosing Advice',
-  no_diagnosis: 'No Diagnostic Labeling of User',
-  no_contraindicated_exposure: 'No Hazardous or Contraindicated Exposure',
-  referral_language: 'Professional Referral Language Included'
+  no_diagnosis: 'No Diagnostic Labeling',
+  no_contraindicated_exposure: 'No Hazardous or Contraindicated Activities',
+  referral_language: 'Professional Support Resources Included'
 }
 
 const CRITIC_DIMENSION_LABELS: Record<string, string> = {
-  warmth: 'Warmth & Therapeutic Alliance',
+  warmth: 'Supportive & Encouraging Tone',
   validation: 'Emotional Validation (Non-Dismissive)',
   clarity: 'Instruction Clarity & Concreteness',
-  cbt_fidelity: 'Evidence-Based CBT Fidelity',
-  structure: 'Protocol Structure & Sequencing'
+  cbt_fidelity: 'Practical Exercise Fidelity',
+  structure: 'Exercise Structure & Sequencing'
 }
 
 export default function ReviewDetailsSheet({
@@ -115,15 +115,15 @@ export default function ReviewDetailsSheet({
     const milestones: { label: string; time?: string; detail: string }[] = []
     events.forEach((e) => {
       if (e.type === 'node_start' && e.agent === 'Drafter') {
-        milestones.push({ label: 'Initial Draft Created', time: e.ts, detail: 'AI generated clinical protocol structure' })
+        milestones.push({ label: 'Initial Draft Created', time: e.ts, detail: 'AI generated step-by-step exercise structure' })
       } else if (e.type === 'score' && e.agent === 'SafetyGuardian') {
-        milestones.push({ label: 'Safety Evaluation', time: e.ts, detail: 'Audited 5 core clinical safety criteria' })
+        milestones.push({ label: 'Safety Evaluation', time: e.ts, detail: 'Audited 5 safety criteria' })
       } else if (e.type === 'score' && e.agent === 'ClinicalCritic') {
-        milestones.push({ label: 'Clinical Quality Evaluation', time: e.ts, detail: 'Evaluated empathy, validation, and CBT fidelity' })
+        milestones.push({ label: 'Quality Evaluation', time: e.ts, detail: 'Evaluated empathy, tone, and exercise clarity' })
       } else if (e.type === 'human_action' && e.agent === 'Human') {
-        milestones.push({ label: 'Edit & Re-check', time: e.ts, detail: e.text || 'Protocol content updated by user' })
+        milestones.push({ label: 'Edit & Re-check', time: e.ts, detail: e.text || 'Exercise content updated by you' })
       } else if (e.type === 'approval') {
-        milestones.push({ label: 'Approval', time: e.ts, detail: 'Protocol confirmed and approved by user' })
+        milestones.push({ label: 'Approval', time: e.ts, detail: 'Exercise confirmed and approved by you' })
       }
     })
     return milestones
@@ -182,7 +182,7 @@ export default function ReviewDetailsSheet({
               <span>Independent Review Summary</span>
             </div>
             <p className="text-sm leading-relaxed text-[#18221E]">
-              This protocol was synthesized by an AI model and thoroughly examined by two independent AI reviewers—one auditing clinical safety contraindications and another assessing therapeutic empathy, validation, and CBT mechanisms.
+              This exercise was synthesized by an AI model and thoroughly examined by two independent AI reviewers—one auditing safety and health boundaries and another assessing tone, validation, and exercise clarity.
             </p>
             <div className="pt-2 flex flex-wrap gap-2 text-xs">
               <span className="px-2.5 py-1 rounded-md bg-white border border-[#E8E4DA] font-medium text-[#244F3B] flex items-center gap-1.5">
@@ -195,11 +195,11 @@ export default function ReviewDetailsSheet({
               </span>
               <span className="px-2.5 py-1 rounded-md bg-white border border-[#E8E4DA] font-medium text-[#244F3B] flex items-center gap-1.5">
                 <Award className="w-3.5 h-3.5 text-[#244F3B]" />
-                CBT Fidelity: {clinicalScore.toFixed(1)} / 5.0
+                Exercise Quality: {clinicalScore.toFixed(1)} / 5.0
               </span>
             </div>
 
-            {/* Clinical & Revision Status Flags */}
+            {/* Quality & Revision Status Flags */}
             <div className="pt-2 border-t border-[#E8E4DA] grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               <div>
                 <span className="text-[#55635C]">Revisions:</span>{' '}
@@ -215,7 +215,7 @@ export default function ReviewDetailsSheet({
                 <div className="sm:col-span-2">
                   <span className="text-[#55635C]">Approval status:</span>{' '}
                   <span className="font-semibold text-[#18221E]">
-                    Approved by you on {formatLocalDateTime(audit.approved_at)}. AI-reviewed; not clinically validated.
+                    Approved by you on {formatLocalDateTime(audit.approved_at)}. AI-reviewed; not therapy or medical advice.
                   </span>
                 </div>
               )}
@@ -243,7 +243,7 @@ export default function ReviewDetailsSheet({
               <div className="p-4 space-y-3 divide-y divide-[#F0ECE3]">
                 {Object.keys(SAFETY_CHECK_LABELS).map((key) => {
                   const passed = safetyChecks[key] !== false
-                  const reason = safetyReasons[key] || (passed ? 'Compliant with clinical safety standards' : 'Requires revision')
+                  const reason = safetyReasons[key] || (passed ? 'Meets safety standards' : 'Requires revision')
                   return (
                     <div key={key} className="pt-3 first:pt-0 space-y-1">
                       <div className="flex items-center justify-between gap-2">
@@ -277,7 +277,7 @@ export default function ReviewDetailsSheet({
             >
               <div className="flex items-center gap-2">
                 <Award className="w-4 h-4 text-[#244F3B]" />
-                <span>Clinical Quality Rubric (5 Dimensions)</span>
+                <span>Quality Checks (5 Dimensions)</span>
               </div>
               <div className="flex items-center gap-2 text-xs font-normal text-[#55635C]">
                 {rubricExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -287,7 +287,7 @@ export default function ReviewDetailsSheet({
             {rubricExpanded && (
               <div className="p-4 space-y-3.5 divide-y divide-[#F0ECE3]">
                 {Object.keys(CRITIC_DIMENSION_LABELS).map((key) => {
-                  const dim = criticDimensions[key] || { score: 4, rationale: 'Clear therapeutic progression aligned with CBT standards' }
+                  const dim = criticDimensions[key] || { score: 4, rationale: 'Clear, practical progression aligned with your situation' }
                   return (
                     <div key={key} className="pt-3 first:pt-0 space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
@@ -323,7 +323,7 @@ export default function ReviewDetailsSheet({
             >
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-[#244F3B]" />
-                <span>How This Protocol Was Made</span>
+                <span>How This Exercise Was Made</span>
               </div>
               <div className="flex items-center gap-2 text-xs font-normal text-[#55635C]">
                 <span>{timelineMilestones.length} Steps</span>
@@ -362,9 +362,9 @@ export default function ReviewDetailsSheet({
             )}
             <div className="pt-2 border-t border-[#E8E4DA] text-[11px] text-[#55635C]">
               {audit?.approved_at ? (
-                <span>Approved by you on {formatLocalDateTime(audit.approved_at)} · AI-reviewed · not clinically validated.</span>
+                <span>Approved by you on {formatLocalDateTime(audit.approved_at)} · AI-reviewed · not therapy or medical advice.</span>
               ) : (
-                <span>AI-reviewed · not clinically validated. Pending final user approval.</span>
+                <span>AI-reviewed · not therapy or medical advice. Yours to edit and approve.</span>
               )}
             </div>
           </div>
@@ -373,7 +373,7 @@ export default function ReviewDetailsSheet({
           <div className="p-3.5 rounded-xl bg-[#FFF8F0] border border-[#F7E1B5] text-xs text-[#8C5921] flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 text-[#D4882C] shrink-0 mt-0.5" />
             <div className="leading-relaxed">
-              <span className="font-semibold">Clinical Disclaimer:</span> This protocol is an AI-assisted draft designed to support mental health professionals. It is not an automated medical device, formal diagnostic instrument, or prescription. Practitioners remain solely responsible for reviewing content before use.
+              <span className="font-semibold">Disclaimer:</span> This exercise is an AI-assisted self-help tool for educational and personal practice. It is not therapy or medical advice. You review, edit, and approve the exercise yourself.
             </div>
           </div>
         </div>

@@ -65,7 +65,7 @@ export default function DiffModal({
           <div
             tabIndex={0}
             role="region"
-            aria-label="Clinical draft line diff"
+            aria-label="Exercise draft line diff"
             className="flex-1 overflow-y-auto p-6 text-xs sm:text-sm leading-relaxed font-sans select-text focus:outline-none scrollbar-thin"
           >
             {additions === 0 && deletions === 0 ? (

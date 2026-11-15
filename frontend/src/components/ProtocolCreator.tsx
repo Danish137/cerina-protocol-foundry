@@ -20,22 +20,26 @@ interface ProtocolCreatorProps {
   onWatchRecordedRun?: () => void
 }
 
-const TEMPLATES = [
+const STARTER_CHIPS = [
   {
-    label: 'Anxiety (Exposure)',
-    prompt: 'Create a graded exposure hierarchy for someone experiencing anxiety around public speaking.',
+    label: 'Exam anxiety',
+    prompt: "I have a major exam coming up and I'm feeling overwhelmed with anxiety, convinced I'll fail no matter how much I study.",
   },
   {
-    label: 'Depression (Activation)',
-    prompt: 'Create a behavioral activation routine and mastery/pleasure schedule for mild depression.',
+    label: 'Procrastination',
+    prompt: "I keep putting off an important task because I feel it has to be perfect, and now the deadline is tomorrow.",
   },
   {
-    label: 'Insomnia (Sleep Hygiene)',
-    prompt: 'Create a stimulus control and sleep hygiene routine for persistent sleep-onset insomnia.',
+    label: 'Social anxiety before an event',
+    prompt: "I'm attending a large gathering this weekend and I'm anxious that everyone will judge me or that I'll say something stupid.",
   },
   {
-    label: 'Thought Record (CBT)',
-    prompt: 'Create a cognitive restructuring 5-column thought record for catastrophizing and negative automatic thoughts.',
+    label: 'Trouble sleeping because of worry',
+    prompt: "I can't fall asleep because my mind races with worries about work, future problems, and things I cannot control right now.",
+  },
+  {
+    label: 'Challenge a negative thought',
+    prompt: "I made a small mistake at work and now I have a recurring thought that 'I am completely incompetent and everyone knows it'.",
   },
 ]
 
@@ -94,7 +98,7 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
         region_code: 'US'
       })
 
-      showToast('Protocol drafting initialized', 'success')
+      showToast('Exercise creation initialized', 'success')
       onSessionStart({
         sessionId: response.data.session_id,
         sessionToken: response.data.session_token,
@@ -104,7 +108,7 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
         careResources: response.data.care_resources
       })
     } catch (err: any) {
-      let errorMessage = 'Failed to initialize protocol generation'
+      let errorMessage = 'Failed to create exercise'
       if (err.response) {
         if (err.response.status === 429) {
           errorMessage = 'Daily demonstration quota reached. Watch a recorded run below.'
@@ -137,7 +141,7 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
         </div>
         <p className="text-sm text-[#55635C] leading-relaxed">
           Today's live AI generation capacity ({capacity.daily_budget} calls) has been fully utilized.
-          You can experience the complete interactive clinical workflow through our recorded run replay without consuming live AI credits.
+          You can experience the complete interactive exercise workflow through our recorded run replay without consuming live AI credits.
         </p>
         <button
           onClick={onWatchRecordedRun}
@@ -162,8 +166,8 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
             <Bookmark className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-[#1F2923]">Define Clinical Intent</h2>
-            <p className="text-xs text-[#5C6A62]">Specify the disorder, technique, or clinical objective</p>
+            <h2 className="text-sm font-semibold text-[#1F2923]">What's on your mind?</h2>
+            <p className="text-xs text-[#5C6A62]">Describe the situation or thought pattern you want to work through</p>
           </div>
         </div>
 
@@ -205,32 +209,32 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
             ref={textareaRef}
             value={intent}
             onChange={(e) => setIntent(e.target.value)}
-            placeholder="e.g., Create a 3-step graded exposure hierarchy for a patient experiencing panic symptoms when driving on highways..."
+            placeholder="e.g., I have an important presentation on Friday and I keep thinking I'm going to freeze and embarrass myself..."
             className="w-full h-32 px-4 py-3 rounded-xl border border-[#E8E4DA] bg-[#FAF8F5] text-sm text-[#1F2923] placeholder-[#A0ACA5] focus:outline-none focus:ring-2 focus:ring-[#244F3B] focus:border-transparent resize-none leading-relaxed transition-all"
             disabled={loading}
           />
         </div>
 
-        {/* Template Pills */}
+        {/* Starter Chips */}
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5 text-xs font-medium text-[#5C6A62]">
             <Sparkles className="w-3.5 h-3.5 text-[#244F3B]" />
-            <span>Clinical Templates</span>
+            <span>Try an example:</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {TEMPLATES.map((tmpl) => (
+            {STARTER_CHIPS.map((chip) => (
               <button
-                key={tmpl.label}
+                key={chip.label}
                 type="button"
-                onClick={() => handleSelectTemplate(tmpl.prompt, tmpl.label)}
+                onClick={() => handleSelectTemplate(chip.prompt, chip.label)}
                 disabled={loading}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  selectedTemplate === tmpl.label
+                  selectedTemplate === chip.label
                     ? 'bg-[#244F3B] text-white shadow-sm'
                     : 'bg-[#F4F1EA] text-[#55635C] hover:bg-[#EAE5DA]'
                 }`}
               >
-                {tmpl.label}
+                {chip.label}
               </button>
             ))}
           </div>
@@ -259,11 +263,11 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Initializing...</span>
+                  <span>Creating exercise...</span>
                 </>
               ) : (
                 <>
-                  <span>Initialize Protocol</span>
+                  <span>Create Exercise</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

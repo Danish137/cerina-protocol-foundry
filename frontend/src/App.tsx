@@ -24,7 +24,7 @@ import {
   getAutoResumeSession
 } from './services/sessionStorage'
 import { StoredSession, ProtocolEvent } from './types'
-import { Activity, FileText, CheckCircle2, AlertCircle, X } from 'lucide-react'
+import { Activity, FileText, CheckCircle2, AlertCircle, X, HelpCircle } from 'lucide-react'
 
 function AppContent() {
   const { showToast } = useToast()
@@ -52,6 +52,7 @@ function AppContent() {
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0)
 
   // Stream client & timer refs
+  const [showCbtExplainer, setShowCbtExplainer] = useState(false)
   const streamClientRef = useRef<ProtocolStreamClient | null>(null)
   const timerRef = useRef<number | null>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -177,10 +178,10 @@ function AppContent() {
       const st = starts[i]
       const matchingEnd = ends.find((en) => en.agent === st.agent && en.seq > st.seq)
       if (!matchingEnd) {
-        if (st.agent === 'Drafter') return 'Drafting clinical structure…'
+        if (st.agent === 'Drafter') return 'Drafting exercise structure…'
         if (st.agent === 'SafetyGuardian') return 'Auditing safety guidelines…'
-        if (st.agent === 'ClinicalCritic') return 'Evaluating empathy & fidelity…'
-        if (st.agent === 'Supervisor') return 'Synthesizing rubric decisions…'
+        if (st.agent === 'ClinicalCritic') return 'Evaluating warmth & clarity…'
+        if (st.agent === 'Supervisor') return 'Synthesizing review decisions…'
         return st.text || 'Processing…'
       }
     }
@@ -338,11 +339,11 @@ function AppContent() {
     } else if (phase === 'editing') {
       document.title = 'Editing — Cerina'
     } else if (phase === 'approved') {
-      document.title = 'Approved ✓ — Cerina Protocol Foundry'
+      document.title = 'Approved ✓ — Cerina'
     } else if (phase === 'generating') {
       document.title = 'Drafting… — Cerina'
     } else {
-      document.title = 'Cerina Protocol Foundry — CBT Protocol Design'
+      document.title = 'Cerina — personalised exercises for anxious thoughts and habits, safety-checked'
     }
   }, [phase])
 
@@ -511,12 +512,12 @@ function AppContent() {
       if (passes) {
         setValidationStatus('passed')
         setLastValidatedHash(data.validated_hash || 'OK')
-        showToast('Safety & clinical checks passed for updated draft', 'success')
+        showToast('Safety & quality checks passed for updated draft', 'success')
       } else {
         setValidationStatus('failed')
         const reason = data.safety_score < 0.8
           ? `Safety check failed (${Math.round((data.safety_score || 0) * 5)}/5 criteria passed)`
-          : `Clinical score below threshold (Empathy: ${data.empathy_score?.toFixed(1) || 0}/5, Fidelity: ${data.clinical_score?.toFixed(1) || 0}/5)`
+          : `Quality score below threshold (Empathy: ${data.empathy_score?.toFixed(1) || 0}/5, Quality: ${data.clinical_score?.toFixed(1) || 0}/5)`
         showToast(reason, 'error')
       }
 
@@ -559,7 +560,7 @@ function AppContent() {
         dispatch({ type: 'SET_UI_MODE', mode: 'editing' })
         const reason = valData.safety_score < 0.8
           ? `Safety check failed (${Math.round((valData.safety_score || 0) * 5)}/5 criteria passed)`
-          : `Clinical score below threshold (Empathy: ${valData.empathy_score?.toFixed(1) || 0}/5, Fidelity: ${valData.clinical_score?.toFixed(1) || 0}/5)`
+          : `Quality score below threshold (Empathy: ${valData.empathy_score?.toFixed(1) || 0}/5, Quality: ${valData.clinical_score?.toFixed(1) || 0}/5)`
         showToast(reason, 'error')
         return
       }
@@ -591,7 +592,7 @@ function AppContent() {
         draft_version: state.draftVersion,
         agent: 'Human',
         type: 'approval',
-        text: 'Protocol approved with edits by You',
+        text: 'Exercise approved with edits by You',
         severity: 'info',
         ts: approvedIso,
         data: approvalAudit
@@ -600,7 +601,7 @@ function AppContent() {
       dispatch({ type: 'SET_DRAFT', draft: editedDraft })
       dispatch({ type: 'SET_UI_MODE', mode: 'default' })
       updateSessionStatus(state.sessionId, 'approved', editedDraft)
-      showToast('Protocol approved & locked with edits', 'success')
+      showToast('Exercise approved & saved with edits', 'success')
 
       // 3. Fetch real events from backend
       try {
@@ -651,7 +652,7 @@ function AppContent() {
         draft_version: state.draftVersion,
         agent: 'Human',
         type: 'approval',
-        text: 'Protocol approved by You',
+        text: 'Exercise approved by You',
         severity: 'info',
         ts: approvedIso,
         data: approvalAudit
@@ -659,7 +660,7 @@ function AppContent() {
       dispatch({ type: 'ADD_EVENT', event: approvalEvent })
       dispatch({ type: 'SET_UI_MODE', mode: 'default' })
       updateSessionStatus(state.sessionId, 'approved')
-      showToast('Protocol approved & locked', 'success')
+      showToast('Exercise approved & saved', 'success')
 
       // Fetch real events from backend
       try {
@@ -691,12 +692,12 @@ function AppContent() {
       await axios.post(
         `${API_BASE_URL}/api/protocols/${state.sessionId}/revise`,
         {
-          instruction: instruction || 'Please address open clinical critique items.',
+          instruction: instruction || 'Please address open quality review items.',
           concern_ids: concernIds || []
         },
         { headers: { 'X-Session-Token': state.sessionToken } }
       )
-      showToast('Revision requested · agents working', 'info')
+      showToast('Revision requested · review team active', 'info')
       connectStream(state.sessionId, state.sessionToken, currentMaxSeq)
     } catch (err: any) {
       setIsRevisionRequested(false)
@@ -710,7 +711,7 @@ function AppContent() {
   const handleExportPdf = async (includeDetails: boolean = false) => {
     const draftText = editedDraft || state.draft || ''
     if (!draftText.trim()) {
-      showToast('No protocol content available to export', 'error')
+      showToast('No exercise content available to export', 'error')
       return
     }
 
@@ -738,12 +739,12 @@ function AppContent() {
   const handleCopyMarkdown = () => {
     const draftText = editedDraft || state.draft || ''
     navigator.clipboard.writeText(draftText)
-    showToast('Protocol markdown copied to clipboard', 'success')
+    showToast('Exercise markdown copied to clipboard', 'success')
   }
 
   const handleNewProtocol = () => {
     if (phase === 'editing' && (wordsAdded > 0 || wordsRemoved > 0)) {
-      if (!window.confirm('You have unsaved edits. Discard and start a new protocol?')) {
+      if (!window.confirm('You have unsaved edits. Discard and start a new exercise?')) {
         return
       }
     }
@@ -754,7 +755,7 @@ function AppContent() {
     setInitialDraftBeforeEdit('')
     setResumeBanner(null)
     setBrowserMismatchAlert(false)
-    showToast('Ready for new protocol', 'info')
+    showToast('Ready for new exercise', 'info')
   }
 
   // Recorded Demo Run Replay (D8)
@@ -836,14 +837,14 @@ function AppContent() {
             <aside role="alert" aria-label="Browser mismatch alert" className="bg-[#FEF3C7] border-b border-[#FDE68A] px-4 py-2 text-xs text-[#78350F] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-[#D97706]" />
-                <span>This protocol belongs to another browser. Your active session token is not stored locally.</span>
+                <span>This exercise belongs to another browser. Your active session token is not stored locally.</span>
               </div>
               <button
                 type="button"
                 onClick={handleNewProtocol}
                 className="font-semibold underline hover:text-[#78350F]"
               >
-                Start new protocol
+                Start new exercise
               </button>
             </aside>
           )}
@@ -939,20 +940,33 @@ function AppContent() {
                 className="h-full flex flex-col justify-center max-w-5xl mx-auto space-y-4 sm:space-y-6"
               >
                 {/* Hero Header */}
-                <div className="text-center space-y-2 pt-2">
+                <div className="text-center space-y-2.5 pt-2">
                   <div className="flex items-center justify-center">
                     <svg className="w-5 h-5 text-[#244F3B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                       <path d="M12 2C8 6 4 12 12 22M12 7c-2 1-4 3-4 5m4-7c2 1 4 3 4 5" strokeLinecap="round" />
                     </svg>
                   </div>
 
-                  <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-[#18221E] font-medium tracking-tight">
-                    Design structured CBT exercises with clinical precision.
+                  <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-[#18221E] font-medium tracking-tight max-w-2xl mx-auto leading-snug">
+                    Tell Cerina what's weighing on you and get a step-by-step exercise to work through it — checked for safety, yours to edit and keep.
                   </h1>
 
-                  <p className="font-serif italic text-sm text-[#244F3B]/80 max-w-md mx-auto">
-                    Evidence-based protocol authoring for clinical excellence
+                  <p className="text-xs sm:text-sm text-[#55635C] max-w-xl mx-auto leading-relaxed">
+                    Exercises are based on CBT (cognitive behavioural therapy), a well-studied way of working with unhelpful thoughts and habits.
                   </p>
+
+                  <div className="flex items-center justify-center gap-3 text-xs text-[#55635C] pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowCbtExplainer(true)}
+                      className="underline hover:text-[#244F3B] font-medium inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <HelpCircle className="w-3.5 h-3.5 text-[#244F3B]" />
+                      <span>What is CBT?</span>
+                    </button>
+                    <span className="text-[#D8D2C4]">·</span>
+                    <span className="italic">Not therapy or medical advice</span>
+                  </div>
                 </div>
 
                 {/* 2-Column Split: Form + Pipeline Explainer (C1) */}
@@ -969,6 +983,21 @@ function AppContent() {
                     <AgentPipeline events={[]} isIdle={true} />
                   </div>
                 </div>
+
+                {/* Plain language footer */}
+                <footer className="text-center pt-2 pb-1 text-xs text-[#5C6A62]">
+                  <p>
+                    Cerina creates self-help exercises. It isn't therapy or medical advice. If you're in crisis,{' '}
+                    <button
+                      type="button"
+                      onClick={() => dispatch({ type: 'SET_CARE_PANEL', careResources: state.careResources || {} })}
+                      className="text-[#8C4A26] font-semibold underline hover:text-[#6E3619] cursor-pointer"
+                    >
+                      get help now
+                    </button>
+                    .
+                  </p>
+                </footer>
               </motion.div>
             </AnimatePresence>
           ) : (
@@ -990,7 +1019,7 @@ function AppContent() {
                     }`}
                   >
                     <FileText className="w-3.5 h-3.5" />
-                    <span>Protocol Draft</span>
+                    <span>Exercise Draft</span>
                   </button>
                   <button
                     type="button"
@@ -1163,6 +1192,60 @@ function AppContent() {
             </div>
           )}
         </main>
+
+        {/* What is CBT Explainer Modal */}
+        {showCbtExplainer && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cbt-explainer-title"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in"
+            onClick={() => setShowCbtExplainer(false)}
+          >
+            <div
+              className="bg-white rounded-2xl border border-[#E8E4DA] p-6 max-w-md w-full shadow-2xl space-y-3.5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-[#F0ECE3]">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-[#EBF3EE] text-[#244F3B] flex items-center justify-center">
+                    <HelpCircle className="w-4 h-4" />
+                  </div>
+                  <h3 id="cbt-explainer-title" className="font-serif font-bold text-base text-[#18221E]">
+                    What is CBT?
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCbtExplainer(false)}
+                  className="p-1 rounded-md text-[#88978F] hover:text-[#18221E] hover:bg-[#F0ECE3] transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-xs sm:text-sm text-[#33423B] leading-relaxed">
+                Cognitive behavioural therapy (CBT) is an evidence-based approach that helps you spot unhelpful thought patterns and test practical steps to change how you feel and act.
+              </p>
+              <p className="text-xs sm:text-sm text-[#33423B] leading-relaxed">
+                Cerina uses these principles to generate personalized, step-by-step self-help exercises for your situation. You review, edit, and keep every exercise.
+              </p>
+              <div className="p-3 bg-[#FAF8F5] rounded-xl border border-[#E8E4DA] text-xs text-[#55635C] leading-relaxed">
+                <span className="font-semibold text-[#18221E]">Not therapy or medical advice: </span>
+                Cerina provides self-help exercises. If you're experiencing a mental health emergency or severe distress, please reach out to professional crisis support services.
+              </div>
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowCbtExplainer(false)}
+                  className="px-4 py-2 rounded-lg bg-[#244F3B] text-white text-xs font-semibold hover:bg-[#1B3B2B] transition-colors"
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Timeline Sheet */}
         <TimelineSheet

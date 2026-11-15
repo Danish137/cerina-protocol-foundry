@@ -25,9 +25,9 @@ export default function IntentSummary({
       case 'review':
         return 'Awaiting Review'
       case 'editing':
-        return 'Editing Protocol Draft'
+        return "You're editing"
       case 'approving':
-        return 'Finalizing Protocol'
+        return 'Finalizing Exercise'
       case 'approved':
         return 'Approved & Ready'
       default:
@@ -91,7 +91,7 @@ export default function IntentSummary({
                 type="button"
                 className="shrink-0 p-1 text-[#7E8F87] hover:text-[#244F3B] hover:bg-[#FAF8F5] rounded transition-colors cursor-pointer"
                 title="View full prompt intent"
-                aria-label="View full clinical intent prompt"
+                aria-label="View full situation prompt"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
               </button>
