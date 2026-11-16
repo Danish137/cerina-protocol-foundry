@@ -168,7 +168,7 @@
       "type": "node_end",
       "to_agent": null,
       "severity": "info",
-      "text": "SafetyGuardian completed review in 1626.37ms",
+      "text": "Safety Check completed review in 1626.37ms",
       "data": {
         "node": "safety_review",
         "latency_ms": 1626.37
@@ -233,7 +233,7 @@
       "type": "node_end",
       "to_agent": null,
       "severity": "info",
-      "text": "ClinicalCritic completed critique in 2936.9ms",
+      "text": "Quality Reviewer completed review in 2936.9ms",
       "data": {
         "node": "clinical_critique",
         "latency_ms": 2936.9
@@ -461,7 +461,7 @@
       "type": "node_end",
       "to_agent": null,
       "severity": "info",
-      "text": "ClinicalCritic completed critique in 2777.65ms",
+      "text": "Quality Reviewer completed review in 2777.65ms",
       "data": {
         "node": "clinical_critique",
         "latency_ms": 2777.65
@@ -513,7 +513,7 @@
       "type": "node_end",
       "to_agent": null,
       "severity": "info",
-      "text": "SafetyGuardian completed review in 3090.41ms",
+      "text": "Safety Check completed review in 3090.41ms",
       "data": {
         "node": "safety_review",
         "latency_ms": 3090.41
