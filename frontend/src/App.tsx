@@ -938,14 +938,14 @@ function AppContent() {
           {phase === 'care_panel' ? (
             <CarePanel
               resources={state.careResources}
-              onClinicianContinue={() => {
+              onAcknowledgeContinue={() => {
                 if (state.userIntent) {
-                  // Professional bypass continue
+                  // Acknowledge educational scope and continue
                   axios
                     .post(`${API_BASE_URL}/api/protocols/create`, {
                       intent: state.userIntent,
                       review_depth: state.reviewDepth,
-                      clinician_bypass: true
+                      crisis_bypass: true
                     })
                     .then((res) => {
                       handleSessionStart({

@@ -28,7 +28,7 @@ class ProtocolRequest(BaseModel):
     intent: str = Field(..., description="User intent for the CBT exercise")
     session_id: Optional[str] = Field(None, description="Optional custom session ID")
     review_depth: Optional[str] = Field("standard", description="standard | thorough")
-    clinician_bypass: Optional[bool] = Field(False, description="True if clinician confirms designing protocol on high-risk topic")
+    crisis_bypass: Optional[bool] = Field(False, description="True if user confirms exploring educational exercise on high-risk topic")
     region_code: Optional[str] = Field("US", description="Region for crisis resources (US, IN, GB, IE)")
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
@@ -43,14 +43,14 @@ class ProtocolResponse(BaseModel):
     timestamp: Optional[str] = Field(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
 
 class ReviseRequest(BaseModel):
-    instruction: Optional[str] = Field(None, description="Clinician instruction for revision")
+    instruction: Optional[str] = Field(None, description="User instruction for revision")
     concern_ids: Optional[List[str]] = Field(default_factory=list, description="List of concern IDs to address")
 
 class ApproveRequest(BaseModel):
     approved_content: Optional[str] = Field(None, description="Optional edited content to replace the draft")
-    edited: bool = Field(False, description="True if clinician made modifications")
+    edited: bool = Field(False, description="True if user made modifications")
     validated_hash: Optional[str] = Field(None, description="Hash of the revalidated content")
-    approved_by: Optional[str] = Field("You", description="Identifier of the approving clinician")
+    approved_by: Optional[str] = Field("You", description="Identifier of the approving user")
 
 class RevalidateRequest(BaseModel):
     draft: str = Field(..., description="The edited CBT protocol draft to revalidate")
