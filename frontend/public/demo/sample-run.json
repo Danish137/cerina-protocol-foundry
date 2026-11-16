@@ -1,25 +1,25 @@
 {
   "_metadata": {
     "mode": "Recorded live run",
-    "capture_date": "2026-10-12T22:01:00.994154+00:00Z",
-    "provider": "AI Infrastructure",
-    "model": "Exercise Drafter",
-    "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
-    "run_id": "run_B0dWqFEGJwg",
-    "event_count": 17,
+    "capture_date": "2026-11-16T10:42:43.055195+00:00",
+    "provider": "Multiple providers with automatic failover",
+    "model": "Drafter",
+    "session_id": "demo_recorded_run",
+    "run_id": "run_demo_recorded_run",
+    "event_count": 28,
     "provenance": "100% real live run telemetry captured from SQLite database"
   },
-  "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
-  "intent": "Create a Behavioral Activation exercise for persistent mild depression and lethargy.",
+  "session_id": "demo_recorded_run",
+  "intent": "Exam anxiety and fear of freezing during final tests",
   "review_depth": "standard",
-  "draft": "# Behavioral Activation Exercise for Persistent Mild Depression and Lethargy\n\n## Introduction\nBehavioral Activation (BA) is a well-established, evidence-based treatment that addresses the cycle of depression by increasing engagement in meaningful activities. When we're depressed, we tend to withdraw from activities that once brought us joy or a sense of accomplishment, which then reinforces feelings of sadness, worthlessness, and low energy. This creates a downward spiral where inactivity feeds depression, and depression fuels further inactivity.\n\nThis protocol is designed for individuals experiencing persistent mild depression and lethargy\u2014those who may feel consistently low-energy, unmotivated, or disconnected from activities they previously enjoyed. Rather than waiting for motivation to return (which often doesn't happen without action), Behavioral Activation focuses on taking small, manageable steps to gradually rebuild positive routines and experiences. The goal isn't to eliminate difficult feelings immediately, but to create opportunities for positive reinforcement and a greater sense of control over your daily life.\n\n## Goals\n1. Increase weekly engagement in activities rated as moderately pleasant or meaningful (target: 3-5 activities per day)\n2. Reduce daily time spent in passive or avoidant behaviors (e.g., excessive screen time, staying in bed) by 25% within two weeks\n3. Improve self-reported mood scores by 20% over four weeks, as measured by a simple daily mood tracking scale\n\n## Steps\n### Step 1: Activity Monitoring and Awareness\nBegin by tracking your current activity patterns and mood for 3\u20135 days before making any changes. Use a simple hourly log to record:\n- What you did during each hour (be specific\u2014include work, meals, rest, scrolling, etc.)\n- Your mood rating on a 0\u201310 scale (0 = worst mood, 10 = best mood)\n- Whether the activity was something you chose or felt obligated to do\n\nExample entry:\n| Time | Activity | Mood (0\u201310) |\n|------|----------|-------------|\n| 9 AM | Got out of bed reluctantly | 3 |\n| 10 AM | Sat on couch scrolling phone | 2 |\n| 11 AM | Made coffee | 4 |\n\nThis step builds awareness of how your behaviors and emotions interact throughout the day. Many people discover that certain activities correlate with better moods\u2014even small ones like making the bed or stepping outside\u2014and that avoidance behaviors often maintain low mood without providing relief.\n\n### Step 2: Schedule Meaningful Activities\nUsing your activity log, identify 1\u20132 activities per day that align with one of these categories:\n- **Mastery Activities**: Tasks that give a sense of accomplishment (e.g., organizing a drawer, cooking a meal)\n- **Pleasure Activities**: Things that bring enjoyment or relaxation (e.g., listening to music, walking in nature)\n- **Social Connection**: Interactions that foster connection (e.g., texting a friend, joining a group)\n- **Routine Maintenance**: Basic self-care tasks (e.g., showering, eating regular meals)\n\nStart small. For example:\n- Monday: Take a 10-minute walk after lunch + call one friend\n- Tuesday: Cook breakfast instead of skipping it + listen to favorite playlist while cleaning\n\nWrite these into your calendar or planner as non-negotiable appointments with yourself. If an activity feels too overwhelming, break it down further (e.g., \u201cwalk\u201d becomes \u201cput on shoes and stand outside for 5 minutes\u201d).\n\nThe rationale here is that depression narrows our behavioral repertoire\u2014we stop doing things that could improve our mood simply because we don\u2019t feel like it. By scheduling activities in advance, we bypass the need for motivation and create structure that supports gradual improvement.\n\n### Step 3: Monitor and Adjust Based on Feedback\nEach evening, briefly review your day using this framework:\n1. Which scheduled activities did you complete?\n2. How did your mood change before vs. after each activity?\n3. What got in the way of completing activities?\n4. What would you adjust tomorrow?\n\nIf an activity consistently leads to increased energy or improved mood, try expanding it slightly next week (e.g., increase walk duration from 10 to 15 minutes). If something feels draining or unhelpful, modify or replace it.\n\nThis reflective process helps reinforce learning and prevents discouragement. Progress isn\u2019t always linear, and adjustments are part of the process\u2014not signs of failure.\n\n## Practice\nCommit to the following daily routine for at least two weeks:\n\n**Morning (within first hour of waking):**\n- Complete a brief morning routine (shower, get dressed, make bed)\n- Schedule 1\u20132 specific activities into your day (written down or in calendar)\n\n**Throughout the day:**\n- Check in with your mood twice daily (mid-morning and mid-afternoon) using a 0\u201310 scale\n- Engage in at least one mastery or pleasure activity\n- Limit passive screen time when possible (set timers if needed)\n\n**Evening (last 10 minutes before bed):**\n- Reflect on the day using the questions above\n- Plan tomorrow\u2019s key activities\n\nUse a paper journal, app, or printed worksheet to track your progress. Consistency matters more than intensity\u2014small actions done regularly will compound over time.\n\n## Reflection\nAt the end of each week, spend five minutes answering these questions:\n1. What activities consistently lifted your mood, even slightly?\n2. What patterns emerged in your energy levels throughout the day?\n3. When did you feel most like yourself this week\u2014and what were you doing?\n4. What barriers kept you from engaging fully, and how might you address them next week?\n5. How has your relationship with planning or choosing activities shifted since starting this protocol?\n\nNotice whether your sense of agency\u2014the feeling that you can influence your own experience\u2014is growing stronger. Even minor shifts in behavior can lead to meaningful improvements in outlook over time.\n\n## Conclusion\nYou\u2019ve taken an important step by engaging with Behavioral Activation. Remember, the goal isn\u2019t perfection but progress. Some days will feel easier than others, and that\u2019s completely normal. Be patient with yourself as you rebuild routines and reconnect with sources of meaning and joy.\n\nIf at any point your symptoms worsen significantly, interfere with basic functioning, or include thoughts of self-harm, please reach out to a mental health professional right away. While this protocol can be helpful for mild depression, it is not a substitute for individualized care when needed. You deserve support, and help is always available.",
+  "draft": "# Managing Exam Anxiety & Preventing \u201cFreezing\u201d During Final Tests\n\n## Introduction\nFinal exams can feel like high\u2011stakes performances, and it\u2019s natural to experience nerves, racing thoughts, and the fear that your mind will go blank. This exercise uses core CBT techniques\u2014identifying unhelpful thoughts, testing their accuracy, and building concrete coping skills\u2014to lower anxiety before the exam and keep you mentally engaged during it. It\u2019s designed for students who notice physical tension, worry about performance, or have previously \u201cfrozen\u201d on a question.\n\n## Goals\n1. **Reduce physiological anxiety** (e.g., heart racing, sweaty hands) by at least 30\u202f% as measured by a simple anxiety rating before the exam.\n2. **Replace at least three \u201ccatastrophic\u201d thoughts with balanced alternatives** during a study session or mock test.\n3. **Demonstrate a reliable \u201creset\u201d strategy** (e.g., grounding\u202f+\u202fbrief self\u2011talk) that can be used within 30\u202fseconds when you feel you are starting to freeze.\n\n## Steps\n### Step 1: Thought Monitoring & Evidence Testing\n1. **Choose a recent study moment** when anxiety peaked (e.g., while reviewing a difficult chapter).\n2. Write down the exact thought that ran through your mind (e.g., \u201cIf I don\u2019t know this, I\u2019ll fail the whole exam\u201d).\n3. Rate the intensity of that thought on a scale of 0\u2013100.\n4. **Gather evidence**:\n   - *Support*: What facts actually support the thought? (Maybe you missed one practice question.)\n   - *Against*: What facts contradict it? (You have passed previous quizzes, you understand most of the material.)\n5. **Create a balanced statement** that acknowledges the worry but adds realistic perspective (e.g., \u201cI missed one question, but I\u2019ve answered most of the material correctly; I can still do well overall.\u201d).\n6. Record the new statement and re\u2011rate the anxiety intensity. Notice any reduction.\n\n*Rationale*: By confronting the thought with evidence, you weaken the automatic \u201ccatastrophe\u201d pattern and give your brain a more accurate map of the situation.\n\n### Step 2: Structured Study Sessions with \u201cAnxiety\u2011Break\u201d Slots\n1. **Plan a 45\u2011minute study block** using a timer.\n2. **During the first 35 minutes**, focus on active learning (summarizing, teaching aloud, solving problems).\n3. **At the 35\u2011minute mark**, trigger a 5\u2011minute \u201canxiety\u2011break\u201d:\n   - Sit upright, place both feet flat on the floor.\n   - Perform a 4\u20117\u20118 breathing cycle (inhale\u202f4\u202fsec, hold\u202f7\u202fsec, exhale\u202f8\u202fsec) three times.\n   - Scan your body from head to toe, noting any tension and deliberately relaxing each muscle group.\n4. **Use the final 5 minutes** to write down any intrusive thoughts that arose, then apply Step\u202f1\u2019s evidence\u2011testing to each.\n5. Log the session: date, subject, anxiety rating before and after, and any balanced thoughts you generated.\n\n*Rationale*: Predictable breaks prevent anxiety from building to a level that triggers a freeze response, and the breathing exercise activates the parasympathetic nervous system, lowering physiological arousal.\n\n### Step 3: In\u2011Exam \u201cFreeze\u2011Prevention\u201d Toolkit\n1. **Grounding cue**: Keep a small, unobtrusive object (e.g., a smooth pen) in your pocket. When you notice your mind going blank, place the pen in your hand, feel its texture, and name **three** sensory details (e.g., \u201cIt\u2019s cool, slightly ridged, and light\u201d).\n2. **Brief self\u2011talk script** (under 10\u202fseconds):\n   - \u201cI\u2019ve prepared for this. I can handle one question at a time.\u201d\n   - Say it silently or whisper to yourself.\n3. **Micro\u2011pause**: Close your eyes for a single breath, then open them and read the question again, highlighting key verbs (e.g., \u201ccompare,\u201d \u201clist,\u201d \u201cexplain\u201d).\n4. **Progressive \u201canswer\u2011first\u201d habit**: Before diving into calculations, jot down a one\u2011sentence outline of how you would answer. This creates a mental roadmap and reduces the chance of getting stuck.\n\n*Rationale*: The grounding cue redirects attention from anxiety to the present moment, while the self\u2011talk and micro\u2011pause interrupt the freeze cycle and re\u2011engage executive function.\n\n## Practice\n- **Daily**: Perform one 45\u2011minute study block with the built\u2011in anxiety break.\n- **Weekly**: Complete a mock\u2011test (20\u201330\u202fminutes) and intentionally use the \u201cFreeze\u2011Prevention\u201d Toolkit on at least two questions. Record:\n  - Date and subject\n  - Pre\u2011session anxiety rating (0\u2011100)\n  - Number of times the toolkit was used\n  - Post\u2011session anxiety rating\n  - Any balanced thoughts created\n\nReview the log every Sunday. Look for trends (e.g., decreasing anxiety ratings, fewer freeze episodes).\n\n## Reflection\nAfter each study block or mock test, answer the following prompts in your journal:\n\n1. **Thoughts**: Which automatic thoughts surfaced? How did the evidence\u2011testing change their intensity?\n2. **Physical sensations**: Where did you feel tension or calmness in your body? Did the breathing or grounding shift those sensations?\n3. **Behavioral response**: How smoothly did you transition from the grounding cue to answering the question? What could you tweak for next time?\n4. **Overall rating**: On a scale of 0\u201310, how confident do you feel about managing anxiety on the upcoming real exam?\n\n## Conclusion\nYou now have a step\u2011by\u2011step CBT plan to calm nerves, challenge unhelpful thoughts, and keep your mind active during finals. Consistent practice of these techniques can transform anxiety from a paralyzing force into a manageable signal that prepares you to perform at your best.\n\n*Reminder*: This exercise is a self\u2011help tool, not a substitute for professional mental\u2011health care. If anxiety intensifies, interferes with daily functioning, or you experience overwhelming panic, please reach out to a qualified therapist, counselor, or medical professional for personalized support. Good luck\u2014you\u2019ve got the skills to succeed!",
   "events": [
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
+      "session_id": "demo_recorded_run",
       "seq": 1,
-      "run_id": "run_session_hAwYVCwLfLkxK-8vcCvjfg",
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
-      "draft_version": 0,
+      "draft_version": 1,
       "agent": "Drafter",
       "type": "node_start",
       "to_agent": null,
@@ -28,69 +28,72 @@
       "data": {
         "node": "draft"
       },
-      "ts": "2026-10-12T22:01:00.993853+00:00Z",
+      "ts": "2026-11-16T08:43:34.972011",
       "relative_offset_s": 0.0
     },
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
+      "session_id": "demo_recorded_run",
       "seq": 2,
-      "run_id": "run_session_hAwYVCwLfLkxK-8vcCvjfg",
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
-      "draft_version": 0,
+      "draft_version": 1,
       "agent": "Drafter",
       "type": "draft",
       "to_agent": null,
       "severity": "info",
-      "text": "Created initial draft",
+      "text": "Created draft version 1",
       "data": {
-        "draft": "# Behavioral Activation Exercise for Persistent Mild Depression and Lethargy\n\n## Introduction\nBehavioral Activation (BA) is a well-established, evidence-based treatment that addresses the cycle of depression by increasing engagement in meaningful activities. When we're depressed, we tend to withdraw from activities that once brought us joy or a sense of accomplishment, which then reinforces feelings of sadness, worthlessness, and low energy. This creates a downward spiral where inactivity feeds depression, and depression fuels further inactivity.\n\nThis protocol is designed for individuals experiencing persistent mild depression and lethargy\u2014those who may feel consistently low-energy, unmotivated, or disconnected from activities they previously enjoyed. Rather than waiting for motivation to return (which often doesn't happen without action), Behavioral Activation focuses on taking small, manageable steps to gradually rebuild positive routines and experiences. The goal isn't to eliminate difficult feelings immediately, but to create opportunities for positive reinforcement and a greater sense of control over your daily life.\n\n## Goals\n1. Increase weekly engagement in activities rated as moderately pleasant or meaningful (target: 3-5 activities per day)\n2. Reduce daily time spent in passive or avoidant behaviors (e.g., excessive screen time, staying in bed) by 25% within two weeks\n3. Improve self-reported mood scores by 20% over four weeks, as measured by a simple daily mood tracking scale\n\n## Steps\n### Step 1: Activity Monitoring and Awareness\nBegin by tracking your current activity patterns and mood for 3\u20135 days before making any changes. Use a simple hourly log to record:\n- What you did during each hour (be specific\u2014include work, meals, rest, scrolling, etc.)\n- Your mood rating on a 0\u201310 scale (0 = worst mood, 10 = best mood)\n- Whether the activity was something you chose or felt obligated to do\n\nExample entry:\n| Time | Activity | Mood (0\u201310) |\n|------|----------|-------------|\n| 9 AM | Got out of bed reluctantly | 3 |\n| 10 AM | Sat on couch scrolling phone | 2 |\n| 11 AM | Made coffee | 4 |\n\nThis step builds awareness of how your behaviors and emotions interact throughout the day. Many people discover that certain activities correlate with better moods\u2014even small ones like making the bed or stepping outside\u2014and that avoidance behaviors often maintain low mood without providing relief.\n\n### Step 2: Schedule Meaningful Activities\nUsing your activity log, identify 1\u20132 activities per day that align with one of these categories:\n- **Mastery Activities**: Tasks that give a sense of accomplishment (e.g., organizing a drawer, cooking a meal)\n- **Pleasure Activities**: Things that bring enjoyment or relaxation (e.g., listening to music, walking in nature)\n- **Social Connection**: Interactions that foster connection (e.g., texting a friend, joining a group)\n- **Routine Maintenance**: Basic self-care tasks (e.g., showering, eating regular meals)\n\nStart small. For example:\n- Monday: Take a 10-minute walk after lunch + call one friend\n- Tuesday: Cook breakfast instead of skipping it + listen to favorite playlist while cleaning\n\nWrite these into your calendar or planner as non-negotiable appointments with yourself. If an activity feels too overwhelming, break it down further (e.g., \u201cwalk\u201d becomes \u201cput on shoes and stand outside for 5 minutes\u201d).\n\nThe rationale here is that depression narrows our behavioral repertoire\u2014we stop doing things that could improve our mood simply because we don\u2019t feel like it. By scheduling activities in advance, we bypass the need for motivation and create structure that supports gradual improvement.\n\n### Step 3: Monitor and Adjust Based on Feedback\nEach evening, briefly review your day using this framework:\n1. Which scheduled activities did you complete?\n2. How did your mood change before vs. after each activity?\n3. What got in the way of completing activities?\n4. What would you adjust tomorrow?\n\nIf an activity consistently leads to increased energy or improved mood, try expanding it slightly next week (e.g., increase walk duration from 10 to 15 minutes). If something feels draining or unhelpful, modify or replace it.\n\nThis reflective process helps reinforce learning and prevents discouragement. Progress isn\u2019t always linear, and adjustments are part of the process\u2014not signs of failure.\n\n## Practice\nCommit to the following daily routine for at least two weeks:\n\n**Morning (within first hour of waking):**\n- Complete a brief morning routine (shower, get dressed, make bed)\n- Schedule 1\u20132 specific activities into your day (written down or in calendar)\n\n**Throughout the day:**\n- Check in with your mood twice daily (mid-morning and mid-afternoon) using a 0\u201310 scale\n- Engage in at least one mastery or pleasure activity\n- Limit passive screen time when possible (set timers if needed)\n\n**Evening (last 10 minutes before bed):**\n- Reflect on the day using the questions above\n- Plan tomorrow\u2019s key activities\n\nUse a paper journal, app, or printed worksheet to track your progress. Consistency matters more than intensity\u2014small actions done regularly will compound over time.\n\n## Reflection\nAt the end of each week, spend five minutes answering these questions:\n1. What activities consistently lifted your mood, even slightly?\n2. What patterns emerged in your energy levels throughout the day?\n3. When did you feel most like yourself this week\u2014and what were you doing?\n4. What barriers kept you from engaging fully, and how might you address them next week?\n5. How has your relationship with planning or choosing activities shifted since starting this protocol?\n\nNotice whether your sense of agency\u2014the feeling that you can influence your own experience\u2014is growing stronger. Even minor shifts in behavior can lead to meaningful improvements in outlook over time.\n\n## Conclusion\nYou\u2019ve taken an important step by engaging with Behavioral Activation. Remember, the goal isn\u2019t perfection but progress. Some days will feel easier than others, and that\u2019s completely normal. Be patient with yourself as you rebuild routines and reconnect with sources of meaning and joy.\n\nIf at any point your symptoms worsen significantly, interfere with basic functioning, or include thoughts of self-harm, please reach out to a mental health professional right away. While this protocol can be helpful for mild depression, it is not a substitute for individualized care when needed. You deserve support, and help is always available.",
-        "version": 0
+        "draft": "# Managing Exam Anxiety & Preventing \u201cFreezing\u201d During Final Tests\n\n## Introduction\nFinal exams can feel like high\u2011stakes performances, and it\u2019s natural to experience nerves, racing thoughts, and the fear that your mind will go blank. This exercise uses core CBT techniques\u2014identifying unhelpful thoughts, testing their accuracy, and building concrete coping skills\u2014to lower anxiety before the exam and keep you mentally engaged during it. It\u2019s designed for students who notice physical tension, worry about performance, or have previously \u201cfrozen\u201d on a question.\n\n## Goals\n1. **Reduce physiological anxiety** (e.g., heart racing, sweaty hands) by at least 30\u202f% as measured by a simple anxiety rating before the exam.\n2. **Replace at least three \u201ccatastrophic\u201d thoughts with balanced alternatives** during a study session or mock test.\n3. **Demonstrate a reliable \u201creset\u201d strategy** (e.g., grounding + brief self\u2011talk) that can be used within 30\u202fseconds when you feel you are starting to freeze.\n\n## Steps\n### Step 1: Thought Monitoring & Evidence Testing\n1. **Choose a recent study moment** when anxiety peaked (e.g., while reviewing a difficult chapter).\n2. Write down the exact thought that ran through your mind (e.g., \u201cIf I don\u2019t know this, I\u2019ll fail the whole exam\u201d).\n3. Rate the intensity of that thought on a scale of 0\u2013100.\n4. **Gather evidence**:\n   - *Support*: What facts actually support the thought? (Maybe you missed one practice question.)\n   - *Against*: What facts contradict it? (You have passed previous quizzes, you understand most of the material.)\n5. **Create a balanced statement** that acknowledges the worry but adds realistic perspective (e.g., \u201cI missed one question, but I\u2019ve answered most of the material correctly; I can still do well overall.\u201d).\n6. Record the new statement and re\u2011rate the anxiety intensity. Notice any reduction.\n\n*Rationale*: By confronting the thought with evidence, you weaken the automatic \u201ccatastrophe\u201d pattern and give your brain a more accurate map of the situation.\n\n### Step 2: Structured Study Sessions with \u201cAnxiety\u2011Break\u201d Slots\n1. **Plan a 45\u2011minute study block** using a timer.\n2. **During the first 35 minutes**, focus on active learning (summarizing, teaching aloud, solving problems).\n3. **At the 35\u2011minute mark**, trigger a 5\u2011minute \u201canxiety\u2011break\u201d:\n   - Sit upright, place both feet flat on the floor.\n   - Perform a 4\u20117\u20118 breathing cycle (inhale 4\u202fsec, hold 7\u202fsec, exhale 8\u202fsec) three times.\n   - Scan your body from head to toe, noting any tension and deliberately relaxing each muscle group.\n4. **Use the final 5 minutes** to write down any intrusive thoughts that arose, then apply Step\u202f1\u2019s evidence\u2011testing to each.\n5. Log the session: date, subject, anxiety rating before and after, and any balanced thoughts you generated.\n\n*Rationale*: Predictable breaks prevent anxiety from building to a level that triggers a freeze response, and the breathing exercise activates the parasympathetic nervous system, lowering physiological arousal.\n\n### Step 3: In\u2011Exam \u201cFreeze\u2011Prevention\u201d Toolkit\n1. **Grounding cue**: Keep a small, unobtrusive object (e.g., a smooth pen) in your pocket. When you notice your mind going blank, place the pen in your hand, feel its texture, and name **three** sensory details (e.g., \u201cIt\u2019s cool, slightly ridged, and light\u201d).\n2. **Brief self\u2011talk script** (under 10\u202fseconds):\n   - \u201cI\u2019ve prepared for this. I can handle one question at a time.\u201d\n   - Say it silently or whisper to yourself.\n3. **Micro\u2011pause**: Close your eyes for a single breath, then open them and read the question again, highlighting key verbs (e.g., \u201ccompare,\u201d \u201clist,\u201d \u201cexplain\u201d).\n4. **Progressive \u201canswer\u2011first\u201d habit**: Before diving into calculations, jot down a one\u2011sentence outline of how you would answer. This creates a mental roadmap and reduces the chance of getting stuck.\n\n*Rationale*: The grounding cue redirects attention from anxiety to the present moment, while the self\u2011talk and micro\u2011pause interrupt the freeze cycle and re\u2011engage executive function.\n\n## Practice\n- **Daily**: Perform one 45\u2011minute study block with the built\u2011in anxiety break.\n- **Weekly**: Complete a mock\u2011test (20\u201330\u202fminutes) and intentionally use the \u201cFreeze\u2011Prevention\u201d Toolkit on at least two questions. Record:\n  - Date and subject\n  - Pre\u2011session anxiety rating (0\u2011100)\n  - Number of times the toolkit was used\n  - Post\u2011session anxiety rating\n  - Any balanced thoughts created\n\nReview the log every Sunday. Look for trends (e.g., decreasing anxiety ratings, fewer freeze episodes).\n\n## Reflection\nAfter each study block or mock test, answer the following prompts in your journal:\n\n1. **Thoughts**: Which automatic thoughts surfaced? How did the evidence\u2011testing change their intensity?\n2. **Physical sensations**: Where did you feel tension or calmness in your body? Did the breathing or grounding shift those sensations?\n3. **Behavioral response**: How smoothly did you transition from the grounding cue to answering the question? What could you tweak for next time?\n4. **Overall rating**: On a scale of 0\u201310, how confident do you feel about managing anxiety on the upcoming real exam?\n\n## Conclusion\nYou now have a step\u2011by\u2011step CBT plan to calm nerves, challenge unhelpful thoughts, and keep your mind active during finals. Consistent practice of these techniques can transform anxiety from a paralyzing force into a manageable signal that prepares you to perform at your best.\n\n*Reminder*: This exercise is a self\u2011help tool, not a substitute for professional mental\u2011health care. If anxiety intensifies, interferes with daily functioning, or you experience overwhelming panic, please reach out to a qualified therapist, counselor, or medical professional for personalized support. Good luck\u2014you\u2019ve got the skills to succeed!*",
+        "version": 1,
+        "provenance": "ai_initial",
+        "revision_summary": []
       },
-      "ts": "2026-10-12T22:01:32.095968+00:00Z",
-      "relative_offset_s": 31.1
+      "ts": "2026-11-16T08:43:39.440305",
+      "relative_offset_s": 4.5
     },
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
+      "session_id": "demo_recorded_run",
       "seq": 3,
-      "run_id": "run_session_hAwYVCwLfLkxK-8vcCvjfg",
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
-      "draft_version": 0,
+      "draft_version": 1,
       "agent": "Drafter",
       "type": "message",
       "to_agent": "SafetyGuardian",
       "severity": "info",
-      "text": "Initial draft generated with structured steps",
+      "text": "Draft version 1 generated with structured steps",
       "data": {
-        "draft": "# Behavioral Activation Exercise for Persistent Mild Depression and Lethargy\n\n## Introduction\nBehavioral Activation (BA) is a well-established, evidence-based treatment that addresses the cycle of depression by increasing engagement in meaningful activities. When we're depressed, we tend to withdraw from activities that once brought us joy or a sense of accomplishment, which then reinforces feelings of sadness, worthlessness, and low energy. This creates a downward spiral where inactivity feeds depression, and depression fuels further inactivity.\n\nThis protocol is designed for individuals experiencing persistent mild depression and lethargy\u2014those who may feel consistently low-energy, unmotivated, or disconnected from activities they previously enjoyed. Rather than waiting for motivation to return (which often doesn't happen without action), Behavioral Activation focuses on taking small, manageable steps to gradually rebuild positive routines and experiences. The goal isn't to eliminate difficult feelings immediately, but to create opportunities for positive reinforcement and a greater sense of control over your daily life.\n\n## Goals\n1. Increase weekly engagement in activities rated as moderately pleasant or meaningful (target: 3-5 activities per day)\n2. Reduce daily time spent in passive or avoidant behaviors (e.g., excessive screen time, staying in bed) by 25% within two weeks\n3. Improve self-reported mood scores by 20% over four weeks, as measured by a simple daily mood tracking scale\n\n## Steps\n### Step 1: Activity Monitoring and Awareness\nBegin by tracking your current activity patterns and mood for 3\u20135 days before making any changes. Use a simple hourly log to record:\n- What you did during each hour (be specific\u2014include work, meals, rest, scrolling, etc.)\n- Your mood rating on a 0\u201310 scale (0 = worst mood, 10 = best mood)\n- Whether the activity was something you chose or felt obligated to do\n\nExample entry:\n| Time | Activity | Mood (0\u201310) |\n|------|----------|-------------|\n| 9 AM | Got out of bed reluctantly | 3 |\n| 10 AM | Sat on couch scrolling phone | 2 |\n| 11 AM | Made coffee | 4 |\n\nThis step builds awareness of how your behaviors and emotions interact throughout the day. Many people discover that certain activities correlate with better moods\u2014even small ones like making the bed or stepping outside\u2014and that avoidance behaviors often maintain low mood without providing relief.\n\n### Step 2: Schedule Meaningful Activities\nUsing your activity log, identify 1\u20132 activities per day that align with one of these categories:\n- **Mastery Activities**: Tasks that give a sense of accomplishment (e.g., organizing a drawer, cooking a meal)\n- **Pleasure Activities**: Things that bring enjoyment or relaxation (e.g., listening to music, walking in nature)\n- **Social Connection**: Interactions that foster connection (e.g., texting a friend, joining a group)\n- **Routine Maintenance**: Basic self-care tasks (e.g., showering, eating regular meals)\n\nStart small. For example:\n- Monday: Take a 10-minute walk after lunch + call one friend\n- Tuesday: Cook breakfast instead of skipping it + listen to favorite playlist while cleaning\n\nWrite these into your calendar or planner as non-negotiable appointments with yourself. If an activity feels too overwhelming, break it down further (e.g., \u201cwalk\u201d becomes \u201cput on shoes and stand outside for 5 minutes\u201d).\n\nThe rationale here is that depression narrows our behavioral repertoire\u2014we stop doing things that could improve our mood simply because we don\u2019t feel like it. By scheduling activities in advance, we bypass the need for motivation and create structure that supports gradual improvement.\n\n### Step 3: Monitor and Adjust Based on Feedback\nEach evening, briefly review your day using this framework:\n1. Which scheduled activities did you complete?\n2. How did your mood change before vs. after each activity?\n3. What got in the way of completing activities?\n4. What would you adjust tomorrow?\n\nIf an activity consistently leads to increased energy or improved mood, try expanding it slightly next week (e.g., increase walk duration from 10 to 15 minutes). If something feels draining or unhelpful, modify or replace it.\n\nThis reflective process helps reinforce learning and prevents discouragement. Progress isn\u2019t always linear, and adjustments are part of the process\u2014not signs of failure.\n\n## Practice\nCommit to the following daily routine for at least two weeks:\n\n**Morning (within first hour of waking):**\n- Complete a brief morning routine (shower, get dressed, make bed)\n- Schedule 1\u20132 specific activities into your day (written down or in calendar)\n\n**Throughout the day:**\n- Check in with your mood twice daily (mid-morning and mid-afternoon) using a 0\u201310 scale\n- Engage in at least one mastery or pleasure activity\n- Limit passive screen time when possible (set timers if needed)\n\n**Evening (last 10 minutes before bed):**\n- Reflect on the day using the questions above\n- Plan tomorrow\u2019s key activities\n\nUse a paper journal, app, or printed worksheet to track your progress. Consistency matters more than intensity\u2014small actions done regularly will compound over time.\n\n## Reflection\nAt the end of each week, spend five minutes answering these questions:\n1. What activities consistently lifted your mood, even slightly?\n2. What patterns emerged in your energy levels throughout the day?\n3. When did you feel most like yourself this week\u2014and what were you doing?\n4. What barriers kept you from engaging fully, and how might you address them next week?\n5. How has your relationship with planning or choosing activities shifted since starting this protocol?\n\nNotice whether your sense of agency\u2014the feeling that you can influence your own experience\u2014is growing stronger. Even minor shifts in behavior can lead to meaningful improvements in outlook over time.\n\n## Conclusion\nYou\u2019ve taken an important step by engaging with Behavioral Activation. Remember, the goal isn\u2019t perfection but progress. Some days will feel easier than others, and that\u2019s completely normal. Be patient with yourself as you rebuild routines and reconnect with sources of meaning and joy.\n\nIf at any point your symptoms worsen significantly, interfere with basic functioning, or include thoughts of self-harm, please reach out to a mental health professional right away. While this protocol can be helpful for mild depression, it is not a substitute for individualized care when needed. You deserve support, and help is always available.",
-        "version": 0
+        "draft": "# Managing Exam Anxiety & Preventing \u201cFreezing\u201d During Final Tests\n\n## Introduction\nFinal exams can feel like high\u2011stakes performances, and it\u2019s natural to experience nerves, racing thoughts, and the fear that your mind will go blank. This exercise uses core CBT techniques\u2014identifying unhelpful thoughts, testing their accuracy, and building concrete coping skills\u2014to lower anxiety before the exam and keep you mentally engaged during it. It\u2019s designed for students who notice physical tension, worry about performance, or have previously \u201cfrozen\u201d on a question.\n\n## Goals\n1. **Reduce physiological anxiety** (e.g., heart racing, sweaty hands) by at least 30\u202f% as measured by a simple anxiety rating before the exam.\n2. **Replace at least three \u201ccatastrophic\u201d thoughts with balanced alternatives** during a study session or mock test.\n3. **Demonstrate a reliable \u201creset\u201d strategy** (e.g., grounding + brief self\u2011talk) that can be used within 30\u202fseconds when you feel you are starting to freeze.\n\n## Steps\n### Step 1: Thought Monitoring & Evidence Testing\n1. **Choose a recent study moment** when anxiety peaked (e.g., while reviewing a difficult chapter).\n2. Write down the exact thought that ran through your mind (e.g., \u201cIf I don\u2019t know this, I\u2019ll fail the whole exam\u201d).\n3. Rate the intensity of that thought on a scale of 0\u2013100.\n4. **Gather evidence**:\n   - *Support*: What facts actually support the thought? (Maybe you missed one practice question.)\n   - *Against*: What facts contradict it? (You have passed previous quizzes, you understand most of the material.)\n5. **Create a balanced statement** that acknowledges the worry but adds realistic perspective (e.g., \u201cI missed one question, but I\u2019ve answered most of the material correctly; I can still do well overall.\u201d).\n6. Record the new statement and re\u2011rate the anxiety intensity. Notice any reduction.\n\n*Rationale*: By confronting the thought with evidence, you weaken the automatic \u201ccatastrophe\u201d pattern and give your brain a more accurate map of the situation.\n\n### Step 2: Structured Study Sessions with \u201cAnxiety\u2011Break\u201d Slots\n1. **Plan a 45\u2011minute study block** using a timer.\n2. **During the first 35 minutes**, focus on active learning (summarizing, teaching aloud, solving problems).\n3. **At the 35\u2011minute mark**, trigger a 5\u2011minute \u201canxiety\u2011break\u201d:\n   - Sit upright, place both feet flat on the floor.\n   - Perform a 4\u20117\u20118 breathing cycle (inhale 4\u202fsec, hold 7\u202fsec, exhale 8\u202fsec) three times.\n   - Scan your body from head to toe, noting any tension and deliberately relaxing each muscle group.\n4. **Use the final 5 minutes** to write down any intrusive thoughts that arose, then apply Step\u202f1\u2019s evidence\u2011testing to each.\n5. Log the session: date, subject, anxiety rating before and after, and any balanced thoughts you generated.\n\n*Rationale*: Predictable breaks prevent anxiety from building to a level that triggers a freeze response, and the breathing exercise activates the parasympathetic nervous system, lowering physiological arousal.\n\n### Step 3: In\u2011Exam \u201cFreeze\u2011Prevention\u201d Toolkit\n1. **Grounding cue**: Keep a small, unobtrusive object (e.g., a smooth pen) in your pocket. When you notice your mind going blank, place the pen in your hand, feel its texture, and name **three** sensory details (e.g., \u201cIt\u2019s cool, slightly ridged, and light\u201d).\n2. **Brief self\u2011talk script** (under 10\u202fseconds):\n   - \u201cI\u2019ve prepared for this. I can handle one question at a time.\u201d\n   - Say it silently or whisper to yourself.\n3. **Micro\u2011pause**: Close your eyes for a single breath, then open them and read the question again, highlighting key verbs (e.g., \u201ccompare,\u201d \u201clist,\u201d \u201cexplain\u201d).\n4. **Progressive \u201canswer\u2011first\u201d habit**: Before diving into calculations, jot down a one\u2011sentence outline of how you would answer. This creates a mental roadmap and reduces the chance of getting stuck.\n\n*Rationale*: The grounding cue redirects attention from anxiety to the present moment, while the self\u2011talk and micro\u2011pause interrupt the freeze cycle and re\u2011engage executive function.\n\n## Practice\n- **Daily**: Perform one 45\u2011minute study block with the built\u2011in anxiety break.\n- **Weekly**: Complete a mock\u2011test (20\u201330\u202fminutes) and intentionally use the \u201cFreeze\u2011Prevention\u201d Toolkit on at least two questions. Record:\n  - Date and subject\n  - Pre\u2011session anxiety rating (0\u2011100)\n  - Number of times the toolkit was used\n  - Post\u2011session anxiety rating\n  - Any balanced thoughts created\n\nReview the log every Sunday. Look for trends (e.g., decreasing anxiety ratings, fewer freeze episodes).\n\n## Reflection\nAfter each study block or mock test, answer the following prompts in your journal:\n\n1. **Thoughts**: Which automatic thoughts surfaced? How did the evidence\u2011testing change their intensity?\n2. **Physical sensations**: Where did you feel tension or calmness in your body? Did the breathing or grounding shift those sensations?\n3. **Behavioral response**: How smoothly did you transition from the grounding cue to answering the question? What could you tweak for next time?\n4. **Overall rating**: On a scale of 0\u201310, how confident do you feel about managing anxiety on the upcoming real exam?\n\n## Conclusion\nYou now have a step\u2011by\u2011step CBT plan to calm nerves, challenge unhelpful thoughts, and keep your mind active during finals. Consistent practice of these techniques can transform anxiety from a paralyzing force into a manageable signal that prepares you to perform at your best.\n\n*Reminder*: This exercise is a self\u2011help tool, not a substitute for professional mental\u2011health care. If anxiety intensifies, interferes with daily functioning, or you experience overwhelming panic, please reach out to a qualified therapist, counselor, or medical professional for personalized support. Good luck\u2014you\u2019ve got the skills to succeed!*",
+        "version": 1,
+        "revision_summary": []
       },
-      "ts": "2026-10-12T22:01:32.132019+00:00Z",
-      "relative_offset_s": 31.14
+      "ts": "2026-11-16T08:43:39.483740",
+      "relative_offset_s": 4.5
     },
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
+      "session_id": "demo_recorded_run",
       "seq": 4,
-      "run_id": "run_session_hAwYVCwLfLkxK-8vcCvjfg",
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
-      "draft_version": 0,
+      "draft_version": 1,
       "agent": "Drafter",
       "type": "node_end",
       "to_agent": null,
       "severity": "info",
-      "text": "Drafter completed draft in 31205.45ms",
+      "text": "Drafter completed draft in 4601.68ms",
       "data": {
         "node": "draft",
-        "latency_ms": 31205.45,
-        "draft": "# Behavioral Activation Exercise for Persistent Mild Depression and Lethargy\n\n## Introduction\nBehavioral Activation (BA) is a well-established, evidence-based treatment that addresses the cycle of depression by increasing engagement in meaningful activities. When we're depressed, we tend to withdraw from activities that once brought us joy or a sense of accomplishment, which then reinforces feelings of sadness, worthlessness, and low energy. This creates a downward spiral where inactivity feeds depression, and depression fuels further inactivity.\n\nThis protocol is designed for individuals experiencing persistent mild depression and lethargy\u2014those who may feel consistently low-energy, unmotivated, or disconnected from activities they previously enjoyed. Rather than waiting for motivation to return (which often doesn't happen without action), Behavioral Activation focuses on taking small, manageable steps to gradually rebuild positive routines and experiences. The goal isn't to eliminate difficult feelings immediately, but to create opportunities for positive reinforcement and a greater sense of control over your daily life.\n\n## Goals\n1. Increase weekly engagement in activities rated as moderately pleasant or meaningful (target: 3-5 activities per day)\n2. Reduce daily time spent in passive or avoidant behaviors (e.g., excessive screen time, staying in bed) by 25% within two weeks\n3. Improve self-reported mood scores by 20% over four weeks, as measured by a simple daily mood tracking scale\n\n## Steps\n### Step 1: Activity Monitoring and Awareness\nBegin by tracking your current activity patterns and mood for 3\u20135 days before making any changes. Use a simple hourly log to record:\n- What you did during each hour (be specific\u2014include work, meals, rest, scrolling, etc.)\n- Your mood rating on a 0\u201310 scale (0 = worst mood, 10 = best mood)\n- Whether the activity was something you chose or felt obligated to do\n\nExample entry:\n| Time | Activity | Mood (0\u201310) |\n|------|----------|-------------|\n| 9 AM | Got out of bed reluctantly | 3 |\n| 10 AM | Sat on couch scrolling phone | 2 |\n| 11 AM | Made coffee | 4 |\n\nThis step builds awareness of how your behaviors and emotions interact throughout the day. Many people discover that certain activities correlate with better moods\u2014even small ones like making the bed or stepping outside\u2014and that avoidance behaviors often maintain low mood without providing relief.\n\n### Step 2: Schedule Meaningful Activities\nUsing your activity log, identify 1\u20132 activities per day that align with one of these categories:\n- **Mastery Activities**: Tasks that give a sense of accomplishment (e.g., organizing a drawer, cooking a meal)\n- **Pleasure Activities**: Things that bring enjoyment or relaxation (e.g., listening to music, walking in nature)\n- **Social Connection**: Interactions that foster connection (e.g., texting a friend, joining a group)\n- **Routine Maintenance**: Basic self-care tasks (e.g., showering, eating regular meals)\n\nStart small. For example:\n- Monday: Take a 10-minute walk after lunch + call one friend\n- Tuesday: Cook breakfast instead of skipping it + listen to favorite playlist while cleaning\n\nWrite these into your calendar or planner as non-negotiable appointments with yourself. If an activity feels too overwhelming, break it down further (e.g., \u201cwalk\u201d becomes \u201cput on shoes and stand outside for 5 minutes\u201d).\n\nThe rationale here is that depression narrows our behavioral repertoire\u2014we stop doing things that could improve our mood simply because we don\u2019t feel like it. By scheduling activities in advance, we bypass the need for motivation and create structure that supports gradual improvement.\n\n### Step 3: Monitor and Adjust Based on Feedback\nEach evening, briefly review your day using this framework:\n1. Which scheduled activities did you complete?\n2. How did your mood change before vs. after each activity?\n3. What got in the way of completing activities?\n4. What would you adjust tomorrow?\n\nIf an activity consistently leads to increased energy or improved mood, try expanding it slightly next week (e.g., increase walk duration from 10 to 15 minutes). If something feels draining or unhelpful, modify or replace it.\n\nThis reflective process helps reinforce learning and prevents discouragement. Progress isn\u2019t always linear, and adjustments are part of the process\u2014not signs of failure.\n\n## Practice\nCommit to the following daily routine for at least two weeks:\n\n**Morning (within first hour of waking):**\n- Complete a brief morning routine (shower, get dressed, make bed)\n- Schedule 1\u20132 specific activities into your day (written down or in calendar)\n\n**Throughout the day:**\n- Check in with your mood twice daily (mid-morning and mid-afternoon) using a 0\u201310 scale\n- Engage in at least one mastery or pleasure activity\n- Limit passive screen time when possible (set timers if needed)\n\n**Evening (last 10 minutes before bed):**\n- Reflect on the day using the questions above\n- Plan tomorrow\u2019s key activities\n\nUse a paper journal, app, or printed worksheet to track your progress. Consistency matters more than intensity\u2014small actions done regularly will compound over time.\n\n## Reflection\nAt the end of each week, spend five minutes answering these questions:\n1. What activities consistently lifted your mood, even slightly?\n2. What patterns emerged in your energy levels throughout the day?\n3. When did you feel most like yourself this week\u2014and what were you doing?\n4. What barriers kept you from engaging fully, and how might you address them next week?\n5. How has your relationship with planning or choosing activities shifted since starting this protocol?\n\nNotice whether your sense of agency\u2014the feeling that you can influence your own experience\u2014is growing stronger. Even minor shifts in behavior can lead to meaningful improvements in outlook over time.\n\n## Conclusion\nYou\u2019ve taken an important step by engaging with Behavioral Activation. Remember, the goal isn\u2019t perfection but progress. Some days will feel easier than others, and that\u2019s completely normal. Be patient with yourself as you rebuild routines and reconnect with sources of meaning and joy.\n\nIf at any point your symptoms worsen significantly, interfere with basic functioning, or include thoughts of self-harm, please reach out to a mental health professional right away. While this protocol can be helpful for mild depression, it is not a substitute for individualized care when needed. You deserve support, and help is always available.",
-        "version": 0
+        "latency_ms": 4601.68,
+        "draft": "# Managing Exam Anxiety & Preventing \u201cFreezing\u201d During Final Tests\n\n## Introduction\nFinal exams can feel like high\u2011stakes performances, and it\u2019s natural to experience nerves, racing thoughts, and the fear that your mind will go blank. This exercise uses core CBT techniques\u2014identifying unhelpful thoughts, testing their accuracy, and building concrete coping skills\u2014to lower anxiety before the exam and keep you mentally engaged during it. It\u2019s designed for students who notice physical tension, worry about performance, or have previously \u201cfrozen\u201d on a question.\n\n## Goals\n1. **Reduce physiological anxiety** (e.g., heart racing, sweaty hands) by at least 30\u202f% as measured by a simple anxiety rating before the exam.\n2. **Replace at least three \u201ccatastrophic\u201d thoughts with balanced alternatives** during a study session or mock test.\n3. **Demonstrate a reliable \u201creset\u201d strategy** (e.g., grounding + brief self\u2011talk) that can be used within 30\u202fseconds when you feel you are starting to freeze.\n\n## Steps\n### Step 1: Thought Monitoring & Evidence Testing\n1. **Choose a recent study moment** when anxiety peaked (e.g., while reviewing a difficult chapter).\n2. Write down the exact thought that ran through your mind (e.g., \u201cIf I don\u2019t know this, I\u2019ll fail the whole exam\u201d).\n3. Rate the intensity of that thought on a scale of 0\u2013100.\n4. **Gather evidence**:\n   - *Support*: What facts actually support the thought? (Maybe you missed one practice question.)\n   - *Against*: What facts contradict it? (You have passed previous quizzes, you understand most of the material.)\n5. **Create a balanced statement** that acknowledges the worry but adds realistic perspective (e.g., \u201cI missed one question, but I\u2019ve answered most of the material correctly; I can still do well overall.\u201d).\n6. Record the new statement and re\u2011rate the anxiety intensity. Notice any reduction.\n\n*Rationale*: By confronting the thought with evidence, you weaken the automatic \u201ccatastrophe\u201d pattern and give your brain a more accurate map of the situation.\n\n### Step 2: Structured Study Sessions with \u201cAnxiety\u2011Break\u201d Slots\n1. **Plan a 45\u2011minute study block** using a timer.\n2. **During the first 35 minutes**, focus on active learning (summarizing, teaching aloud, solving problems).\n3. **At the 35\u2011minute mark**, trigger a 5\u2011minute \u201canxiety\u2011break\u201d:\n   - Sit upright, place both feet flat on the floor.\n   - Perform a 4\u20117\u20118 breathing cycle (inhale 4\u202fsec, hold 7\u202fsec, exhale 8\u202fsec) three times.\n   - Scan your body from head to toe, noting any tension and deliberately relaxing each muscle group.\n4. **Use the final 5 minutes** to write down any intrusive thoughts that arose, then apply Step\u202f1\u2019s evidence\u2011testing to each.\n5. Log the session: date, subject, anxiety rating before and after, and any balanced thoughts you generated.\n\n*Rationale*: Predictable breaks prevent anxiety from building to a level that triggers a freeze response, and the breathing exercise activates the parasympathetic nervous system, lowering physiological arousal.\n\n### Step 3: In\u2011Exam \u201cFreeze\u2011Prevention\u201d Toolkit\n1. **Grounding cue**: Keep a small, unobtrusive object (e.g., a smooth pen) in your pocket. When you notice your mind going blank, place the pen in your hand, feel its texture, and name **three** sensory details (e.g., \u201cIt\u2019s cool, slightly ridged, and light\u201d).\n2. **Brief self\u2011talk script** (under 10\u202fseconds):\n   - \u201cI\u2019ve prepared for this. I can handle one question at a time.\u201d\n   - Say it silently or whisper to yourself.\n3. **Micro\u2011pause**: Close your eyes for a single breath, then open them and read the question again, highlighting key verbs (e.g., \u201ccompare,\u201d \u201clist,\u201d \u201cexplain\u201d).\n4. **Progressive \u201canswer\u2011first\u201d habit**: Before diving into calculations, jot down a one\u2011sentence outline of how you would answer. This creates a mental roadmap and reduces the chance of getting stuck.\n\n*Rationale*: The grounding cue redirects attention from anxiety to the present moment, while the self\u2011talk and micro\u2011pause interrupt the freeze cycle and re\u2011engage executive function.\n\n## Practice\n- **Daily**: Perform one 45\u2011minute study block with the built\u2011in anxiety break.\n- **Weekly**: Complete a mock\u2011test (20\u201330\u202fminutes) and intentionally use the \u201cFreeze\u2011Prevention\u201d Toolkit on at least two questions. Record:\n  - Date and subject\n  - Pre\u2011session anxiety rating (0\u2011100)\n  - Number of times the toolkit was used\n  - Post\u2011session anxiety rating\n  - Any balanced thoughts created\n\nReview the log every Sunday. Look for trends (e.g., decreasing anxiety ratings, fewer freeze episodes).\n\n## Reflection\nAfter each study block or mock test, answer the following prompts in your journal:\n\n1. **Thoughts**: Which automatic thoughts surfaced? How did the evidence\u2011testing change their intensity?\n2. **Physical sensations**: Where did you feel tension or calmness in your body? Did the breathing or grounding shift those sensations?\n3. **Behavioral response**: How smoothly did you transition from the grounding cue to answering the question? What could you tweak for next time?\n4. **Overall rating**: On a scale of 0\u201310, how confident do you feel about managing anxiety on the upcoming real exam?\n\n## Conclusion\nYou now have a step\u2011by\u2011step CBT plan to calm nerves, challenge unhelpful thoughts, and keep your mind active during finals. Consistent practice of these techniques can transform anxiety from a paralyzing force into a manageable signal that prepares you to perform at your best.\n\n*Reminder*: This exercise is a self\u2011help tool, not a substitute for professional mental\u2011health care. If anxiety intensifies, interferes with daily functioning, or you experience overwhelming panic, please reach out to a qualified therapist, counselor, or medical professional for personalized support. Good luck\u2014you\u2019ve got the skills to succeed!*",
+        "version": 1
       },
-      "ts": "2026-10-12T22:01:32.199310+00:00Z",
-      "relative_offset_s": 31.21
+      "ts": "2026-11-16T08:43:39.573719",
+      "relative_offset_s": 4.6
     },
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
+      "session_id": "demo_recorded_run",
       "seq": 5,
-      "run_id": "run_session_hAwYVCwLfLkxK-8vcCvjfg",
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
       "draft_version": 1,
       "agent": "SafetyGuardian",
@@ -101,13 +104,30 @@
       "data": {
         "node": "safety_review"
       },
-      "ts": "2026-10-12T22:01:33.165263+00:00Z",
-      "relative_offset_s": 32.17
+      "ts": "2026-11-16T08:43:39.680304",
+      "relative_offset_s": 4.7
     },
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
+      "session_id": "demo_recorded_run",
       "seq": 6,
-      "run_id": "run_session_hAwYVCwLfLkxK-8vcCvjfg",
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 1,
+      "agent": "ClinicalCritic",
+      "type": "node_start",
+      "to_agent": null,
+      "severity": "info",
+      "text": "Evaluating therapeutic empathy & CBT fidelity...",
+      "data": {
+        "node": "clinical_critique"
+      },
+      "ts": "2026-11-16T08:43:39.723375",
+      "relative_offset_s": 4.8
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 7,
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
       "draft_version": 1,
       "agent": "SafetyGuardian",
@@ -119,8 +139,6 @@
         "metric": "safety",
         "score": 1.0,
         "checks_passed": 5,
-        "checks_total": 5,
-        "score_source": "llm",
         "checks": {
           "self_harm": true,
           "no_medication": true,
@@ -128,89 +146,105 @@
           "no_contraindicated_exposure": true,
           "referral_language": true
         },
+        "reasons": {
+          "self_harm": "The exercise focuses on anxiety management and does not contain any content encouraging or facilitating self-harm.",
+          "no_medication": "The draft only suggests behavioral and cognitive techniques (breathing, grounding, thought monitoring) and does not recommend any pharmaceutical interventions.",
+          "no_diagnosis": "The text addresses symptoms of exam anxiety without assigning a diagnosis or labeling the user with a mental health disorder.",
+          "no_contraindicated_exposure": "The exposure techniques (mock tests, study blocks) are graded, supported by coping skills, and appropriate for the stated intent of exam anxiety.",
+          "referral_language": "The conclusion explicitly includes a disclaimer stating the tool is not a substitute for professional care and advises seeking help if anxiety intensifies or interferes with functioning."
+        },
         "unavailable": false
       },
-      "ts": "2026-10-12T22:01:54.300412+00:00Z",
-      "relative_offset_s": 53.31
+      "ts": "2026-11-16T08:43:41.621596",
+      "relative_offset_s": 6.6
     },
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
-      "seq": 7,
-      "run_id": "run_session_hAwYVCwLfLkxK-8vcCvjfg",
+      "session_id": "demo_recorded_run",
+      "seq": 8,
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
       "draft_version": 1,
       "agent": "SafetyGuardian",
       "type": "node_end",
       "to_agent": null,
       "severity": "info",
-      "text": "SafetyGuardian completed review in 21179.29ms",
+      "text": "SafetyGuardian completed review in 1626.37ms",
       "data": {
         "node": "safety_review",
-        "latency_ms": 21179.29
+        "latency_ms": 1626.37
       },
-      "ts": "2026-10-12T22:01:54.344560+00:00Z",
-      "relative_offset_s": 53.35
+      "ts": "2026-11-16T08:43:41.658547",
+      "relative_offset_s": 6.7
     },
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
-      "seq": 8,
-      "run_id": "run_session_hAwYVCwLfLkxK-8vcCvjfg",
-      "run_kind": "initial",
-      "draft_version": 1,
-      "agent": "ClinicalCritic",
-      "type": "node_start",
-      "to_agent": null,
-      "severity": "info",
-      "text": "Evaluating therapeutic empathy & CBT fidelity...",
-      "data": {
-        "node": "clinical_critique"
-      },
-      "ts": "2026-10-12T22:01:54.433804+00:00Z",
-      "relative_offset_s": 53.44
-    },
-    {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
+      "session_id": "demo_recorded_run",
       "seq": 9,
-      "run_id": "run_session_hAwYVCwLfLkxK-8vcCvjfg",
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
       "draft_version": 1,
       "agent": "ClinicalCritic",
       "type": "score",
       "to_agent": null,
       "severity": "info",
-      "text": "Empathy: 4.5/5, Exercise quality: 5.0/5",
+      "text": "Empathy: 4.0/5, Exercise quality: 4.7/5",
       "data": {
         "metric": "clinical",
-        "empathy_score": 4.5,
-        "clinical_score": 5.0,
-        "score_source": "llm",
+        "empathy_score": 4.0,
+        "clinical_score": 4.67,
+        "dimensions": {
+          "warmth": {
+            "score": 4,
+            "quoted_line": "Good luck\u2014you\u2019ve got the skills to succeed!",
+            "rationale": "The tone is encouraging and fosters a positive therapeutic alliance, reflecting the warmth and support of a skilled practitioner without being overly formal or cold."
+          },
+          "validation": {
+            "score": 4,
+            "quoted_line": "Final exams can feel like high\u2011stakes performances, and it\u2019s natural to experience nerves, racing thoughts, and the fear that your mind will go blank.",
+            "rationale": "Directly normalizes and validates the user's intense physiological and cognitive distress regarding exam anxiety and freezing, avoiding toxic positivity."
+          },
+          "clarity": {
+            "score": 5,
+            "quoted_line": "Sit upright, place both feet flat on the floor.",
+            "rationale": "Instructions are exceptionally concrete, actionable, and unambiguous, providing exact mechanical steps for physiological regulation."
+          },
+          "cbt_fidelity": {
+            "score": 4,
+            "quoted_line": "Create a balanced statement that acknowledges the worry but adds realistic perspective (e.g., \u201cI missed one question, but I\u2019ve answered most of the material correctly; I can still do well overall.\u201d).",
+            "rationale": "Demonstrates strong fidelity to core cognitive behavioral therapy principles by explicitly targeting automatic negative thoughts through evidence gathering and cognitive restructuring."
+          },
+          "structure": {
+            "score": 5,
+            "quoted_line": "After each study block or mock test, answer the following prompts in your journal:",
+            "rationale": "Follows a textbook, flawless structured sequence moving from introduction and goals through structured steps, practice assignments, self-reflection prompts, and professional disclaimers."
+          }
+        },
         "unavailable": false
       },
-      "ts": "2026-10-12T22:01:58.259631+00:00Z",
-      "relative_offset_s": 57.27
+      "ts": "2026-11-16T08:43:43.116715",
+      "relative_offset_s": 8.1
     },
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
+      "session_id": "demo_recorded_run",
       "seq": 10,
-      "run_id": "run_session_hAwYVCwLfLkxK-8vcCvjfg",
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
       "draft_version": 1,
       "agent": "ClinicalCritic",
       "type": "node_end",
       "to_agent": null,
       "severity": "info",
-      "text": "ClinicalCritic completed critique in 3884.0ms",
+      "text": "ClinicalCritic completed critique in 2936.9ms",
       "data": {
         "node": "clinical_critique",
-        "latency_ms": 3884.0
+        "latency_ms": 2936.9
       },
-      "ts": "2026-10-12T22:01:58.317820+00:00Z",
-      "relative_offset_s": 57.32
+      "ts": "2026-11-16T08:43:43.177648",
+      "relative_offset_s": 8.2
     },
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
+      "session_id": "demo_recorded_run",
       "seq": 11,
-      "run_id": "run_session_hAwYVCwLfLkxK-8vcCvjfg",
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
       "draft_version": 1,
       "agent": "Supervisor",
@@ -221,70 +255,350 @@
       "data": {
         "node": "supervisor"
       },
-      "ts": "2026-10-12T22:01:58.407176+00:00Z",
-      "relative_offset_s": 57.41
+      "ts": "2026-11-16T08:43:44.379250",
+      "relative_offset_s": 9.4
     },
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
+      "session_id": "demo_recorded_run",
       "seq": 12,
-      "run_id": "run_session_hAwYVCwLfLkxK-8vcCvjfg",
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
       "draft_version": 1,
       "agent": "Supervisor",
       "type": "decision",
       "to_agent": null,
-      "severity": "info",
-      "text": "Supervisor decision: Empathy 4.5/5 \u2265 3.5, Quality 5.0/5 \u2265 3.5, Safety 5/5 \u2192 your review",
+      "severity": "warning",
+      "text": "Supervisor decision: Draft incomplete (Draft ends abruptly mid-sentence without terminal punctuation) -> routing back to Drafter for completion (revision 2)",
       "data": {
-        "route": "human",
-        "reason": "Empathy 4.5/5 \u2265 3.5, Fidelity 5.0/5 \u2265 3.5, Safety 5/5 \u2192 human review"
+        "route": "revise",
+        "reason": "Draft incomplete (Draft ends abruptly mid-sentence without terminal punctuation) -> routing back to Drafter for completion (revision 2)"
       },
-      "ts": "2026-10-12T22:01:58.434964+00:00Z",
-      "relative_offset_s": 57.44
+      "ts": "2026-11-16T08:43:44.429616",
+      "relative_offset_s": 9.5
     },
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
+      "session_id": "demo_recorded_run",
       "seq": 13,
-      "run_id": "run_session_hAwYVCwLfLkxK-8vcCvjfg",
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
       "draft_version": 1,
       "agent": "Supervisor",
       "type": "node_end",
       "to_agent": null,
       "severity": "info",
-      "text": "Supervisor completed in 64.77ms",
+      "text": "Supervisor completed in 107.07ms",
       "data": {
         "node": "supervisor",
-        "latency_ms": 64.77
+        "latency_ms": 107.07
       },
-      "ts": "2026-10-12T22:01:58.471954+00:00Z",
-      "relative_offset_s": 57.48
+      "ts": "2026-11-16T08:43:44.486360",
+      "relative_offset_s": 9.5
     },
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
+      "session_id": "demo_recorded_run",
       "seq": 14,
-      "run_id": "run_B0dWqFEGJwg",
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
-      "draft_version": 1,
+      "draft_version": 2,
+      "agent": "Drafter",
+      "type": "node_start",
+      "to_agent": null,
+      "severity": "info",
+      "text": "Synthesizing structured CBT exercise...",
+      "data": {
+        "node": "draft"
+      },
+      "ts": "2026-11-16T08:43:44.607001",
+      "relative_offset_s": 9.6
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 15,
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 2,
+      "agent": "Drafter",
+      "type": "draft",
+      "to_agent": null,
+      "severity": "info",
+      "text": "Created draft version 2",
+      "data": {
+        "draft": "# Managing Exam Anxiety & Preventing \u201cFreezing\u201d During Final Tests\n\n## Introduction\nFinal exams can feel like high\u2011stakes performances, and it\u2019s natural to experience nerves, racing thoughts, and the fear that your mind will go blank. This exercise uses core CBT techniques\u2014identifying unhelpful thoughts, testing their accuracy, and building concrete coping skills\u2014to lower anxiety before the exam and keep you mentally engaged during it. It\u2019s designed for students who notice physical tension, worry about performance, or have previously \u201cfrozen\u201d on a question.\n\n## Goals\n1. **Reduce physiological anxiety** (e.g., heart racing, sweaty hands) by at least 30\u202f% as measured by a simple anxiety rating before the exam.\n2. **Replace at least three \u201ccatastrophic\u201d thoughts with balanced alternatives** during a study session or mock test.\n3. **Demonstrate a reliable \u201creset\u201d strategy** (e.g., grounding\u202f+\u202fbrief self\u2011talk) that can be used within 30\u202fseconds when you feel you are starting to freeze.\n\n## Steps\n### Step 1: Thought Monitoring & Evidence Testing\n1. **Choose a recent study moment** when anxiety peaked (e.g., while reviewing a difficult chapter).\n2. Write down the exact thought that ran through your mind (e.g., \u201cIf I don\u2019t know this, I\u2019ll fail the whole exam\u201d).\n3. Rate the intensity of that thought on a scale of 0\u2013100.\n4. **Gather evidence**:\n   - *Support*: What facts actually support the thought? (Maybe you missed one practice question.)\n   - *Against*: What facts contradict it? (You have passed previous quizzes, you understand most of the material.)\n5. **Create a balanced statement** that acknowledges the worry but adds realistic perspective (e.g., \u201cI missed one question, but I\u2019ve answered most of the material correctly; I can still do well overall.\u201d).\n6. Record the new statement and re\u2011rate the anxiety intensity. Notice any reduction.\n\n*Rationale*: By confronting the thought with evidence, you weaken the automatic \u201ccatastrophe\u201d pattern and give your brain a more accurate map of the situation.\n\n### Step 2: Structured Study Sessions with \u201cAnxiety\u2011Break\u201d Slots\n1. **Plan a 45\u2011minute study block** using a timer.\n2. **During the first 35 minutes**, focus on active learning (summarizing, teaching aloud, solving problems).\n3. **At the 35\u2011minute mark**, trigger a 5\u2011minute \u201canxiety\u2011break\u201d:\n   - Sit upright, place both feet flat on the floor.\n   - Perform a 4\u20117\u20118 breathing cycle (inhale\u202f4\u202fsec, hold\u202f7\u202fsec, exhale\u202f8\u202fsec) three times.\n   - Scan your body from head to toe, noting any tension and deliberately relaxing each muscle group.\n4. **Use the final 5 minutes** to write down any intrusive thoughts that arose, then apply Step\u202f1\u2019s evidence\u2011testing to each.\n5. Log the session: date, subject, anxiety rating before and after, and any balanced thoughts you generated.\n\n*Rationale*: Predictable breaks prevent anxiety from building to a level that triggers a freeze response, and the breathing exercise activates the parasympathetic nervous system, lowering physiological arousal.\n\n### Step 3: In\u2011Exam \u201cFreeze\u2011Prevention\u201d Toolkit\n1. **Grounding cue**: Keep a small, unobtrusive object (e.g., a smooth pen) in your pocket. When you notice your mind going blank, place the pen in your hand, feel its texture, and name **three** sensory details (e.g., \u201cIt\u2019s cool, slightly ridged, and light\u201d).\n2. **Brief self\u2011talk script** (under 10\u202fseconds):\n   - \u201cI\u2019ve prepared for this. I can handle one question at a time.\u201d\n   - Say it silently or whisper to yourself.\n3. **Micro\u2011pause**: Close your eyes for a single breath, then open them and read the question again, highlighting key verbs (e.g., \u201ccompare,\u201d \u201clist,\u201d \u201cexplain\u201d).\n4. **Progressive \u201canswer\u2011first\u201d habit**: Before diving into calculations, jot down a one\u2011sentence outline of how you would answer. This creates a mental roadmap and reduces the chance of getting stuck.\n\n*Rationale*: The grounding cue redirects attention from anxiety to the present moment, while the self\u2011talk and micro\u2011pause interrupt the freeze cycle and re\u2011engage executive function.\n\n## Practice\n- **Daily**: Perform one 45\u2011minute study block with the built\u2011in anxiety break.\n- **Weekly**: Complete a mock\u2011test (20\u201330\u202fminutes) and intentionally use the \u201cFreeze\u2011Prevention\u201d Toolkit on at least two questions. Record:\n  - Date and subject\n  - Pre\u2011session anxiety rating (0\u2011100)\n  - Number of times the toolkit was used\n  - Post\u2011session anxiety rating\n  - Any balanced thoughts created\n\nReview the log every Sunday. Look for trends (e.g., decreasing anxiety ratings, fewer freeze episodes).\n\n## Reflection\nAfter each study block or mock test, answer the following prompts in your journal:\n\n1. **Thoughts**: Which automatic thoughts surfaced? How did the evidence\u2011testing change their intensity?\n2. **Physical sensations**: Where did you feel tension or calmness in your body? Did the breathing or grounding shift those sensations?\n3. **Behavioral response**: How smoothly did you transition from the grounding cue to answering the question? What could you tweak for next time?\n4. **Overall rating**: On a scale of 0\u201310, how confident do you feel about managing anxiety on the upcoming real exam?\n\n## Conclusion\nYou now have a step\u2011by\u2011step CBT plan to calm nerves, challenge unhelpful thoughts, and keep your mind active during finals. Consistent practice of these techniques can transform anxiety from a paralyzing force into a manageable signal that prepares you to perform at your best.\n\n*Reminder*: This exercise is a self\u2011help tool, not a substitute for professional mental\u2011health care. If anxiety intensifies, interferes with daily functioning, or you experience overwhelming panic, please reach out to a qualified therapist, counselor, or medical professional for personalized support. Good luck\u2014you\u2019ve got the skills to succeed!",
+        "version": 2,
+        "provenance": "ai_revision",
+        "revision_summary": []
+      },
+      "ts": "2026-11-16T08:43:48.422510",
+      "relative_offset_s": 13.5
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 16,
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 2,
+      "agent": "Drafter",
+      "type": "message",
+      "to_agent": "SafetyGuardian",
+      "severity": "info",
+      "text": "Draft version 2 generated with structured steps",
+      "data": {
+        "draft": "# Managing Exam Anxiety & Preventing \u201cFreezing\u201d During Final Tests\n\n## Introduction\nFinal exams can feel like high\u2011stakes performances, and it\u2019s natural to experience nerves, racing thoughts, and the fear that your mind will go blank. This exercise uses core CBT techniques\u2014identifying unhelpful thoughts, testing their accuracy, and building concrete coping skills\u2014to lower anxiety before the exam and keep you mentally engaged during it. It\u2019s designed for students who notice physical tension, worry about performance, or have previously \u201cfrozen\u201d on a question.\n\n## Goals\n1. **Reduce physiological anxiety** (e.g., heart racing, sweaty hands) by at least 30\u202f% as measured by a simple anxiety rating before the exam.\n2. **Replace at least three \u201ccatastrophic\u201d thoughts with balanced alternatives** during a study session or mock test.\n3. **Demonstrate a reliable \u201creset\u201d strategy** (e.g., grounding\u202f+\u202fbrief self\u2011talk) that can be used within 30\u202fseconds when you feel you are starting to freeze.\n\n## Steps\n### Step 1: Thought Monitoring & Evidence Testing\n1. **Choose a recent study moment** when anxiety peaked (e.g., while reviewing a difficult chapter).\n2. Write down the exact thought that ran through your mind (e.g., \u201cIf I don\u2019t know this, I\u2019ll fail the whole exam\u201d).\n3. Rate the intensity of that thought on a scale of 0\u2013100.\n4. **Gather evidence**:\n   - *Support*: What facts actually support the thought? (Maybe you missed one practice question.)\n   - *Against*: What facts contradict it? (You have passed previous quizzes, you understand most of the material.)\n5. **Create a balanced statement** that acknowledges the worry but adds realistic perspective (e.g., \u201cI missed one question, but I\u2019ve answered most of the material correctly; I can still do well overall.\u201d).\n6. Record the new statement and re\u2011rate the anxiety intensity. Notice any reduction.\n\n*Rationale*: By confronting the thought with evidence, you weaken the automatic \u201ccatastrophe\u201d pattern and give your brain a more accurate map of the situation.\n\n### Step 2: Structured Study Sessions with \u201cAnxiety\u2011Break\u201d Slots\n1. **Plan a 45\u2011minute study block** using a timer.\n2. **During the first 35 minutes**, focus on active learning (summarizing, teaching aloud, solving problems).\n3. **At the 35\u2011minute mark**, trigger a 5\u2011minute \u201canxiety\u2011break\u201d:\n   - Sit upright, place both feet flat on the floor.\n   - Perform a 4\u20117\u20118 breathing cycle (inhale\u202f4\u202fsec, hold\u202f7\u202fsec, exhale\u202f8\u202fsec) three times.\n   - Scan your body from head to toe, noting any tension and deliberately relaxing each muscle group.\n4. **Use the final 5 minutes** to write down any intrusive thoughts that arose, then apply Step\u202f1\u2019s evidence\u2011testing to each.\n5. Log the session: date, subject, anxiety rating before and after, and any balanced thoughts you generated.\n\n*Rationale*: Predictable breaks prevent anxiety from building to a level that triggers a freeze response, and the breathing exercise activates the parasympathetic nervous system, lowering physiological arousal.\n\n### Step 3: In\u2011Exam \u201cFreeze\u2011Prevention\u201d Toolkit\n1. **Grounding cue**: Keep a small, unobtrusive object (e.g., a smooth pen) in your pocket. When you notice your mind going blank, place the pen in your hand, feel its texture, and name **three** sensory details (e.g., \u201cIt\u2019s cool, slightly ridged, and light\u201d).\n2. **Brief self\u2011talk script** (under 10\u202fseconds):\n   - \u201cI\u2019ve prepared for this. I can handle one question at a time.\u201d\n   - Say it silently or whisper to yourself.\n3. **Micro\u2011pause**: Close your eyes for a single breath, then open them and read the question again, highlighting key verbs (e.g., \u201ccompare,\u201d \u201clist,\u201d \u201cexplain\u201d).\n4. **Progressive \u201canswer\u2011first\u201d habit**: Before diving into calculations, jot down a one\u2011sentence outline of how you would answer. This creates a mental roadmap and reduces the chance of getting stuck.\n\n*Rationale*: The grounding cue redirects attention from anxiety to the present moment, while the self\u2011talk and micro\u2011pause interrupt the freeze cycle and re\u2011engage executive function.\n\n## Practice\n- **Daily**: Perform one 45\u2011minute study block with the built\u2011in anxiety break.\n- **Weekly**: Complete a mock\u2011test (20\u201330\u202fminutes) and intentionally use the \u201cFreeze\u2011Prevention\u201d Toolkit on at least two questions. Record:\n  - Date and subject\n  - Pre\u2011session anxiety rating (0\u2011100)\n  - Number of times the toolkit was used\n  - Post\u2011session anxiety rating\n  - Any balanced thoughts created\n\nReview the log every Sunday. Look for trends (e.g., decreasing anxiety ratings, fewer freeze episodes).\n\n## Reflection\nAfter each study block or mock test, answer the following prompts in your journal:\n\n1. **Thoughts**: Which automatic thoughts surfaced? How did the evidence\u2011testing change their intensity?\n2. **Physical sensations**: Where did you feel tension or calmness in your body? Did the breathing or grounding shift those sensations?\n3. **Behavioral response**: How smoothly did you transition from the grounding cue to answering the question? What could you tweak for next time?\n4. **Overall rating**: On a scale of 0\u201310, how confident do you feel about managing anxiety on the upcoming real exam?\n\n## Conclusion\nYou now have a step\u2011by\u2011step CBT plan to calm nerves, challenge unhelpful thoughts, and keep your mind active during finals. Consistent practice of these techniques can transform anxiety from a paralyzing force into a manageable signal that prepares you to perform at your best.\n\n*Reminder*: This exercise is a self\u2011help tool, not a substitute for professional mental\u2011health care. If anxiety intensifies, interferes with daily functioning, or you experience overwhelming panic, please reach out to a qualified therapist, counselor, or medical professional for personalized support. Good luck\u2014you\u2019ve got the skills to succeed!",
+        "version": 2,
+        "revision_summary": []
+      },
+      "ts": "2026-11-16T08:43:48.488006",
+      "relative_offset_s": 13.5
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 17,
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 2,
+      "agent": "Drafter",
+      "type": "node_end",
+      "to_agent": null,
+      "severity": "info",
+      "text": "Drafter completed draft in 3955.65ms",
+      "data": {
+        "node": "draft",
+        "latency_ms": 3955.65,
+        "draft": "# Managing Exam Anxiety & Preventing \u201cFreezing\u201d During Final Tests\n\n## Introduction\nFinal exams can feel like high\u2011stakes performances, and it\u2019s natural to experience nerves, racing thoughts, and the fear that your mind will go blank. This exercise uses core CBT techniques\u2014identifying unhelpful thoughts, testing their accuracy, and building concrete coping skills\u2014to lower anxiety before the exam and keep you mentally engaged during it. It\u2019s designed for students who notice physical tension, worry about performance, or have previously \u201cfrozen\u201d on a question.\n\n## Goals\n1. **Reduce physiological anxiety** (e.g., heart racing, sweaty hands) by at least 30\u202f% as measured by a simple anxiety rating before the exam.\n2. **Replace at least three \u201ccatastrophic\u201d thoughts with balanced alternatives** during a study session or mock test.\n3. **Demonstrate a reliable \u201creset\u201d strategy** (e.g., grounding\u202f+\u202fbrief self\u2011talk) that can be used within 30\u202fseconds when you feel you are starting to freeze.\n\n## Steps\n### Step 1: Thought Monitoring & Evidence Testing\n1. **Choose a recent study moment** when anxiety peaked (e.g., while reviewing a difficult chapter).\n2. Write down the exact thought that ran through your mind (e.g., \u201cIf I don\u2019t know this, I\u2019ll fail the whole exam\u201d).\n3. Rate the intensity of that thought on a scale of 0\u2013100.\n4. **Gather evidence**:\n   - *Support*: What facts actually support the thought? (Maybe you missed one practice question.)\n   - *Against*: What facts contradict it? (You have passed previous quizzes, you understand most of the material.)\n5. **Create a balanced statement** that acknowledges the worry but adds realistic perspective (e.g., \u201cI missed one question, but I\u2019ve answered most of the material correctly; I can still do well overall.\u201d).\n6. Record the new statement and re\u2011rate the anxiety intensity. Notice any reduction.\n\n*Rationale*: By confronting the thought with evidence, you weaken the automatic \u201ccatastrophe\u201d pattern and give your brain a more accurate map of the situation.\n\n### Step 2: Structured Study Sessions with \u201cAnxiety\u2011Break\u201d Slots\n1. **Plan a 45\u2011minute study block** using a timer.\n2. **During the first 35 minutes**, focus on active learning (summarizing, teaching aloud, solving problems).\n3. **At the 35\u2011minute mark**, trigger a 5\u2011minute \u201canxiety\u2011break\u201d:\n   - Sit upright, place both feet flat on the floor.\n   - Perform a 4\u20117\u20118 breathing cycle (inhale\u202f4\u202fsec, hold\u202f7\u202fsec, exhale\u202f8\u202fsec) three times.\n   - Scan your body from head to toe, noting any tension and deliberately relaxing each muscle group.\n4. **Use the final 5 minutes** to write down any intrusive thoughts that arose, then apply Step\u202f1\u2019s evidence\u2011testing to each.\n5. Log the session: date, subject, anxiety rating before and after, and any balanced thoughts you generated.\n\n*Rationale*: Predictable breaks prevent anxiety from building to a level that triggers a freeze response, and the breathing exercise activates the parasympathetic nervous system, lowering physiological arousal.\n\n### Step 3: In\u2011Exam \u201cFreeze\u2011Prevention\u201d Toolkit\n1. **Grounding cue**: Keep a small, unobtrusive object (e.g., a smooth pen) in your pocket. When you notice your mind going blank, place the pen in your hand, feel its texture, and name **three** sensory details (e.g., \u201cIt\u2019s cool, slightly ridged, and light\u201d).\n2. **Brief self\u2011talk script** (under 10\u202fseconds):\n   - \u201cI\u2019ve prepared for this. I can handle one question at a time.\u201d\n   - Say it silently or whisper to yourself.\n3. **Micro\u2011pause**: Close your eyes for a single breath, then open them and read the question again, highlighting key verbs (e.g., \u201ccompare,\u201d \u201clist,\u201d \u201cexplain\u201d).\n4. **Progressive \u201canswer\u2011first\u201d habit**: Before diving into calculations, jot down a one\u2011sentence outline of how you would answer. This creates a mental roadmap and reduces the chance of getting stuck.\n\n*Rationale*: The grounding cue redirects attention from anxiety to the present moment, while the self\u2011talk and micro\u2011pause interrupt the freeze cycle and re\u2011engage executive function.\n\n## Practice\n- **Daily**: Perform one 45\u2011minute study block with the built\u2011in anxiety break.\n- **Weekly**: Complete a mock\u2011test (20\u201330\u202fminutes) and intentionally use the \u201cFreeze\u2011Prevention\u201d Toolkit on at least two questions. Record:\n  - Date and subject\n  - Pre\u2011session anxiety rating (0\u2011100)\n  - Number of times the toolkit was used\n  - Post\u2011session anxiety rating\n  - Any balanced thoughts created\n\nReview the log every Sunday. Look for trends (e.g., decreasing anxiety ratings, fewer freeze episodes).\n\n## Reflection\nAfter each study block or mock test, answer the following prompts in your journal:\n\n1. **Thoughts**: Which automatic thoughts surfaced? How did the evidence\u2011testing change their intensity?\n2. **Physical sensations**: Where did you feel tension or calmness in your body? Did the breathing or grounding shift those sensations?\n3. **Behavioral response**: How smoothly did you transition from the grounding cue to answering the question? What could you tweak for next time?\n4. **Overall rating**: On a scale of 0\u201310, how confident do you feel about managing anxiety on the upcoming real exam?\n\n## Conclusion\nYou now have a step\u2011by\u2011step CBT plan to calm nerves, challenge unhelpful thoughts, and keep your mind active during finals. Consistent practice of these techniques can transform anxiety from a paralyzing force into a manageable signal that prepares you to perform at your best.\n\n*Reminder*: This exercise is a self\u2011help tool, not a substitute for professional mental\u2011health care. If anxiety intensifies, interferes with daily functioning, or you experience overwhelming panic, please reach out to a qualified therapist, counselor, or medical professional for personalized support. Good luck\u2014you\u2019ve got the skills to succeed!",
+        "version": 2
+      },
+      "ts": "2026-11-16T08:43:48.562670",
+      "relative_offset_s": 13.6
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 18,
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 2,
+      "agent": "SafetyGuardian",
+      "type": "node_start",
+      "to_agent": null,
+      "severity": "info",
+      "text": "Auditing contraindications & risk factors...",
+      "data": {
+        "node": "safety_review"
+      },
+      "ts": "2026-11-16T08:43:48.664449",
+      "relative_offset_s": 13.7
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 19,
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 2,
+      "agent": "ClinicalCritic",
+      "type": "node_start",
+      "to_agent": null,
+      "severity": "info",
+      "text": "Evaluating therapeutic empathy & CBT fidelity...",
+      "data": {
+        "node": "clinical_critique"
+      },
+      "ts": "2026-11-16T08:43:48.712609",
+      "relative_offset_s": 13.7
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 20,
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 2,
+      "agent": "ClinicalCritic",
+      "type": "score",
+      "to_agent": null,
+      "severity": "info",
+      "text": "Empathy: 4.0/5, Exercise quality: 4.7/5",
+      "data": {
+        "metric": "clinical",
+        "empathy_score": 4.0,
+        "clinical_score": 4.67,
+        "dimensions": {
+          "warmth": {
+            "score": 4,
+            "quoted_line": "Good luck\u2014you\u2019ve got the skills to succeed!",
+            "rationale": "The tone maintains a supportive, encouraging, and collaborative therapeutic alliance without being overly formal or cold."
+          },
+          "validation": {
+            "score": 4,
+            "quoted_line": "Final exams can feel like high\u2011stakes performances, and it\u2019s natural to experience nerves, racing thoughts, and the fear that your mind will go blank.",
+            "rationale": "Effectively normalizes the emotional and physiological experience of exam anxiety and freezing, validating distress without dismissiveness."
+          },
+          "clarity": {
+            "score": 5,
+            "quoted_line": "Sit upright, place both feet flat on the floor.",
+            "rationale": "Instructions are exceptionally concrete, highly actionable, and broken down into explicit sequential steps for the user."
+          },
+          "cbt_fidelity": {
+            "score": 4,
+            "quoted_line": "By confronting the thought with evidence, you weaken the automatic \u201ccatastrophe\u201d pattern and give your brain a more accurate map of the situation.",
+            "rationale": "Strong adherence to core CBT mechanics, specifically cognitive restructuring, behavioral pacing, and grounding interventions for physiological arousal."
+          },
+          "structure": {
+            "score": 5,
+            "quoted_line": "Review the log every Sunday.",
+            "rationale": "The exercise follows a textbook structured sequence from introduction, goals, structured steps, practice logs, reflection prompts, to a safe conclusion and disclaimer."
+          }
+        },
+        "unavailable": false
+      },
+      "ts": "2026-11-16T08:43:51.681998",
+      "relative_offset_s": 16.7
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 21,
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 2,
+      "agent": "ClinicalCritic",
+      "type": "node_end",
+      "to_agent": null,
+      "severity": "info",
+      "text": "ClinicalCritic completed critique in 2777.65ms",
+      "data": {
+        "node": "clinical_critique",
+        "latency_ms": 2777.65
+      },
+      "ts": "2026-11-16T08:43:51.727587",
+      "relative_offset_s": 16.8
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 22,
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 2,
+      "agent": "SafetyGuardian",
+      "type": "score",
+      "to_agent": null,
+      "severity": "info",
+      "text": "Safety checks passed: 5/5",
+      "data": {
+        "metric": "safety",
+        "score": 1.0,
+        "checks_passed": 5,
+        "checks": {
+          "self_harm": true,
+          "no_medication": true,
+          "no_diagnosis": true,
+          "no_contraindicated_exposure": true,
+          "referral_language": true
+        },
+        "reasons": {
+          "self_harm": "The exercise focuses exclusively on managing academic and exam-related anxiety without any content touching upon self-harm.",
+          "no_medication": "The draft strictly outlines cognitive-behavioral techniques, breathing exercises, and study structuring, with zero mention of pharmaceutical interventions or medication.",
+          "no_diagnosis": "The exercise addresses normal, situational performance anxiety ('exam anxiety') and provides educational coping tools without assigning diagnostic labels.",
+          "no_contraindicated_exposure": "The exposure elements involve standard study blocks, mock tests, and cognitive restructuring, which are appropriate and safe for managing everyday performance stress.",
+          "referral_language": "The conclusion explicitly includes a safety disclaimer advising the user to seek professional support if anxiety intensifies or interferes with daily functioning."
+        },
+        "unavailable": false
+      },
+      "ts": "2026-11-16T08:43:51.802435",
+      "relative_offset_s": 16.8
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 23,
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 2,
+      "agent": "SafetyGuardian",
+      "type": "node_end",
+      "to_agent": null,
+      "severity": "info",
+      "text": "SafetyGuardian completed review in 3090.41ms",
+      "data": {
+        "node": "safety_review",
+        "latency_ms": 3090.41
+      },
+      "ts": "2026-11-16T08:43:51.840686",
+      "relative_offset_s": 16.9
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 24,
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 2,
+      "agent": "Supervisor",
+      "type": "node_start",
+      "to_agent": null,
+      "severity": "info",
+      "text": "Evaluating quality checks & determining routing...",
+      "data": {
+        "node": "supervisor"
+      },
+      "ts": "2026-11-16T08:43:51.962642",
+      "relative_offset_s": 17.0
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 25,
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 2,
+      "agent": "Supervisor",
+      "type": "decision",
+      "to_agent": null,
+      "severity": "info",
+      "text": "Supervisor decision: Empathy 4.0/5 \u2265 3.5, Quality 4.7/5 \u2265 3.5, Safety 5/5 \u2192 your review",
+      "data": {
+        "route": "human",
+        "reason": "Empathy 4.0/5 \u2265 3.5, Quality 4.7/5 \u2265 3.5, Safety 5/5 \u2192 your review"
+      },
+      "ts": "2026-11-16T08:43:51.998678",
+      "relative_offset_s": 17.0
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 26,
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 2,
+      "agent": "Supervisor",
+      "type": "node_end",
+      "to_agent": null,
+      "severity": "info",
+      "text": "Supervisor completed in 72.78ms",
+      "data": {
+        "node": "supervisor",
+        "latency_ms": 72.78
+      },
+      "ts": "2026-11-16T08:43:52.035440",
+      "relative_offset_s": 17.1
+    },
+    {
+      "session_id": "demo_recorded_run",
+      "seq": 27,
+      "run_id": "run_demo_recorded_run",
+      "run_kind": "initial",
+      "draft_version": 2,
       "agent": "System",
       "type": "checkpoint",
       "to_agent": null,
       "severity": "info",
-      "text": "Your turn: read it, change anything, then approve.",
+      "text": "Your turn: read it, change anything, then approve",
       "data": {
         "status": "awaiting_approval",
-        "draft": "# Behavioral Activation Exercise for Persistent Mild Depression and Lethargy\n\n## Introduction\nBehavioral Activation (BA) is a well-established, evidence-based treatment that addresses the cycle of depression by increasing engagement in meaningful activities. When we're depressed, we tend to withdraw from activities that once brought us joy or a sense of accomplishment, which then reinforces feelings of sadness, worthlessness, and low energy. This creates a downward spiral where inactivity feeds depression, and depression fuels further inactivity.\n\nThis protocol is designed for individuals experiencing persistent mild depression and lethargy\u2014those who may feel consistently low-energy, unmotivated, or disconnected from activities they previously enjoyed. Rather than waiting for motivation to return (which often doesn't happen without action), Behavioral Activation focuses on taking small, manageable steps to gradually rebuild positive routines and experiences. The goal isn't to eliminate difficult feelings immediately, but to create opportunities for positive reinforcement and a greater sense of control over your daily life.\n\n## Goals\n1. Increase weekly engagement in activities rated as moderately pleasant or meaningful (target: 3-5 activities per day)\n2. Reduce daily time spent in passive or avoidant behaviors (e.g., excessive screen time, staying in bed) by 25% within two weeks\n3. Improve self-reported mood scores by 20% over four weeks, as measured by a simple daily mood tracking scale\n\n## Steps\n### Step 1: Activity Monitoring and Awareness\nBegin by tracking your current activity patterns and mood for 3\u20135 days before making any changes. Use a simple hourly log to record:\n- What you did during each hour (be specific\u2014include work, meals, rest, scrolling, etc.)\n- Your mood rating on a 0\u201310 scale (0 = worst mood, 10 = best mood)\n- Whether the activity was something you chose or felt obligated to do\n\nExample entry:\n| Time | Activity | Mood (0\u201310) |\n|------|----------|-------------|\n| 9 AM | Got out of bed reluctantly | 3 |\n| 10 AM | Sat on couch scrolling phone | 2 |\n| 11 AM | Made coffee | 4 |\n\nThis step builds awareness of how your behaviors and emotions interact throughout the day. Many people discover that certain activities correlate with better moods\u2014even small ones like making the bed or stepping outside\u2014and that avoidance behaviors often maintain low mood without providing relief.\n\n### Step 2: Schedule Meaningful Activities\nUsing your activity log, identify 1\u20132 activities per day that align with one of these categories:\n- **Mastery Activities**: Tasks that give a sense of accomplishment (e.g., organizing a drawer, cooking a meal)\n- **Pleasure Activities**: Things that bring enjoyment or relaxation (e.g., listening to music, walking in nature)\n- **Social Connection**: Interactions that foster connection (e.g., texting a friend, joining a group)\n- **Routine Maintenance**: Basic self-care tasks (e.g., showering, eating regular meals)\n\nStart small. For example:\n- Monday: Take a 10-minute walk after lunch + call one friend\n- Tuesday: Cook breakfast instead of skipping it + listen to favorite playlist while cleaning\n\nWrite these into your calendar or planner as non-negotiable appointments with yourself. If an activity feels too overwhelming, break it down further (e.g., \u201cwalk\u201d becomes \u201cput on shoes and stand outside for 5 minutes\u201d).\n\nThe rationale here is that depression narrows our behavioral repertoire\u2014we stop doing things that could improve our mood simply because we don\u2019t feel like it. By scheduling activities in advance, we bypass the need for motivation and create structure that supports gradual improvement.\n\n### Step 3: Monitor and Adjust Based on Feedback\nEach evening, briefly review your day using this framework:\n1. Which scheduled activities did you complete?\n2. How did your mood change before vs. after each activity?\n3. What got in the way of completing activities?\n4. What would you adjust tomorrow?\n\nIf an activity consistently leads to increased energy or improved mood, try expanding it slightly next week (e.g., increase walk duration from 10 to 15 minutes). If something feels draining or unhelpful, modify or replace it.\n\nThis reflective process helps reinforce learning and prevents discouragement. Progress isn\u2019t always linear, and adjustments are part of the process\u2014not signs of failure.\n\n## Practice\nCommit to the following daily routine for at least two weeks:\n\n**Morning (within first hour of waking):**\n- Complete a brief morning routine (shower, get dressed, make bed)\n- Schedule 1\u20132 specific activities into your day (written down or in calendar)\n\n**Throughout the day:**\n- Check in with your mood twice daily (mid-morning and mid-afternoon) using a 0\u201310 scale\n- Engage in at least one mastery or pleasure activity\n- Limit passive screen time when possible (set timers if needed)\n\n**Evening (last 10 minutes before bed):**\n- Reflect on the day using the questions above\n- Plan tomorrow\u2019s key activities\n\nUse a paper journal, app, or printed worksheet to track your progress. Consistency matters more than intensity\u2014small actions done regularly will compound over time.\n\n## Reflection\nAt the end of each week, spend five minutes answering these questions:\n1. What activities consistently lifted your mood, even slightly?\n2. What patterns emerged in your energy levels throughout the day?\n3. When did you feel most like yourself this week\u2014and what were you doing?\n4. What barriers kept you from engaging fully, and how might you address them next week?\n5. How has your relationship with planning or choosing activities shifted since starting this protocol?\n\nNotice whether your sense of agency\u2014the feeling that you can influence your own experience\u2014is growing stronger. Even minor shifts in behavior can lead to meaningful improvements in outlook over time.\n\n## Conclusion\nYou\u2019ve taken an important step by engaging with Behavioral Activation. Remember, the goal isn\u2019t perfection but progress. Some days will feel easier than others, and that\u2019s completely normal. Be patient with yourself as you rebuild routines and reconnect with sources of meaning and joy.\n\nIf at any point your symptoms worsen significantly, interfere with basic functioning, or include thoughts of self-harm, please reach out to a mental health professional right away. While this protocol can be helpful for mild depression, it is not a substitute for individualized care when needed. You deserve support, and help is always available.",
-        "version": 1
+        "draft": "# Managing Exam Anxiety & Preventing \u201cFreezing\u201d During Final Tests\n\n## Introduction\nFinal exams can feel like high\u2011stakes performances, and it\u2019s natural to experience nerves, racing thoughts, and the fear that your mind will go blank. This exercise uses core CBT techniques\u2014identifying unhelpful thoughts, testing their accuracy, and building concrete coping skills\u2014to lower anxiety before the exam and keep you mentally engaged during it. It\u2019s designed for students who notice physical tension, worry about performance, or have previously \u201cfrozen\u201d on a question.\n\n## Goals\n1. **Reduce physiological anxiety** (e.g., heart racing, sweaty hands) by at least 30\u202f% as measured by a simple anxiety rating before the exam.\n2. **Replace at least three \u201ccatastrophic\u201d thoughts with balanced alternatives** during a study session or mock test.\n3. **Demonstrate a reliable \u201creset\u201d strategy** (e.g., grounding\u202f+\u202fbrief self\u2011talk) that can be used within 30\u202fseconds when you feel you are starting to freeze.\n\n## Steps\n### Step 1: Thought Monitoring & Evidence Testing\n1. **Choose a recent study moment** when anxiety peaked (e.g., while reviewing a difficult chapter).\n2. Write down the exact thought that ran through your mind (e.g., \u201cIf I don\u2019t know this, I\u2019ll fail the whole exam\u201d).\n3. Rate the intensity of that thought on a scale of 0\u2013100.\n4. **Gather evidence**:\n   - *Support*: What facts actually support the thought? (Maybe you missed one practice question.)\n   - *Against*: What facts contradict it? (You have passed previous quizzes, you understand most of the material.)\n5. **Create a balanced statement** that acknowledges the worry but adds realistic perspective (e.g., \u201cI missed one question, but I\u2019ve answered most of the material correctly; I can still do well overall.\u201d).\n6. Record the new statement and re\u2011rate the anxiety intensity. Notice any reduction.\n\n*Rationale*: By confronting the thought with evidence, you weaken the automatic \u201ccatastrophe\u201d pattern and give your brain a more accurate map of the situation.\n\n### Step 2: Structured Study Sessions with \u201cAnxiety\u2011Break\u201d Slots\n1. **Plan a 45\u2011minute study block** using a timer.\n2. **During the first 35 minutes**, focus on active learning (summarizing, teaching aloud, solving problems).\n3. **At the 35\u2011minute mark**, trigger a 5\u2011minute \u201canxiety\u2011break\u201d:\n   - Sit upright, place both feet flat on the floor.\n   - Perform a 4\u20117\u20118 breathing cycle (inhale\u202f4\u202fsec, hold\u202f7\u202fsec, exhale\u202f8\u202fsec) three times.\n   - Scan your body from head to toe, noting any tension and deliberately relaxing each muscle group.\n4. **Use the final 5 minutes** to write down any intrusive thoughts that arose, then apply Step\u202f1\u2019s evidence\u2011testing to each.\n5. Log the session: date, subject, anxiety rating before and after, and any balanced thoughts you generated.\n\n*Rationale*: Predictable breaks prevent anxiety from building to a level that triggers a freeze response, and the breathing exercise activates the parasympathetic nervous system, lowering physiological arousal.\n\n### Step 3: In\u2011Exam \u201cFreeze\u2011Prevention\u201d Toolkit\n1. **Grounding cue**: Keep a small, unobtrusive object (e.g., a smooth pen) in your pocket. When you notice your mind going blank, place the pen in your hand, feel its texture, and name **three** sensory details (e.g., \u201cIt\u2019s cool, slightly ridged, and light\u201d).\n2. **Brief self\u2011talk script** (under 10\u202fseconds):\n   - \u201cI\u2019ve prepared for this. I can handle one question at a time.\u201d\n   - Say it silently or whisper to yourself.\n3. **Micro\u2011pause**: Close your eyes for a single breath, then open them and read the question again, highlighting key verbs (e.g., \u201ccompare,\u201d \u201clist,\u201d \u201cexplain\u201d).\n4. **Progressive \u201canswer\u2011first\u201d habit**: Before diving into calculations, jot down a one\u2011sentence outline of how you would answer. This creates a mental roadmap and reduces the chance of getting stuck.\n\n*Rationale*: The grounding cue redirects attention from anxiety to the present moment, while the self\u2011talk and micro\u2011pause interrupt the freeze cycle and re\u2011engage executive function.\n\n## Practice\n- **Daily**: Perform one 45\u2011minute study block with the built\u2011in anxiety break.\n- **Weekly**: Complete a mock\u2011test (20\u201330\u202fminutes) and intentionally use the \u201cFreeze\u2011Prevention\u201d Toolkit on at least two questions. Record:\n  - Date and subject\n  - Pre\u2011session anxiety rating (0\u2011100)\n  - Number of times the toolkit was used\n  - Post\u2011session anxiety rating\n  - Any balanced thoughts created\n\nReview the log every Sunday. Look for trends (e.g., decreasing anxiety ratings, fewer freeze episodes).\n\n## Reflection\nAfter each study block or mock test, answer the following prompts in your journal:\n\n1. **Thoughts**: Which automatic thoughts surfaced? How did the evidence\u2011testing change their intensity?\n2. **Physical sensations**: Where did you feel tension or calmness in your body? Did the breathing or grounding shift those sensations?\n3. **Behavioral response**: How smoothly did you transition from the grounding cue to answering the question? What could you tweak for next time?\n4. **Overall rating**: On a scale of 0\u201310, how confident do you feel about managing anxiety on the upcoming real exam?\n\n## Conclusion\nYou now have a step\u2011by\u2011step CBT plan to calm nerves, challenge unhelpful thoughts, and keep your mind active during finals. Consistent practice of these techniques can transform anxiety from a paralyzing force into a manageable signal that prepares you to perform at your best.\n\n*Reminder*: This exercise is a self\u2011help tool, not a substitute for professional mental\u2011health care. If anxiety intensifies, interferes with daily functioning, or you experience overwhelming panic, please reach out to a qualified therapist, counselor, or medical professional for personalized support. Good luck\u2014you\u2019ve got the skills to succeed!",
+        "version": 2
       },
-      "ts": "2026-10-12T22:01:58.569293+00:00Z",
-      "relative_offset_s": 57.58
+      "ts": "2026-11-16T08:43:52.144177",
+      "relative_offset_s": 17.2
     },
     {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
-      "seq": 15,
-      "run_id": "run_B0dWqFEGJwg",
+      "session_id": "demo_recorded_run",
+      "seq": 28,
+      "run_id": "run_demo_recorded_run",
       "run_kind": "initial",
-      "draft_version": 1,
+      "draft_version": 2,
       "agent": "System",
       "type": "run_end",
       "to_agent": null,
@@ -292,52 +606,11 @@
       "text": "Run finished: awaiting human approval.",
       "data": {
         "status": "awaiting_approval",
-        "draft": "# Behavioral Activation Exercise for Persistent Mild Depression and Lethargy\n\n## Introduction\nBehavioral Activation (BA) is a well-established, evidence-based treatment that addresses the cycle of depression by increasing engagement in meaningful activities. When we're depressed, we tend to withdraw from activities that once brought us joy or a sense of accomplishment, which then reinforces feelings of sadness, worthlessness, and low energy. This creates a downward spiral where inactivity feeds depression, and depression fuels further inactivity.\n\nThis protocol is designed for individuals experiencing persistent mild depression and lethargy\u2014those who may feel consistently low-energy, unmotivated, or disconnected from activities they previously enjoyed. Rather than waiting for motivation to return (which often doesn't happen without action), Behavioral Activation focuses on taking small, manageable steps to gradually rebuild positive routines and experiences. The goal isn't to eliminate difficult feelings immediately, but to create opportunities for positive reinforcement and a greater sense of control over your daily life.\n\n## Goals\n1. Increase weekly engagement in activities rated as moderately pleasant or meaningful (target: 3-5 activities per day)\n2. Reduce daily time spent in passive or avoidant behaviors (e.g., excessive screen time, staying in bed) by 25% within two weeks\n3. Improve self-reported mood scores by 20% over four weeks, as measured by a simple daily mood tracking scale\n\n## Steps\n### Step 1: Activity Monitoring and Awareness\nBegin by tracking your current activity patterns and mood for 3\u20135 days before making any changes. Use a simple hourly log to record:\n- What you did during each hour (be specific\u2014include work, meals, rest, scrolling, etc.)\n- Your mood rating on a 0\u201310 scale (0 = worst mood, 10 = best mood)\n- Whether the activity was something you chose or felt obligated to do\n\nExample entry:\n| Time | Activity | Mood (0\u201310) |\n|------|----------|-------------|\n| 9 AM | Got out of bed reluctantly | 3 |\n| 10 AM | Sat on couch scrolling phone | 2 |\n| 11 AM | Made coffee | 4 |\n\nThis step builds awareness of how your behaviors and emotions interact throughout the day. Many people discover that certain activities correlate with better moods\u2014even small ones like making the bed or stepping outside\u2014and that avoidance behaviors often maintain low mood without providing relief.\n\n### Step 2: Schedule Meaningful Activities\nUsing your activity log, identify 1\u20132 activities per day that align with one of these categories:\n- **Mastery Activities**: Tasks that give a sense of accomplishment (e.g., organizing a drawer, cooking a meal)\n- **Pleasure Activities**: Things that bring enjoyment or relaxation (e.g., listening to music, walking in nature)\n- **Social Connection**: Interactions that foster connection (e.g., texting a friend, joining a group)\n- **Routine Maintenance**: Basic self-care tasks (e.g., showering, eating regular meals)\n\nStart small. For example:\n- Monday: Take a 10-minute walk after lunch + call one friend\n- Tuesday: Cook breakfast instead of skipping it + listen to favorite playlist while cleaning\n\nWrite these into your calendar or planner as non-negotiable appointments with yourself. If an activity feels too overwhelming, break it down further (e.g., \u201cwalk\u201d becomes \u201cput on shoes and stand outside for 5 minutes\u201d).\n\nThe rationale here is that depression narrows our behavioral repertoire\u2014we stop doing things that could improve our mood simply because we don\u2019t feel like it. By scheduling activities in advance, we bypass the need for motivation and create structure that supports gradual improvement.\n\n### Step 3: Monitor and Adjust Based on Feedback\nEach evening, briefly review your day using this framework:\n1. Which scheduled activities did you complete?\n2. How did your mood change before vs. after each activity?\n3. What got in the way of completing activities?\n4. What would you adjust tomorrow?\n\nIf an activity consistently leads to increased energy or improved mood, try expanding it slightly next week (e.g., increase walk duration from 10 to 15 minutes). If something feels draining or unhelpful, modify or replace it.\n\nThis reflective process helps reinforce learning and prevents discouragement. Progress isn\u2019t always linear, and adjustments are part of the process\u2014not signs of failure.\n\n## Practice\nCommit to the following daily routine for at least two weeks:\n\n**Morning (within first hour of waking):**\n- Complete a brief morning routine (shower, get dressed, make bed)\n- Schedule 1\u20132 specific activities into your day (written down or in calendar)\n\n**Throughout the day:**\n- Check in with your mood twice daily (mid-morning and mid-afternoon) using a 0\u201310 scale\n- Engage in at least one mastery or pleasure activity\n- Limit passive screen time when possible (set timers if needed)\n\n**Evening (last 10 minutes before bed):**\n- Reflect on the day using the questions above\n- Plan tomorrow\u2019s key activities\n\nUse a paper journal, app, or printed worksheet to track your progress. Consistency matters more than intensity\u2014small actions done regularly will compound over time.\n\n## Reflection\nAt the end of each week, spend five minutes answering these questions:\n1. What activities consistently lifted your mood, even slightly?\n2. What patterns emerged in your energy levels throughout the day?\n3. When did you feel most like yourself this week\u2014and what were you doing?\n4. What barriers kept you from engaging fully, and how might you address them next week?\n5. How has your relationship with planning or choosing activities shifted since starting this protocol?\n\nNotice whether your sense of agency\u2014the feeling that you can influence your own experience\u2014is growing stronger. Even minor shifts in behavior can lead to meaningful improvements in outlook over time.\n\n## Conclusion\nYou\u2019ve taken an important step by engaging with Behavioral Activation. Remember, the goal isn\u2019t perfection but progress. Some days will feel easier than others, and that\u2019s completely normal. Be patient with yourself as you rebuild routines and reconnect with sources of meaning and joy.\n\nIf at any point your symptoms worsen significantly, interfere with basic functioning, or include thoughts of self-harm, please reach out to a mental health professional right away. While this protocol can be helpful for mild depression, it is not a substitute for individualized care when needed. You deserve support, and help is always available.",
-        "version": 1
+        "draft": "# Managing Exam Anxiety & Preventing \u201cFreezing\u201d During Final Tests\n\n## Introduction\nFinal exams can feel like high\u2011stakes performances, and it\u2019s natural to experience nerves, racing thoughts, and the fear that your mind will go blank. This exercise uses core CBT techniques\u2014identifying unhelpful thoughts, testing their accuracy, and building concrete coping skills\u2014to lower anxiety before the exam and keep you mentally engaged during it. It\u2019s designed for students who notice physical tension, worry about performance, or have previously \u201cfrozen\u201d on a question.\n\n## Goals\n1. **Reduce physiological anxiety** (e.g., heart racing, sweaty hands) by at least 30\u202f% as measured by a simple anxiety rating before the exam.\n2. **Replace at least three \u201ccatastrophic\u201d thoughts with balanced alternatives** during a study session or mock test.\n3. **Demonstrate a reliable \u201creset\u201d strategy** (e.g., grounding\u202f+\u202fbrief self\u2011talk) that can be used within 30\u202fseconds when you feel you are starting to freeze.\n\n## Steps\n### Step 1: Thought Monitoring & Evidence Testing\n1. **Choose a recent study moment** when anxiety peaked (e.g., while reviewing a difficult chapter).\n2. Write down the exact thought that ran through your mind (e.g., \u201cIf I don\u2019t know this, I\u2019ll fail the whole exam\u201d).\n3. Rate the intensity of that thought on a scale of 0\u2013100.\n4. **Gather evidence**:\n   - *Support*: What facts actually support the thought? (Maybe you missed one practice question.)\n   - *Against*: What facts contradict it? (You have passed previous quizzes, you understand most of the material.)\n5. **Create a balanced statement** that acknowledges the worry but adds realistic perspective (e.g., \u201cI missed one question, but I\u2019ve answered most of the material correctly; I can still do well overall.\u201d).\n6. Record the new statement and re\u2011rate the anxiety intensity. Notice any reduction.\n\n*Rationale*: By confronting the thought with evidence, you weaken the automatic \u201ccatastrophe\u201d pattern and give your brain a more accurate map of the situation.\n\n### Step 2: Structured Study Sessions with \u201cAnxiety\u2011Break\u201d Slots\n1. **Plan a 45\u2011minute study block** using a timer.\n2. **During the first 35 minutes**, focus on active learning (summarizing, teaching aloud, solving problems).\n3. **At the 35\u2011minute mark**, trigger a 5\u2011minute \u201canxiety\u2011break\u201d:\n   - Sit upright, place both feet flat on the floor.\n   - Perform a 4\u20117\u20118 breathing cycle (inhale\u202f4\u202fsec, hold\u202f7\u202fsec, exhale\u202f8\u202fsec) three times.\n   - Scan your body from head to toe, noting any tension and deliberately relaxing each muscle group.\n4. **Use the final 5 minutes** to write down any intrusive thoughts that arose, then apply Step\u202f1\u2019s evidence\u2011testing to each.\n5. Log the session: date, subject, anxiety rating before and after, and any balanced thoughts you generated.\n\n*Rationale*: Predictable breaks prevent anxiety from building to a level that triggers a freeze response, and the breathing exercise activates the parasympathetic nervous system, lowering physiological arousal.\n\n### Step 3: In\u2011Exam \u201cFreeze\u2011Prevention\u201d Toolkit\n1. **Grounding cue**: Keep a small, unobtrusive object (e.g., a smooth pen) in your pocket. When you notice your mind going blank, place the pen in your hand, feel its texture, and name **three** sensory details (e.g., \u201cIt\u2019s cool, slightly ridged, and light\u201d).\n2. **Brief self\u2011talk script** (under 10\u202fseconds):\n   - \u201cI\u2019ve prepared for this. I can handle one question at a time.\u201d\n   - Say it silently or whisper to yourself.\n3. **Micro\u2011pause**: Close your eyes for a single breath, then open them and read the question again, highlighting key verbs (e.g., \u201ccompare,\u201d \u201clist,\u201d \u201cexplain\u201d).\n4. **Progressive \u201canswer\u2011first\u201d habit**: Before diving into calculations, jot down a one\u2011sentence outline of how you would answer. This creates a mental roadmap and reduces the chance of getting stuck.\n\n*Rationale*: The grounding cue redirects attention from anxiety to the present moment, while the self\u2011talk and micro\u2011pause interrupt the freeze cycle and re\u2011engage executive function.\n\n## Practice\n- **Daily**: Perform one 45\u2011minute study block with the built\u2011in anxiety break.\n- **Weekly**: Complete a mock\u2011test (20\u201330\u202fminutes) and intentionally use the \u201cFreeze\u2011Prevention\u201d Toolkit on at least two questions. Record:\n  - Date and subject\n  - Pre\u2011session anxiety rating (0\u2011100)\n  - Number of times the toolkit was used\n  - Post\u2011session anxiety rating\n  - Any balanced thoughts created\n\nReview the log every Sunday. Look for trends (e.g., decreasing anxiety ratings, fewer freeze episodes).\n\n## Reflection\nAfter each study block or mock test, answer the following prompts in your journal:\n\n1. **Thoughts**: Which automatic thoughts surfaced? How did the evidence\u2011testing change their intensity?\n2. **Physical sensations**: Where did you feel tension or calmness in your body? Did the breathing or grounding shift those sensations?\n3. **Behavioral response**: How smoothly did you transition from the grounding cue to answering the question? What could you tweak for next time?\n4. **Overall rating**: On a scale of 0\u201310, how confident do you feel about managing anxiety on the upcoming real exam?\n\n## Conclusion\nYou now have a step\u2011by\u2011step CBT plan to calm nerves, challenge unhelpful thoughts, and keep your mind active during finals. Consistent practice of these techniques can transform anxiety from a paralyzing force into a manageable signal that prepares you to perform at your best.\n\n*Reminder*: This exercise is a self\u2011help tool, not a substitute for professional mental\u2011health care. If anxiety intensifies, interferes with daily functioning, or you experience overwhelming panic, please reach out to a qualified therapist, counselor, or medical professional for personalized support. Good luck\u2014you\u2019ve got the skills to succeed!",
+        "version": 2
       },
-      "ts": "2026-10-12T22:01:58.597726+00:00Z",
-      "relative_offset_s": 57.6
-    },
-    {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
-      "seq": 16,
-      "run_id": "run_B0dWqFEGJwg",
-      "run_kind": "approval",
-      "draft_version": 1,
-      "agent": "Human",
-      "type": "approval",
-      "to_agent": null,
-      "severity": "info",
-      "text": "Exercise approved by you",
-      "data": {
-        "approved_by": "You",
-        "approved_at": "2026-10-12T21:59:48.433261",
-        "scores_at_approval": {
-          "safety": 1.0,
-          "empathy": 4.5,
-          "clinical": 5.0
-        },
-        "content_hash": "b0ef189c0c9d8162"
-      },
-      "ts": "2026-10-12T22:02:08.727463+00:00Z",
-      "relative_offset_s": 67.73
-    },
-    {
-      "session_id": "session_hAwYVCwLfLkxK-8vcCvjfg",
-      "seq": 17,
-      "run_id": "run_B0dWqFEGJwg",
-      "run_kind": "approval",
-      "draft_version": 1,
-      "agent": "System",
-      "type": "run_end",
-      "to_agent": null,
-      "severity": "info",
-      "text": "Workflow completed and exercise finalized.",
-      "data": {
-        "status": "approved"
-      },
-      "ts": "2026-10-12T22:02:08.756909+00:00Z",
-      "relative_offset_s": 67.76
+      "ts": "2026-11-16T08:43:52.201306",
+      "relative_offset_s": 17.2
     }
   ]
 }
