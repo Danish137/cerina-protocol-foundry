@@ -3,7 +3,7 @@ Pydantic models for API requests and responses
 Cerina Protocol Foundry (Phase A Updates)
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AliasChoices
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 from enum import Enum
@@ -28,7 +28,12 @@ class ProtocolRequest(BaseModel):
     intent: str = Field(..., description="User intent for the CBT exercise")
     session_id: Optional[str] = Field(None, description="Optional custom session ID")
     review_depth: Optional[str] = Field("standard", description="standard | thorough")
-    crisis_bypass: Optional[bool] = Field(False, description="True if user confirms exploring educational exercise on high-risk topic")
+    # TODO: Remove 'clinician_bypass' compatibility alias after deploy once all clients migrate to crisis_bypass
+    crisis_bypass: Optional[bool] = Field(
+        False,
+        validation_alias=AliasChoices("crisis_bypass", "clinician_bypass"),
+        description="True if user confirms exploring educational exercise on high-risk topic"
+    )
     region_code: Optional[str] = Field("US", description="Region for crisis resources (US, IN, GB, IE)")
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
