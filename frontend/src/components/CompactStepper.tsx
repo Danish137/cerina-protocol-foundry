@@ -112,7 +112,7 @@ export default function CompactStepper({ phase, activeAgent, onStepClick }: Comp
                     : isHumanReview
                     ? 'bg-[#D4882C] text-white ring-2 ring-[#F4DEC2]'
                     : isCurrent
-                    ? 'bg-[#244F3B] text-white ring-2 ring-[#D1E2D7]'
+                    ? 'bg-[#244F3B] text-white ring-2 ring-[#D1E2D7] motion-safe:shadow-[0_0_8px_rgba(36,79,59,0.35)] motion-reduce:shadow-none'
                     : 'bg-[#FAF8F5] text-[#88978F] border border-[#E8E4DA]'
                 }`}
               >
