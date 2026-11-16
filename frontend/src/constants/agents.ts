@@ -12,7 +12,7 @@ export interface AgentMeta {
 
 export const AGENTS: Record<string, AgentMeta> = {
   Drafter: {
-    displayName: 'Drafter',
+    displayName: 'Exercise Drafter',
     shortName: 'Drafter',
     role: 'Writes initial steps',
     description: 'Designs step-by-step cognitive and behavioral exercises'

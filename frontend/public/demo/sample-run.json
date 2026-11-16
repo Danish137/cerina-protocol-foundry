@@ -80,7 +80,7 @@
       "type": "node_end",
       "to_agent": null,
       "severity": "info",
-      "text": "Drafter completed draft in 4601.68ms",
+      "text": "Exercise Drafter completed draft in 4601.68ms",
       "data": {
         "node": "draft",
         "latency_ms": 4601.68,
@@ -117,7 +117,7 @@
       "type": "node_start",
       "to_agent": null,
       "severity": "info",
-      "text": "Evaluating therapeutic empathy & CBT fidelity...",
+      "text": "Evaluating supportive tone & exercise clarity...",
       "data": {
         "node": "clinical_critique"
       },
@@ -360,7 +360,7 @@
       "type": "node_end",
       "to_agent": null,
       "severity": "info",
-      "text": "Drafter completed draft in 3955.65ms",
+      "text": "Exercise Drafter completed draft in 3955.65ms",
       "data": {
         "node": "draft",
         "latency_ms": 3955.65,
@@ -397,7 +397,7 @@
       "type": "node_start",
       "to_agent": null,
       "severity": "info",
-      "text": "Evaluating therapeutic empathy & CBT fidelity...",
+      "text": "Evaluating supportive tone & exercise clarity...",
       "data": {
         "node": "clinical_critique"
       },
