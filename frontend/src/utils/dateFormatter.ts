@@ -33,34 +33,8 @@ export function formatLocalDateTime(isoString?: string | null): string {
 }
 
 export function formatPdfDateTime(isoString?: string | null): string {
-  if (!isoString) return ''
-
-  try {
-    let normalized = isoString.trim()
-    if (!normalized.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(normalized)) {
-      normalized += 'Z'
-    }
-    const date = new Date(normalized)
-    if (isNaN(date.getTime())) return ''
-
-    const options: Intl.DateTimeFormatOptions = {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'UTC',
-      timeZoneName: 'short'
-    }
-
-    let formatted = new Intl.DateTimeFormat('en-US', options).format(date)
-    const gmtPrefix = ['G', 'M', 'T'].join('')
-    const gmtPattern = new RegExp(gmtPrefix + '(?:[+-]\\d{1,2}:?\\d{2})?', 'g')
-    return formatted.replace(gmtPattern, 'UTC')
-  } catch {
-    return ''
-  }
+  // Use the exact same local-time formatting the UI uses (no UTC/GMT label)
+  return formatLocalDateTime(isoString)
 }
 
 export function formatLocalTimeOnly(isoString?: string | null): string {
