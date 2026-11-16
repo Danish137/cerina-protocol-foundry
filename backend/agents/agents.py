@@ -132,7 +132,7 @@ Produce the updated exercise with targeted improvements:"""
             for note in recent_notes[-3:]:
                 revision_summary.append({
                     "responding_to": note.get("note", "")[:60],
-                    "change": "Targeted clinical revision addressing specific reviewer feedback."
+                    "change": "Targeted revision addressing specific review feedback."
                 })
 
         target_version = state.get("current_version", 0) + 1
@@ -470,7 +470,7 @@ class SupervisorAgent:
         if not meets_empathy:
             fail_reasons.append(f"Empathy {empathy_score:.1f} < {thresholds['min_empathy_score']}")
         if not meets_clinical:
-            fail_reasons.append(f"Clinical {clinical_score:.1f} < {thresholds['min_clinical_score']}")
+            fail_reasons.append(f"Quality {clinical_score:.1f} < {thresholds['min_clinical_score']}")
             
         reason = f"{', '.join(fail_reasons)} -> back to Drafter (revision {iteration + 1})"
         state = add_agent_note(state, self.name, reason, priority="warning")
