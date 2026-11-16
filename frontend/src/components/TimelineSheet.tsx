@@ -239,7 +239,10 @@ export default function TimelineSheet({
                               const offsetSec = !isNaN(startMs) && !isNaN(evtMs) && evtMs >= startMs
                                 ? `+${((evtMs - startMs) / 1000).toFixed(1)}s`
                                 : '+0.0s'
-                              const cleanText = evt.text.replace(/\s*\((llm|rule|unavailable)\)/gi, '')
+                              const cleanText = evt.text
+                                .replace(/\s*\((llm|rule|unavailable)\)/gi, '')
+                                .replace(/SafetyGuardian/g, 'Safety Check')
+                                .replace(/ClinicalCritic/g, 'Quality Reviewer')
 
                               return (
                                 <div
