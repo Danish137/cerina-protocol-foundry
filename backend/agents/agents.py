@@ -68,7 +68,7 @@ MANDATORY MARKDOWN STRUCTURE (You MUST follow this exact hierarchy):
 [Clear daily practice routine, exercise, or activity log.]
 
 ## Reflection
-[Guided debrief questions for the user to reflect on their thoughts and physical sensations.]
+[Guided reflection questions for you to check in on your thoughts, physical sensations, and progress.]
 
 ## Conclusion
 [Encouraging wrap-up statement and clear disclaimer that this is self-help, not therapy or medical advice, recommending professional consultation if distress worsens.]
