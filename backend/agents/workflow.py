@@ -240,7 +240,7 @@ async def draft_node(state: ProtocolState) -> ProtocolState:
             draft_version=dver,
             agent="Drafter",
             event_type="node_end",
-            text_content=f"Drafter completed draft in {latency_ms}ms",
+            text_content=f"Exercise Drafter completed draft in {latency_ms}ms",
             severity="info",
             data={"node": "draft", "latency_ms": latency_ms, "draft": normalized_draft, "version": dver}
         )
@@ -318,7 +318,7 @@ async def safety_review_node(state: ProtocolState) -> ProtocolState:
             draft_version=dver,
             agent="SafetyGuardian",
             event_type="node_end",
-            text_content=f"SafetyGuardian completed review in {latency_ms}ms",
+            text_content=f"Safety check completed review in {latency_ms}ms",
             severity="info",
             data={"node": "safety_review", "latency_ms": latency_ms}
         )
@@ -340,7 +340,7 @@ async def clinical_critique_node(state: ProtocolState) -> ProtocolState:
         draft_version=dver,
         agent="ClinicalCritic",
         event_type="node_start",
-        text_content="Evaluating therapeutic empathy & CBT fidelity...",
+        text_content="Evaluating supportive tone & exercise clarity...",
         severity="info",
         data={"node": "clinical_critique"}
     )
@@ -392,7 +392,7 @@ async def clinical_critique_node(state: ProtocolState) -> ProtocolState:
             draft_version=dver,
             agent="ClinicalCritic",
             event_type="node_end",
-            text_content=f"ClinicalCritic completed critique in {latency_ms}ms",
+            text_content=f"Quality Reviewer completed review in {latency_ms}ms",
             severity="info",
             data={"node": "clinical_critique", "latency_ms": latency_ms}
         )
@@ -494,7 +494,7 @@ async def parallel_review_node(state: ProtocolState) -> ProtocolState:
         draft_version=dver,
         agent="ClinicalCritic",
         event_type="node_start",
-        text_content="Evaluating therapeutic empathy & CBT fidelity...",
+        text_content="Evaluating supportive tone & exercise clarity...",
         severity="info",
         data={"node": "clinical_critique"}
     )
@@ -539,7 +539,7 @@ async def parallel_review_node(state: ProtocolState) -> ProtocolState:
                 draft_version=dver,
                 agent="SafetyGuardian",
                 event_type="node_end",
-                text_content=f"SafetyGuardian completed review in {latency_ms}ms",
+                text_content=f"Safety check completed review in {latency_ms}ms",
                 severity="info",
                 data={"node": "safety_review", "latency_ms": latency_ms}
             )
@@ -580,7 +580,7 @@ async def parallel_review_node(state: ProtocolState) -> ProtocolState:
                 draft_version=dver,
                 agent="ClinicalCritic",
                 event_type="node_end",
-                text_content=f"ClinicalCritic completed critique in {latency_ms}ms",
+                text_content=f"Quality Reviewer completed review in {latency_ms}ms",
                 severity="info",
                 data={"node": "clinical_critique", "latency_ms": latency_ms}
             )
