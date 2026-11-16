@@ -219,7 +219,7 @@ export default function AgentPipeline({
               <div
                 className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold ${
                   node.status === 'working'
-                    ? 'bg-[#EBF3EE] text-[#18221E] border border-[#244F3B]'
+                    ? 'bg-[#EBF3EE] text-[#18221E] border border-[#244F3B] motion-safe:shadow-[0_0_8px_rgba(36,79,59,0.25)] motion-reduce:shadow-none'
                     : node.status === 'done'
                     ? 'bg-[#FAF8F5] text-[#18221E]'
                     : node.status === 'concern'
@@ -318,7 +318,7 @@ export default function AgentPipeline({
                 <div
                   className={`p-2.5 rounded-xl border transition-all ${
                     isWorking
-                      ? 'border-[#244F3B] bg-[#EBF3EE]/60 shadow-xs ring-1 ring-[#244F3B]/30'
+                      ? 'border-[#244F3B] bg-[#EBF3EE]/60 shadow-xs ring-1 ring-[#244F3B]/30 motion-safe:shadow-[0_0_10px_rgba(36,79,59,0.25)] motion-reduce:shadow-none'
                       : isConcern
                       ? 'border-[#F59E0B] bg-[#FEF3C7]/40'
                       : isWaiting
@@ -337,11 +337,11 @@ export default function AgentPipeline({
                       <div
                         className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] shrink-0 ${
                           isWorking
-                            ? 'bg-[#244F3B] text-white animate-pulse'
+                            ? 'bg-[#244F3B] text-white motion-safe:animate-pulse motion-reduce:animate-none'
                             : isConcern
                             ? 'bg-[#F59E0B] text-white'
                             : isWaiting
-                            ? 'bg-[#3B82F6] text-white animate-pulse'
+                            ? 'bg-[#3B82F6] text-white motion-safe:animate-pulse motion-reduce:animate-none'
                             : 'bg-[#F0ECE3] text-[#5C6A62]'
                         }`}
                       >
