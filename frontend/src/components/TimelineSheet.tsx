@@ -243,6 +243,8 @@ export default function TimelineSheet({
                                 .replace(/\s*\((llm|rule|unavailable)\)/gi, '')
                                 .replace(/SafetyGuardian/g, 'Safety Check')
                                 .replace(/ClinicalCritic/g, 'Quality Reviewer')
+                                .replace(/clinical/gi, 'quality')
+                                .replace(/protocol/gi, 'exercise')
 
                               return (
                                 <div
