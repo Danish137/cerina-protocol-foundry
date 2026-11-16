@@ -23,6 +23,8 @@ import {
   Heading3,
   Lock,
   FileText,
+  AlertTriangle,
+  RotateCcw,
   GitCompare,
 } from 'lucide-react'
 import { Phase } from '../types'
@@ -56,6 +58,8 @@ interface DocumentViewerProps {
   events?: ProtocolEvent[]
   audit?: ApprovalAudit
   initialDraftBeforeEdit?: string
+  isStalled?: boolean
+  onRetry?: () => void
 }
 
 export default function DocumentViewer({
@@ -75,6 +79,8 @@ export default function DocumentViewer({
   isReplay = false,
   hasRevisedRun = false,
   v1Draft = '',
+  isStalled = false,
+  onRetry,
   onDraftChange,
   onStartEditing,
   onSaveEditsAndApprove,
@@ -702,8 +708,8 @@ export default function DocumentViewer({
                   </>
                 ) : isSafetyCriticRunning ? (
                   <>
-                    <Clock className="w-3 h-3 animate-spin text-[#8C5921]" />
-                    <span>Review in progress</span>
+                    <Clock className={`w-3 h-3 text-[#8C5921] ${isStalled ? '' : 'animate-spin'}`} />
+                    <span>{isStalled ? 'Taking longer than usual' : 'Review in progress'}</span>
                   </>
                 ) : !isReplay && currentProvenance === 'human_edit' ? (
                   <span>Edited by you</span>
@@ -796,15 +802,32 @@ export default function DocumentViewer({
 
 
 
-      {/* In-Flight Review Banner (When draft exists but critics still running) */}
-      {isSafetyCriticRunning && (
+      {/* In-Flight Review Banner / Stalled Banner */}
+      {isStalled ? (
+        <div className="mx-6 mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-3 text-xs text-amber-900 shrink-0 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>This step is taking longer than expected. Your previous draft is safe.</span>
+          </div>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-2xs shrink-0 flex items-center gap-1.5"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Retry</span>
+            </button>
+          )}
+        </div>
+      ) : isSafetyCriticRunning ? (
         <div className="mx-6 mt-4 p-3 rounded-xl bg-[#FAF8F5] border border-[#CDE0D4] flex items-center gap-2.5 text-xs text-[#244F3B] shrink-0">
           <Sparkles className="w-4 h-4 text-[#244F3B] animate-spin shrink-0" />
           <span>
             Safety and quality checks are running. You can read through while checks complete.
           </span>
         </div>
-      )}
+      ) : null}
 
       {/* Document Prose Body (Capped at 68ch for optimal readability) */}
       <div className="flex-1 p-6 sm:p-10">

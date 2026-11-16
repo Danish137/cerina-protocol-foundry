@@ -40,6 +40,8 @@ interface ActionPanelProps {
   onRequestRevision?: (instruction?: string, concernIds?: string[]) => void
   onOpenDiffPopover?: () => void
   onOpenReviewDetails?: () => void
+  isStalled?: boolean
+  onRetry?: () => void
 }
 
 export default function ActionPanel({
@@ -52,6 +54,8 @@ export default function ActionPanel({
   lastValidatedTime,
   majorConcerns = [],
   isRevisionRequested = false,
+  isStalled = false,
+  onRetry,
   onApprove,
   onStartEditing,
   onSaveEditsAndApprove,
@@ -292,27 +296,46 @@ export default function ActionPanel({
       {phase === 'generating' && (
         <div className="space-y-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[#EBF3EE] text-[#244F3B] flex items-center justify-center shrink-0 border border-[#CDE0D4]">
-              <Loader2 className="w-4 h-4 animate-spin text-[#244F3B]" />
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border ${
+              isStalled
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-[#EBF3EE] text-[#244F3B] border-[#CDE0D4]'
+            }`}>
+              {isStalled ? (
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+              ) : (
+                <Loader2 className="w-4 h-4 animate-spin text-[#244F3B]" />
+              )}
             </div>
             <div>
               <h3 className="text-xs sm:text-sm font-semibold text-[#18221E]">
-                AI Review Team Active
+                {isStalled ? 'Taking longer than usual' : 'AI Review Team Active'}
               </h3>
               <p className="text-[11px] text-[#55635C]">
-                Drafting exercise & checking safety…
+                {isStalled ? 'Your previous draft is safe' : 'Drafting exercise & checking safety…'}
               </p>
             </div>
           </div>
 
-          <button
-            disabled
-            type="button"
-            className="w-full py-2.5 px-4 rounded-xl bg-[#FAF8F5] border border-[#E8E4DA] text-[#88978F] text-xs font-semibold cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            <Clock className="w-3.5 h-3.5 text-[#88978F]" />
-            <span>Review controls unlock when ready</span>
-          </button>
+          {isStalled ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="w-full py-2.5 px-4 rounded-xl bg-[#244F3B] hover:bg-[#1D3E2F] text-white text-xs font-semibold cursor-pointer flex items-center justify-center gap-2 shadow-2xs transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Retry check</span>
+            </button>
+          ) : (
+            <button
+              disabled
+              type="button"
+              className="w-full py-2.5 px-4 rounded-xl bg-[#FAF8F5] border border-[#E8E4DA] text-[#88978F] text-xs font-semibold cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <Clock className="w-3.5 h-3.5 text-[#88978F]" />
+              <span>Review controls unlock when ready</span>
+            </button>
+          )}
         </div>
       )}
 

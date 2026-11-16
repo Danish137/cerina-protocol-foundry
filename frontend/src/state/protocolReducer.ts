@@ -148,12 +148,26 @@ export function protocolReducer(state: ReducerState, action: ProtocolAction): Re
         if (e.draft_version) nextDraftVersion = Math.max(nextDraftVersion, e.draft_version)
       }
 
+      // Clear scores to pending on revision start; preserve previous scores for deltas
+      if (e.type === 'human_action' && (e.data?.action === 'revise' || e.data?.action === 'recheck')) {
+        if (Object.keys(nextScores).length > 0) {
+          prevScores = { ...nextScores }
+        }
+        nextScores = {}
+      } else if (e.type === 'node_start' && e.agent === 'Drafter' && ((e.draft_version || 1) > 1 || nextDraftVersion > 1)) {
+        if (Object.keys(nextScores).length > 0) {
+          prevScores = { ...nextScores }
+        }
+        nextScores = {}
+      }
+
       // Process score events
       if (e.type === 'score' && e.data) {
         const isDegraded = Boolean(e.data.degraded_review || nextScores.degraded_review)
         if (e.data.metric === 'safety') {
           const newSafety = e.data.score
-          const delta = state.scores.safety_score !== undefined ? newSafety - state.scores.safety_score : undefined
+          const baseSafety = prevScores?.safety_score ?? state.scores.safety_score
+          const delta = baseSafety !== undefined ? newSafety - baseSafety : undefined
           nextScores = {
             ...nextScores,
             safety_score: newSafety,
@@ -166,8 +180,10 @@ export function protocolReducer(state: ReducerState, action: ProtocolAction): Re
         } else if (e.data.metric === 'clinical') {
           const newEmpathy = e.data.empathy_score
           const newClinical = e.data.clinical_score
-          const deltaEmp = state.scores.empathy_score !== undefined ? newEmpathy - state.scores.empathy_score : undefined
-          const deltaClin = state.scores.clinical_score !== undefined ? newClinical - state.scores.clinical_score : undefined
+          const baseEmp = prevScores?.empathy_score ?? state.scores.empathy_score
+          const baseClin = prevScores?.clinical_score ?? state.scores.clinical_score
+          const deltaEmp = baseEmp !== undefined ? newEmpathy - baseEmp : undefined
+          const deltaClin = baseClin !== undefined ? newClinical - baseClin : undefined
           nextScores = {
             ...nextScores,
             empathy_score: newEmpathy,
@@ -184,7 +200,9 @@ export function protocolReducer(state: ReducerState, action: ProtocolAction): Re
 
       // Process decision events & revisions
       if (e.type === 'decision' && e.data?.route === 'revise') {
-        prevScores = { ...state.scores }
+        if (Object.keys(state.scores).length > 0) {
+          prevScores = { ...state.scores }
+        }
       }
 
       // Process approval

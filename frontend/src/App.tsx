@@ -50,12 +50,33 @@ function AppContent() {
   const [showReviewSaveNotice, setShowReviewSaveNotice] = useState<boolean>(true)
   const [browserMismatchAlert, setBrowserMismatchAlert] = useState<boolean>(false)
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0)
+  const [lastActivityAt, setLastActivityAt] = useState<number>(Date.now())
+  const [isStalled, setIsStalled] = useState<boolean>(false)
 
   // Stream client & timer refs
   const [showCbtExplainer, setShowCbtExplainer] = useState(false)
   const streamClientRef = useRef<ProtocolStreamClient | null>(null)
   const timerRef = useRef<number | null>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
+
+  // Reset scroll position on first render and on phase changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
+  }, [phase])
+
+  // 45s stale-run detection for active generation/revision phase
+  useEffect(() => {
+    if (phase !== 'generating') {
+      setIsStalled(false)
+      return
+    }
+    const checkInterval = window.setInterval(() => {
+      if (Date.now() - lastActivityAt > 45000) {
+        setIsStalled(true)
+      }
+    }, 1000)
+    return () => clearInterval(checkInterval)
+  }, [phase, lastActivityAt])
 
   // Sync draft from state into editedDraft when entering edit mode or when new draft arrives
   useEffect(() => {
@@ -87,7 +108,13 @@ function AppContent() {
       sessionId,
       sessionToken: token,
       lastEventId: maxSeq,
+      onActivity: () => {
+        setLastActivityAt(Date.now())
+        setIsStalled(false)
+      },
       onEvent: (event: ProtocolEvent) => {
+        setLastActivityAt(Date.now())
+        setIsStalled(false)
         dispatch({ type: 'ADD_EVENT', event })
 
         // Synchronize canonical draft on draft event, Drafter node_end, checkpoint, or run_end
@@ -122,6 +149,8 @@ function AppContent() {
         }
       },
       onToken: (tok: string) => {
+        setLastActivityAt(Date.now())
+        setIsStalled(false)
         dispatch({ type: 'APPEND_TOKEN', token: tok })
       },
       onError: (err) => {
@@ -742,6 +771,36 @@ function AppContent() {
     }
   }
 
+  // Stale-run retry handler (Item 4b)
+  const handleRetryStalledRun = async () => {
+    if (!state.sessionId || !state.sessionToken) return
+    setIsStalled(false)
+    setLastActivityAt(Date.now())
+    showToast('Refreshing exercise status…', 'info')
+    try {
+      const [stateRes, evtRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/protocols/${state.sessionId}/state`, {
+          headers: { 'X-Session-Token': state.sessionToken }
+        }),
+        axios.get(`${API_BASE_URL}/api/protocols/${state.sessionId}/events?after=0`, {
+          headers: { 'X-Session-Token': state.sessionToken }
+        })
+      ])
+      if (evtRes.data?.events && evtRes.data.events.length > 0) {
+        dispatch({ type: 'BATCH_EVENTS', events: evtRes.data.events })
+      }
+      if (stateRes.data?.state) {
+        dispatch({ type: 'SET_SNAPSHOT', snapshot: stateRes.data.state })
+        if (stateRes.data.state.current_draft) {
+          setEditedDraft(stateRes.data.state.current_draft)
+        }
+      }
+      showToast('Exercise status refreshed', 'success')
+    } catch (err: any) {
+      showToast('Could not refresh status', 'error')
+    }
+  }
+
   // Export PDF
   const handleExportPdf = async (includeDetails: boolean = false) => {
     const draftText = editedDraft || state.draft || ''
@@ -931,7 +990,7 @@ function AppContent() {
         </div>
 
         {/* Row 3: Main Workspace Shell */}
-        <main className="min-h-0 overflow-hidden max-w-[1600px] w-full mx-auto px-3 sm:px-4 lg:px-6 py-2.5 sm:py-3 flex flex-col">
+        <main className={`min-h-0 ${phase === 'idle' ? 'overflow-y-auto' : 'overflow-hidden'} max-w-[1600px] w-full mx-auto px-3 sm:px-4 lg:px-6 py-2.5 sm:py-3 flex flex-col`}>
           {/* =========================================================================
               PHASE: CARE_PANEL (Crisis Pre-Screen)
              ========================================================================= */}
@@ -972,7 +1031,7 @@ function AppContent() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-                className="h-full flex flex-col justify-center max-w-5xl mx-auto space-y-4 sm:space-y-6"
+                className="min-h-full flex flex-col justify-start max-w-5xl mx-auto space-y-4 sm:space-y-6 pt-6 sm:pt-8 pb-12 scroll-pt-20"
               >
                 {/* Hero Header */}
                 <div className="text-center space-y-2.5 pt-2">
@@ -1088,7 +1147,7 @@ function AppContent() {
                   </div>
 
                   <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                    <AgentPipeline events={state.events} />
+                    <AgentPipeline events={state.events} isStalled={isStalled} />
                   </div>
 
                   <div className="shrink-0 max-h-[240px] flex flex-col min-h-0 overflow-hidden">
@@ -1109,7 +1168,7 @@ function AppContent() {
                 >
                   {/* Compact Mode Strip (<1536px): Horizontal Pipeline */}
                   <div className="hidden lg:block 2xl:hidden shrink-0">
-                    <AgentPipeline events={state.events} compact={true} />
+                    <AgentPipeline events={state.events} compact={true} isStalled={isStalled} />
                   </div>
 
                   {/* DocumentViewer with Outermost Scroller */}
@@ -1138,6 +1197,8 @@ function AppContent() {
                       scores={state.scores}
                       events={state.events}
                       audit={state.approvalAudit}
+                      isStalled={isStalled}
+                      onRetry={handleRetryStalledRun}
                       onDraftChange={handleDraftChange}
                       onStartEditing={handleStartEditing}
                       onSaveEditsAndApprove={handleSaveEditsAndApprove}
@@ -1186,6 +1247,8 @@ function AppContent() {
                       approvalTime={approvalTime}
                       majorConcerns={majorConcerns}
                       isRevisionRequested={isRevisionRequested}
+                      isStalled={isStalled}
+                      onRetry={handleRetryStalledRun}
                       onApprove={handleApprove}
                       onStartEditing={handleStartEditing}
                       onSaveEditsAndApprove={handleSaveEditsAndApprove}
@@ -1212,6 +1275,8 @@ function AppContent() {
                   approvalTime={approvalTime}
                   majorConcerns={majorConcerns}
                   isRevisionRequested={isRevisionRequested}
+                  isStalled={isStalled}
+                  onRetry={handleRetryStalledRun}
                   onApprove={handleApprove}
                   onStartEditing={handleStartEditing}
                   onSaveEditsAndApprove={handleSaveEditsAndApprove}
