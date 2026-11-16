@@ -628,6 +628,41 @@ function AppContent() {
     if (!state.sessionId || !state.sessionToken) return
 
     dispatch({ type: 'SET_UI_MODE', mode: 'approving' })
+
+    if (state.uiState.isReplay) {
+      const approvedIso = new Date().toISOString()
+      setApprovalTime(approvedIso)
+      const approvalAudit = {
+        approved_by: 'You',
+        approved_at: approvedIso,
+        edited: false,
+        validated_hash: 'BASELINE',
+        scores_at_approval: {
+          safety: 1.0,
+          empathy: 4.0,
+          clinical: 4.7
+        }
+      }
+      const approvalEvent: ProtocolEvent = {
+        session_id: state.sessionId || '',
+        seq: (state.events.length > 0 ? Math.max(...state.events.map((e) => e.seq || 0)) : 0) + 1,
+        run_id: 'run_approval',
+        run_kind: 'approval',
+        draft_version: state.draftVersion,
+        agent: 'Human',
+        type: 'approval',
+        text: 'Exercise approved by You',
+        severity: 'info',
+        ts: approvedIso,
+        data: approvalAudit
+      }
+      dispatch({ type: 'ADD_EVENT', event: approvalEvent })
+      dispatch({ type: 'SET_UI_MODE', mode: 'default' })
+      updateSessionStatus(state.sessionId, 'approved')
+      showToast('Exercise approved & saved', 'success')
+      return
+    }
+
     try {
       const appRes = await axios.post(
         `${API_BASE_URL}/api/protocols/${state.sessionId}/approve`,
@@ -1041,7 +1076,7 @@ function AppContent() {
                 {/* =====================================================================
                     1. LEFT RAIL
                    ===================================================================== */}
-                <div className="hidden xl:flex w-[310px] shrink-0 flex-col gap-2.5 h-full overflow-hidden min-h-0 pr-1.5 pb-2">
+                <div className="hidden xl:flex w-[310px] shrink-0 flex-col gap-3 h-full overflow-hidden min-h-0 pr-1.5 pb-2">
                   <div className="shrink-0">
                     <IntentSummary
                       intent={state.userIntent || ''}
@@ -1052,11 +1087,11 @@ function AppContent() {
                     />
                   </div>
 
-                  <div className="flex-1 min-h-[160px] flex flex-col">
+                  <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                     <AgentPipeline events={state.events} />
                   </div>
 
-                  <div className="shrink-0 max-h-[280px] flex flex-col min-h-0 overflow-hidden">
+                  <div className="shrink-0 max-h-[240px] flex flex-col min-h-0 overflow-hidden">
                     <Outline content={state.draft || editedDraft} scrollerRef={scrollerRef} />
                   </div>
                 </div>

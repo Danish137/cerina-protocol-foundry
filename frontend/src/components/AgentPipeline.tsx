@@ -49,36 +49,36 @@ export default function AgentPipeline({
     const initialNodes: Record<string, NodeInfo> = {
       drafter: {
         id: 'drafter',
-        name: 'Exercise Drafter',
-        role: 'Exercise Drafter',
+        name: 'Drafter',
+        role: 'Writes initial steps',
         status: isIdle ? 'idle' : 'idle',
         statusLine: 'Drafting structured step-by-step exercise',
       },
       safety: {
         id: 'safety',
         name: 'Safety Check',
-        role: 'Safety & Risk Check',
+        role: 'Screens boundaries & safety',
         status: isIdle ? 'idle' : 'idle',
         statusLine: 'Auditing 5 safety checks & health boundaries',
       },
       critic: {
         id: 'critic',
         name: 'Quality Reviewer',
-        role: 'Quality & Clarity',
+        role: 'Tone, clarity & guidance',
         status: isIdle ? 'idle' : 'idle',
         statusLine: 'Evaluating supportive tone & exercise clarity',
       },
       supervisor: {
         id: 'supervisor',
         name: 'Supervisor',
-        role: 'Quality & Routing Decision',
+        role: "Decides if it's ready",
         status: isIdle ? 'idle' : 'idle',
         statusLine: 'Synthesizing review scores',
       },
       human: {
         id: 'human',
         name: 'You',
-        role: 'Your Review & Approval',
+        role: 'Review, edit & approve',
         status: isIdle ? 'idle' : 'idle',
         statusLine: 'Read, modify anything you like, and approve',
       },
@@ -154,7 +154,7 @@ export default function AgentPipeline({
           target.metricPill = `Revise (loop ${revCount})`
           target.statusLine = 'Quality check not met; routing revision back to Drafter'
         } else {
-          target.metricPill = 'Ready for Review'
+          target.metricPill = 'Ready for review'
           target.statusLine = 'All quality checks satisfied; ready for your review'
         }
       } else if (e.type === 'checkpoint') {
@@ -217,22 +217,24 @@ export default function AgentPipeline({
           {nodes.map((node, i) => (
             <React.Fragment key={node.id}>
               <div
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold ${
                   node.status === 'working'
-                    ? 'bg-[#EBF3EE] text-[#244F3B] font-semibold border border-[#244F3B]/30 animate-pulse'
+                    ? 'bg-[#EBF3EE] text-[#18221E] border border-[#244F3B]'
                     : node.status === 'done'
-                    ? 'bg-[#FAF8F5] text-[#244F3B]'
+                    ? 'bg-[#FAF8F5] text-[#18221E]'
                     : node.status === 'concern'
                     ? 'bg-[#FEF3C7] text-[#78350F]'
                     : node.status === 'waiting'
-                    ? 'bg-[#DBEAFE] text-[#1E40AF] font-semibold animate-pulse'
-                    : 'text-[#5C6A62]'
+                    ? 'bg-[#DBEAFE] text-[#1E40AF] border border-[#3B82F6]'
+                    : 'text-[#18221E]'
                 }`}
                 title={node.statusLine}
               >
-                <span>{node.name.split(' ')[0]}</span>
+                <span className="text-[#18221E] font-semibold">{node.name.split(' ')[0]}</span>
                 {node.metricPill && (
-                  <span className="text-[10px] font-mono px-1 rounded bg-black/5">{node.metricPill}</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#F0ECE3] text-[#18221E] font-semibold max-w-[95px] truncate inline-block align-middle" title={node.metricPill}>
+                    {node.metricPill}
+                  </span>
                 )}
               </div>
               {i < nodes.length - 1 && <span className="text-[#D8D2C4]">→</span>}
@@ -252,7 +254,7 @@ export default function AgentPipeline({
 
   // Full Left Rail layout (flex to available height with own scroll & bottom fade)
   return (
-    <div className="bg-white border border-[#E8E4DA] rounded-2xl shadow-2xs flex flex-col h-full min-h-0 overflow-hidden">
+    <div className="bg-white border border-[#E8E4DA] rounded-2xl shadow-2xs flex flex-col flex-1 h-full min-h-0 overflow-hidden">
       <div className="flex items-center justify-between p-3.5 pb-2 border-b border-[#F0ECE3] shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[#244F3B]" />

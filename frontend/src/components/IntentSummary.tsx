@@ -1,5 +1,4 @@
 import * as Popover from '@radix-ui/react-popover'
-import { motion } from 'framer-motion'
 import { Bookmark, PlusCircle, Maximize2, X, Info } from 'lucide-react'
 import { Phase } from '../types'
 
@@ -36,8 +35,7 @@ export default function IntentSummary({
   }
 
   return (
-    <motion.div
-      layoutId="intent"
+    <div
       className="bg-white border border-[#E8E4DA] rounded-xl p-3 sm:p-3.5 shadow-2xs space-y-2.5 shrink-0"
     >
       {/* Top row: Status Chip, Draft version vN, New Protocol */}
@@ -104,7 +102,7 @@ export default function IntentSummary({
                 className="z-50 w-80 sm:w-96 max-h-72 overflow-y-auto rounded-xl border border-[#E8E4DA] bg-white p-3.5 shadow-xl text-xs space-y-2 animate-in fade-in-50"
               >
                 <div className="flex items-center justify-between pb-1.5 border-b border-[#F0ECE3]">
-                  <span className="font-semibold text-[#18221E]">Clinical Intent Prompt</span>
+                  <span className="font-semibold text-[#18221E]">Your Situation</span>
                   <Popover.Close
                     className="p-1 rounded text-[#88978F] hover:text-[#18221E]"
                     aria-label="Close"
@@ -120,6 +118,6 @@ export default function IntentSummary({
           </Popover.Root>
         </div>
       </div>
-    </motion.div>
+    </div>
   )
 }
