@@ -418,7 +418,7 @@ async def stream_protocol(
 
                     except asyncio.TimeoutError:
                         # 15s heartbeat ping
-                        yield ": ping\n\n"
+                        yield ": ping\n\nevent: ping\ndata: {}\n\n"
                         # Check if runner is still alive
                         is_active = await registry.is_active(session_id)
                         if not is_active:
