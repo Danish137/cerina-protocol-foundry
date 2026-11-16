@@ -12,33 +12,33 @@ export interface AgentMeta {
 
 export const AGENTS: Record<string, AgentMeta> = {
   Drafter: {
-    displayName: 'Exercise Drafter',
+    displayName: 'Drafter',
     shortName: 'Drafter',
-    role: 'Exercise Drafter',
+    role: 'Writes initial steps',
     description: 'Designs step-by-step cognitive and behavioral exercises'
   },
   SafetyGuardian: {
     displayName: 'Safety Check',
     shortName: 'Safety',
-    role: 'Safety & Risk Check',
+    role: 'Screens boundaries & safety',
     description: 'Screens exercises against 5 safety checks and health boundaries'
   },
   ClinicalCritic: {
     displayName: 'Quality Reviewer',
     shortName: 'Quality',
-    role: 'Quality & Clarity',
+    role: 'Tone, clarity & guidance',
     description: 'Evaluates supportive tone, clarity, and practical guidance'
   },
   Supervisor: {
     displayName: 'Supervisor',
     shortName: 'Supervisor',
-    role: 'Quality & Routing Decision',
+    role: "Decides if it's ready",
     description: 'Synthesizes review scores to prepare exercise for your review'
   },
   Human: {
     displayName: 'You',
     shortName: 'You',
-    role: 'Review & Approval',
+    role: 'Review, edit & approve',
     description: 'Read, modify anything you like, and approve'
   },
   System: {

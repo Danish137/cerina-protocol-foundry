@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
 import { ArrowRight, Loader2, Bookmark, Sparkles, ShieldAlert, PlayCircle } from 'lucide-react'
 import axios from 'axios'
 import API_BASE_URL from '../config'
@@ -155,8 +154,7 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
   }
 
   return (
-    <motion.div
-      layoutId="intent"
+    <div
       className="bg-white border border-[#E8E4DA] rounded-2xl p-5 sm:p-6 shadow-sm space-y-4"
     >
       {/* Card Header & Capacity Chip */}
@@ -286,6 +284,6 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
           </div>
         )}
       </form>
-    </motion.div>
+    </div>
   )
 }
