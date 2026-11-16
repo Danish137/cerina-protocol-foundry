@@ -216,7 +216,7 @@ async def create_protocol(request: Request, body: ProtocolRequest):
 
     # 2. Local Crisis Pre-Screen
     is_crisis, matched_phrase = screen_crisis_intent(body.intent)
-    if is_crisis and not body.clinician_bypass:
+    if is_crisis and not body.crisis_bypass:
         logger.info(f"[{req_id}] Crisis intent pre-screen matched: phrase detected.")
         session_id = generate_session_id()
         session_token = generate_session_token()
@@ -592,7 +592,7 @@ async def approve_protocol(
     request: ApproveRequest,
     x_session_token: Optional[str] = Header(None, alias="X-Session-Token")
 ):
-    """Clinician sign-off and protocol finalization with strict re-check enforcement (Q1)"""
+    """User sign-off and exercise finalization with strict re-check enforcement (Q1)"""
     sess = verify_session_access(session_id, x_session_token)
 
     from agents.workflow import create_workflow

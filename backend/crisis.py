@@ -56,7 +56,7 @@ def screen_crisis_intent(text: str) -> Tuple[bool, Optional[str]]:
     Classifier limits:
     - This is a localized, regex-based heuristic intended to catch acute crisis phrases.
     - It does NOT replace professional clinical triage or ML-based semantic risk scoring.
-    - Clinical users may bypass using the clinician verification flag.
+    - Users may proceed after acknowledging the educational resources.
     """
     if not text:
         return False, None

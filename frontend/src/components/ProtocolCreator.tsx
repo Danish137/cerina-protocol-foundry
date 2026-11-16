@@ -78,7 +78,7 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
     }
   }
 
-  const handleSubmit = async (e?: React.FormEvent, clinicianBypass: boolean = false) => {
+  const handleSubmit = async (e?: React.FormEvent, crisisBypass: boolean = false) => {
     if (e) e.preventDefault()
     const activeIntent = intent.trim()
     if (activeIntent.length < 10) {
@@ -93,7 +93,7 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
       const response = await axios.post(`${API_BASE_URL}/api/protocols/create`, {
         intent: activeIntent,
         review_depth: reviewDepth,
-        clinician_bypass: clinicianBypass,
+        crisis_bypass: crisisBypass,
         region_code: 'US'
       })
 
