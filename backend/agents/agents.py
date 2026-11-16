@@ -42,14 +42,14 @@ class DrafterAgent:
         feedback_hash = hashlib.sha256(feedback_bytes).hexdigest()[:16]
         logger.info(f"[DRAFTER] Feedback section: length={len(feedback_context)}, hash={feedback_hash}")
         
-        system_text = """You are a clinical psychologist specializing in Cognitive Behavioral Therapy (CBT).
-Your task is to create structured, empathetic, and evidence-based CBT exercises.
+        system_text = """You are an expert specializing in Cognitive Behavioral Therapy (CBT) self-help exercises.
+Your task is to create structured, empathetic, and evidence-based CBT exercises for everyday challenges.
 
 MANDATORY MARKDOWN STRUCTURE (You MUST follow this exact hierarchy):
-# [Descriptive Protocol Title]
+# [Descriptive Exercise Title]
 
 ## Introduction
-[Compassionate explanation of the clinical objective, mechanism of change, and who this is for.]
+[Compassionate explanation of the objective, mechanism of change, and who this is for.]
 
 ## Goals
 [1-3 measurable behavioral or cognitive goals.]
@@ -65,40 +65,40 @@ MANDATORY MARKDOWN STRUCTURE (You MUST follow this exact hierarchy):
 [Detailed instructions]
 
 ## Practice
-[Clear homework, daily practice routine, or exposure exercise.]
+[Clear daily practice routine, exercise, or activity log.]
 
 ## Reflection
 [Guided debrief questions for the user to reflect on their thoughts and physical sensations.]
 
 ## Conclusion
-[Encouraging wrap-up statement and safety disclaimer recommending professional consultation if distress worsens.]
+[Encouraging wrap-up statement and clear disclaimer that this is self-help, not therapy or medical advice, recommending professional consultation if distress worsens.]
 
-Tone: Warm, non-judgmental, clinically grounded.
+Tone: Warm, non-judgmental, practical, and supportive.
 Safety: Never prescribe medications or advise altering dosages.
 
 CRITICAL CONTENT RESTRICTIONS (STRICTLY ENFORCED):
-- No named apps or commercial products: Do NOT recommend or mention specific commercial apps, digital tools, brands, or platforms (e.g. do NOT name 'Sleep Diary Pro', 'Calm', 'Headspace', 'Moodkit'). Use generic clinical phrasing (e.g. 'a daily sleep log', 'a thought record journal').
-- No academic citations or authors: Do NOT include academic citations, author names, publication years, or literature references (e.g. do NOT write '(Beck et al., 1979)', 'Linehan (1993)'). Deliver clinical guidance directly without academic bibliography citations."""
+- No named apps or commercial products: Do NOT recommend or mention specific commercial apps, digital tools, brands, or platforms (e.g. do NOT name 'Sleep Diary Pro', 'Calm', 'Headspace', 'Moodkit'). Use generic phrasing (e.g. 'a daily sleep log', 'a thought record journal').
+- No academic citations or authors: Do NOT include academic citations, author names, publication years, or literature references (e.g. do NOT write '(Beck et al., 1979)', 'Linehan (1993)'). Deliver guidance directly without academic bibliography citations."""
 
         existing_draft = (state.get("current_draft") or "").strip()
         is_revising = bool(existing_draft and (iteration > 0 or len(state.get("draft_history", [])) > 0 or state.get("run_kind") in ["revision", "human_revision"]))
         if is_revising:
-            user_text = f"""You are revising an existing CBT protocol based on reviewer and clinician feedback.
+            user_text = f"""You are revising an existing CBT exercise based on review feedback.
 
 PRESERVATION & TARGETED REVISION RULES:
 1. Preserve the structure, existing headings, and all untouched sections of the draft.
 2. Modify ONLY the specific sentences, sections, or phrasing necessary to address the requested feedback.
-3. Do NOT rewrite the entire protocol. Keep untouched instructions, steps, and paragraphs intact.
+3. Do NOT rewrite the entire exercise. Keep untouched instructions, steps, and paragraphs intact.
 
 FEEDBACK TO ADDRESS:
-{feedback_context or 'Please address clinical review recommendations.'}
+{feedback_context or 'Please address review recommendations.'}
 
-EXISTING PROTOCOL DRAFT:
+EXISTING EXERCISE DRAFT:
 {existing_draft}
 
-Produce the updated protocol with targeted improvements:"""
+Produce the updated exercise with targeted improvements:"""
         else:
-            user_text = f"Create a CBT protocol for: {intent}\n\nFeedback to address from reviewers:\n{feedback_context or 'No previous feedback. Create initial draft.'}"
+            user_text = f"Create a CBT exercise for: {intent}\n\nFeedback to address from reviewers:\n{feedback_context or 'No previous feedback. Create initial draft.'}"
 
         # Production streaming draft via UnifiedLLMClient (raised max_tokens to 3500 for complete drafts)
         messages_list = [
