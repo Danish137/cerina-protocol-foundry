@@ -5,6 +5,7 @@ import API_BASE_URL from '../config'
 import { useToast } from './Toast'
 import { CapacityStatus, StoredSession } from '../types'
 import { getRecentSessions } from '../services/sessionStorage'
+import { formatStatusLabel } from '../constants/agents'
 
 interface ProtocolCreatorProps {
   onSessionStart: (session: {
@@ -74,7 +75,7 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
     setSelectedTemplate(label)
     setIntent(prompt)
     if (textareaRef.current) {
-      textareaRef.current.focus()
+      textareaRef.current.focus({ preventScroll: true })
     }
   }
 
@@ -186,12 +187,12 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
             <span className="font-semibold text-[#1F2923] truncate inline-block max-w-[260px] sm:max-w-[340px] align-bottom">
               {recentSessions[0].intent}
             </span>
-            <span className="text-[#5C6A62] ml-1.5 capitalize">· {recentSessions[0].status}</span>
+            <span className="text-[#5C6A62] ml-1.5">· {formatStatusLabel(recentSessions[0].status)}</span>
           </div>
           <button
             type="button"
             onClick={() => onResumeSession(recentSessions[0])}
-            className="shrink-0 px-3 py-1 rounded-md bg-[#244F3B] text-white text-xs font-medium hover:bg-[#1B3B2B] transition-colors shadow-2xs"
+            className="shrink-0 px-3 py-1 rounded-md bg-[#244F3B] text-white text-xs font-medium hover:bg-[#1B3B2B] transition-colors shadow-2xs cursor-pointer"
           >
             Open
           </button>
@@ -206,7 +207,12 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
             name="intent"
             ref={textareaRef}
             value={intent}
-            onChange={(e) => setIntent(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value
+              setIntent(val)
+              const matchingChip = STARTER_CHIPS.find((c) => c.prompt === val)
+              setSelectedTemplate(matchingChip ? matchingChip.label : null)
+            }}
             placeholder="e.g., I have an important presentation on Friday and I keep thinking I'm going to freeze and embarrass myself..."
             className="w-full h-32 px-4 py-3 rounded-xl border border-[#E8E4DA] bg-[#FAF8F5] text-sm text-[#1F2923] placeholder-[#A0ACA5] focus:outline-none focus:ring-2 focus:ring-[#244F3B] focus:border-transparent resize-none leading-relaxed transition-all"
             disabled={loading}

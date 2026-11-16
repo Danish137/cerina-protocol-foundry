@@ -4,6 +4,7 @@ import { ExternalLink, Copy, Check, PlusCircle, HelpCircle, Code2, X, User, Term
 import CompactStepper from './CompactStepper'
 import { Phase, StoredSession } from '../types'
 import { getRecentSessions } from '../services/sessionStorage'
+import { formatStatusLabel } from '../constants/agents'
 import { useToast } from './Toast'
 
 interface HeaderProps {
@@ -256,8 +257,8 @@ export default function Header({
                           }`}
                         >
                           <span className="font-medium truncate text-xs">{s.intent || 'Untitled exercise'}</span>
-                          <span className="text-[10px] text-[#55635C] capitalize">
-                            {s.status} · {new Date(s.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          <span className="text-[10px] text-[#55635C]">
+                            {formatStatusLabel(s.status)} · {new Date(s.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </button>
                       ))}
