@@ -580,6 +580,9 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
                 meta["last_validated_hash"] = v_hash
                 meta["validation_passed"] = val_passed
                 meta["validated_scores"] = {"safety": s_score, "empathy": emp, "clinical": fid}
+                if val_passed:
+                    meta.pop("recheck_required", None)
+                    meta.pop("recheck_message", None)
                 db_sess.meta_data = meta
                 db_sess.current_draft = clean_draft
                 db.commit()
@@ -710,19 +713,6 @@ def reconcile_interrupted_sessions() -> int:
         )
         for s in hung_sessions:
             count += 1
-            if s.current_draft:
-                s.status = "awaiting_approval"
-                interrupted_msg = "That was interrupted. Your draft is unchanged — try again."
-                severity = "warning"
-                code = "interrupted"
-                retryable = True
-            else:
-                s.status = "failed"
-                interrupted_msg = "That was interrupted before a draft could be created. Please start again."
-                severity = "error"
-                code = "interrupted_no_draft"
-                retryable = False
-
             last_draft_evt = (
                 db.query(Event)
                 .filter(Event.session_id == s.session_id, Event.type == "draft")
@@ -730,6 +720,59 @@ def reconcile_interrupted_sessions() -> int:
                 .first()
             )
             v = last_draft_evt.draft_version if last_draft_evt else 1
+
+            if s.current_draft:
+                s.status = "awaiting_approval"
+
+                # Check whether current draft version has completed BOTH safety and quality reviews
+                safety_done = (
+                    db.query(Event)
+                    .filter(
+                        Event.session_id == s.session_id,
+                        Event.draft_version == v,
+                        Event.agent == "SafetyGuardian",
+                        Event.type.in_(["score", "node_end"])
+                    )
+                    .first()
+                    is not None
+                )
+                quality_done = (
+                    db.query(Event)
+                    .filter(
+                        Event.session_id == s.session_id,
+                        Event.draft_version == v,
+                        Event.agent == "ClinicalCritic",
+                        Event.type.in_(["score", "node_end"])
+                    )
+                    .first()
+                    is not None
+                )
+
+                fully_checked = bool(safety_done and quality_done)
+                meta = dict(s.meta_data or {})
+
+                if fully_checked:
+                    meta.pop("recheck_required", None)
+                    meta.pop("recheck_message", None)
+                    s.meta_data = meta
+                    interrupted_msg = "That was interrupted. Your draft is unchanged — try again."
+                    severity = "warning"
+                    code = "interrupted"
+                    retryable = True
+                else:
+                    meta["recheck_required"] = True
+                    meta["recheck_message"] = "This draft wasn't fully checked. Run the checks again."
+                    s.meta_data = meta
+                    interrupted_msg = "This draft wasn't fully checked. Run the checks again."
+                    severity = "warning"
+                    code = "recheck_required"
+                    retryable = True
+            else:
+                s.status = "failed"
+                interrupted_msg = "That was interrupted before a draft could be created. Please start again."
+                severity = "error"
+                code = "interrupted_no_draft"
+                retryable = False
 
             emit_event(
                 session_id=s.session_id,

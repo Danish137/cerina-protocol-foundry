@@ -275,42 +275,113 @@ def test_second_revise_after_timeout_accepted():
 
 
 def test_interrupted_run_startup_reconciliation():
-    """Verify reconcile_interrupted_sessions cleans up stranded sessions on server boot for both cases:
-    (a) Interrupted with draft -> status=awaiting_approval, draft preserved, warning message
-    (b) Interrupted without draft -> status=failed, error message with start again action
+    """Verify reconcile_interrupted_sessions cleans up stranded sessions on server boot for all three cases:
+    (a) Interrupted with fully checked draft -> status=awaiting_approval, draft preserved, approve allowed (200 OK)
+    (b) Interrupted draft WITHOUT completed safety & quality checks -> status=awaiting_approval, marked needs-recheck,
+        approve returns 409 recheck_required
+    (c) Interrupted during first draft with no draft -> status=failed, no empty exercise in review
+    Also assert user-facing 'interrupted' event is emitted in each case.
     """
-    sid1 = f"test_interrupted_gen_{secrets.token_hex(4)}"
-    sid2 = f"test_interrupted_rev_{secrets.token_hex(4)}"
-    sid3 = f"test_interrupted_nodraft_{secrets.token_hex(4)}"
+    import hashlib
+    from fastapi.testclient import TestClient
+    from main import app
+
+    test_client = TestClient(app)
+
+    tok_checked = "tok_checked_123"
+    tok_unchecked = "tok_unchecked_456"
+    tok_nodraft = "tok_nodraft_789"
+
+    hash_checked = hashlib.sha256(tok_checked.encode()).hexdigest()
+    hash_unchecked = hashlib.sha256(tok_unchecked.encode()).hexdigest()
+    hash_nodraft = hashlib.sha256(tok_nodraft.encode()).hexdigest()
+
+    sid_checked = f"test_interrupted_checked_{secrets.token_hex(4)}"
+    sid_unchecked = f"test_interrupted_unchecked_{secrets.token_hex(4)}"
+    sid_nodraft = f"test_interrupted_nodraft_{secrets.token_hex(4)}"
     draft_content = "# Preserved Draft\n\nContent remains intact."
 
     db = get_db_session()
     try:
-        s1 = ProtocolSession(
-            session_id=sid1,
-            token_hash="tok1",
-            user_intent="Intent 1",
+        # Case (a): Has draft + completed safety & quality checks for draft_version=1
+        s_checked = ProtocolSession(
+            session_id=sid_checked,
+            token_hash=hash_checked,
+            user_intent="Intent Checked",
             status="generating",
             current_draft=draft_content,
+            safety_score=1.0,
+            empathy_score=4.2,
+            clinical_score=4.5,
             review_depth="standard",
         )
-        s2 = ProtocolSession(
-            session_id=sid2,
-            token_hash="tok2",
-            user_intent="Intent 2",
+        evt_draft_a = Event(
+            session_id=sid_checked,
+            seq=1,
+            run_id="run_a",
+            run_kind="initial",
+            draft_version=1,
+            agent="Drafter",
+            type="draft",
+            text="Draft v1",
+            data={"draft": draft_content}
+        )
+        evt_safety_a = Event(
+            session_id=sid_checked,
+            seq=2,
+            run_id="run_a",
+            run_kind="initial",
+            draft_version=1,
+            agent="SafetyGuardian",
+            type="score",
+            text="Safety checks passed: 5/5",
+            data={"score": 1.0}
+        )
+        evt_quality_a = Event(
+            session_id=sid_checked,
+            seq=3,
+            run_id="run_a",
+            run_kind="initial",
+            draft_version=1,
+            agent="ClinicalCritic",
+            type="score",
+            text="Empathy: 4.2/5, Exercise quality: 4.5/5",
+            data={"empathy_score": 4.2, "clinical_score": 4.5}
+        )
+
+        # Case (b): Has draft, but interrupted during revision/review BEFORE safety & quality finished
+        s_unchecked = ProtocolSession(
+            session_id=sid_unchecked,
+            token_hash=hash_unchecked,
+            user_intent="Intent Unchecked",
             status="revising",
             current_draft=draft_content,
             review_depth="standard",
         )
-        s3 = ProtocolSession(
-            session_id=sid3,
-            token_hash="tok3",
-            user_intent="Intent 3",
+        evt_draft_b = Event(
+            session_id=sid_unchecked,
+            seq=1,
+            run_id="run_b",
+            run_kind="initial",
+            draft_version=1,
+            agent="Drafter",
+            type="draft",
+            text="Draft v1",
+            data={"draft": draft_content}
+        )
+        # Note: No SafetyGuardian or ClinicalCritic score events for draft_version=1!
+
+        # Case (c): Stranded during first generation before any draft was created
+        s_nodraft = ProtocolSession(
+            session_id=sid_nodraft,
+            token_hash=hash_nodraft,
+            user_intent="Intent NoDraft",
             status="generating",
             current_draft=None,
             review_depth="standard",
         )
-        db.add_all([s1, s2, s3])
+
+        db.add_all([s_checked, s_unchecked, s_nodraft, evt_draft_a, evt_safety_a, evt_quality_a, evt_draft_b])
         db.commit()
     finally:
         db.close()
@@ -321,45 +392,84 @@ def test_interrupted_run_startup_reconciliation():
 
     db = get_db_session()
     try:
-        # Case (a): Interrupted with an existing draft -> awaiting_approval, draft preserved
-        check1 = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid1).first()
-        assert check1.status == "awaiting_approval"
-        assert check1.current_draft == draft_content
+        # -------------------------------------------------------------
+        # (a) Fully checked draft: status=awaiting_approval, draft preserved, approve allowed
+        # -------------------------------------------------------------
+        check_a = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid_checked).first()
+        assert check_a.status == "awaiting_approval"
+        assert check_a.current_draft == draft_content
+        meta_a = dict(check_a.meta_data or {})
+        assert meta_a.get("recheck_required") is not True
 
-        check2 = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid2).first()
-        assert check2.status == "awaiting_approval"
-        assert check2.current_draft == draft_content
+        evts_a = db.query(Event).filter(Event.session_id == sid_checked).all()
+        err_evt_a = next((e for e in evts_a if e.type == "error" and e.run_id == "interrupted_startup"), None)
+        assert err_evt_a is not None
+        assert err_evt_a.severity == "warning"
+        assert err_evt_a.text == "That was interrupted. Your draft is unchanged — try again."
+        assert err_evt_a.data.get("code") == "interrupted"
 
-        # Events for Case (a)
-        evts1 = db.query(Event).filter(Event.session_id == sid1).all()
-        err_evt1 = next((e for e in evts1 if e.type == "error"), None)
-        assert err_evt1 is not None
-        assert err_evt1.severity == "warning"
-        assert err_evt1.text == "That was interrupted. Your draft is unchanged — try again."
-        assert err_evt1.data.get("code") == "interrupted"
-        assert err_evt1.data.get("retryable") is True
+        run_end_a = next((e for e in evts_a if e.type == "run_end" and e.run_id == "interrupted_startup"), None)
+        assert run_end_a is not None
+        assert run_end_a.data.get("status") == "awaiting_approval"
 
-        run_end_evt1 = next((e for e in evts1 if e.type == "run_end"), None)
-        assert run_end_evt1 is not None
-        assert run_end_evt1.data.get("status") == "awaiting_approval"
+        # Verify Approve endpoint succeeds (200 OK)
+        resp_a = test_client.post(
+            f"/api/protocols/{sid_checked}/approve",
+            headers={"X-Session-Token": tok_checked},
+            json={"approved_by": "You", "edited": False, "validated_hash": "BASELINE"}
+        )
+        assert resp_a.status_code == 200, f"Expected 200 OK for fully checked draft, got {resp_a.status_code}: {resp_a.text}"
+        assert resp_a.json().get("status") == "approved"
 
-        # Case (b): Interrupted during first draft with no draft -> failed, no empty review
-        check3 = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid3).first()
-        assert check3.status == "failed"
-        assert check3.current_draft is None
+        # -------------------------------------------------------------
+        # (b) Draft WITHOUT completed checks: status=awaiting_approval, marked needs-recheck, approve returns 409
+        # -------------------------------------------------------------
+        check_b = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid_unchecked).first()
+        assert check_b.status == "awaiting_approval"
+        assert check_b.current_draft == draft_content
+        meta_b = dict(check_b.meta_data or {})
+        assert meta_b.get("recheck_required") is True
+        assert meta_b.get("recheck_message") == "This draft wasn't fully checked. Run the checks again."
 
-        # Events for Case (b)
-        evts3 = db.query(Event).filter(Event.session_id == sid3).all()
-        err_evt3 = next((e for e in evts3 if e.type == "error"), None)
-        assert err_evt3 is not None
-        assert err_evt3.severity == "error"
-        assert err_evt3.text == "That was interrupted before a draft could be created. Please start again."
-        assert err_evt3.data.get("code") == "interrupted_no_draft"
-        assert err_evt3.data.get("retryable") is False
+        evts_b = db.query(Event).filter(Event.session_id == sid_unchecked).all()
+        err_evt_b = next((e for e in evts_b if e.type == "error" and e.run_id == "interrupted_startup"), None)
+        assert err_evt_b is not None
+        assert err_evt_b.severity == "warning"
+        assert err_evt_b.text == "This draft wasn't fully checked. Run the checks again."
+        assert err_evt_b.data.get("code") == "recheck_required"
 
-        run_end_evt3 = next((e for e in evts3 if e.type == "run_end"), None)
-        assert run_end_evt3 is not None
-        assert run_end_evt3.data.get("status") == "failed"
+        run_end_b = next((e for e in evts_b if e.type == "run_end" and e.run_id == "interrupted_startup"), None)
+        assert run_end_b is not None
+        assert run_end_b.data.get("status") == "awaiting_approval"
+
+        # Verify Approve endpoint blocks with 409 recheck_required
+        resp_b = test_client.post(
+            f"/api/protocols/{sid_unchecked}/approve",
+            headers={"X-Session-Token": tok_unchecked},
+            json={"approved_by": "You", "edited": False, "validated_hash": "BASELINE"}
+        )
+        assert resp_b.status_code == 409, f"Expected 409 for unchecked draft, got {resp_b.status_code}"
+        detail_b = resp_b.json().get("detail", {})
+        assert detail_b.get("code") == "recheck_required"
+        assert detail_b.get("message") == "This draft wasn't fully checked. Run the checks again."
+
+        # -------------------------------------------------------------
+        # (c) No draft: status=failed, user-facing error event emitted
+        # -------------------------------------------------------------
+        check_c = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid_nodraft).first()
+        assert check_c.status == "failed"
+        assert check_c.current_draft is None
+
+        evts_c = db.query(Event).filter(Event.session_id == sid_nodraft).all()
+        err_evt_c = next((e for e in evts_c if e.type == "error" and e.run_id == "interrupted_startup"), None)
+        assert err_evt_c is not None
+        assert err_evt_c.severity == "error"
+        assert err_evt_c.text == "That was interrupted before a draft could be created. Please start again."
+        assert err_evt_c.data.get("code") == "interrupted_no_draft"
+
+        run_end_c = next((e for e in evts_c if e.type == "run_end" and e.run_id == "interrupted_startup"), None)
+        assert run_end_c is not None
+        assert run_end_c.data.get("status") == "failed"
     finally:
         db.close()
 

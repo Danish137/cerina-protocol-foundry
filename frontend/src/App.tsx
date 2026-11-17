@@ -741,6 +741,9 @@ function AppContent() {
     } catch (err: any) {
       dispatch({ type: 'SET_UI_MODE', mode: 'default' })
       const detail = err.response?.data?.detail
+      if (err.response?.status === 409 && (detail?.code === 'recheck_required' || detail === 'recheck_required')) {
+        setValidationStatus('stale')
+      }
       const msg = typeof detail === 'string' ? detail : detail?.message || err.message || 'Approval request failed'
       showToast(msg, 'error')
     }
@@ -801,6 +804,9 @@ function AppContent() {
         dispatch({ type: 'SET_SNAPSHOT', snapshot: s })
         if (s.current_draft) {
           setEditedDraft(s.current_draft)
+        }
+        if (s.recheck_required) {
+          setValidationStatus('stale')
         }
         const terminalStatuses = ['awaiting_approval', 'review', 'approved', 'error', 'failed', 'interrupted']
         if (terminalStatuses.includes(s.status)) {

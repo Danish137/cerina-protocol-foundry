@@ -606,29 +606,54 @@ async def approve_protocol(
     """User sign-off and exercise finalization with strict re-check enforcement (Q1)"""
     sess = verify_session_access(session_id, x_session_token)
 
-    from agents.workflow import create_workflow
-    workflow = create_workflow()
-    config = {"configurable": {"thread_id": session_id}}
-    st = await workflow.aget_state(config)
-    
-    if not st.values:
-        raise HTTPException(status_code=404, detail="Session not found")
-        
-    updated_state = st.values.copy()
-    current_draft_raw = updated_state.get("current_draft", "")
-    clean_draft = normalize_protocol_markdown(request.approved_content or current_draft_raw)
-    approved_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
-    current_draft_hash = hashlib.sha256(normalize_protocol_markdown(current_draft_raw).encode("utf-8")).hexdigest()[:16]
-    
-    is_edited = bool(request.edited or (request.approved_content is not None and approved_hash != current_draft_hash))
-
-    # Read validation records from DB session
+    # Read validation records from DB session first
     db = get_db_session()
     try:
         db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
         db_meta = dict(db_sess.meta_data or {}) if db_sess else {}
     finally:
         db.close()
+
+    # Server-side enforcement: If marked needs-recheck (e.g. interrupted before checks finished), block approval
+    if db_meta.get("recheck_required"):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "recheck_required",
+                "message": db_meta.get("recheck_message") or "This draft wasn't fully checked. Run the checks again."
+            }
+        )
+
+    from agents.workflow import create_workflow
+    workflow = create_workflow()
+    config = {"configurable": {"thread_id": session_id}}
+    try:
+        st = await workflow.aget_state(config)
+        st_values = (st.values or {}).copy() if st else {}
+    except Exception:
+        st_values = {}
+    
+    if not st_values:
+        if db_sess and db_sess.current_draft:
+            st_values = {
+                "current_draft": db_sess.current_draft,
+                "current_version": 1,
+                "safety_score": db_sess.safety_score,
+                "empathy_score": db_sess.empathy_score,
+                "clinical_score": db_sess.clinical_score,
+                "validated_hash": db_meta.get("last_validated_hash"),
+                "validation_passed": db_meta.get("validation_passed", False)
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+    updated_state = st_values.copy()
+    current_draft_raw = updated_state.get("current_draft", "")
+    clean_draft = normalize_protocol_markdown(request.approved_content or current_draft_raw)
+    approved_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
+    current_draft_hash = hashlib.sha256(normalize_protocol_markdown(current_draft_raw).encode("utf-8")).hexdigest()[:16]
+    
+    is_edited = bool(request.edited or (request.approved_content is not None and approved_hash != current_draft_hash))
 
     last_val_hash = db_meta.get("last_validated_hash") or updated_state.get("validated_hash")
     val_passed = bool(db_meta.get("validation_passed") if "validation_passed" in db_meta else updated_state.get("validation_passed", False))
@@ -669,7 +694,10 @@ async def approve_protocol(
     updated_state["halted"] = False
     updated_state["status"] = "approved"
     updated_state["approval_audit"] = audit
-    await workflow.aupdate_state(config, updated_state, as_node="supervisor")
+    try:
+        await workflow.aupdate_state(config, updated_state, as_node="supervisor")
+    except Exception:
+        pass
 
     # Update database session
     db = get_db_session()
@@ -731,10 +759,11 @@ async def get_protocol_state(
     config = {"configurable": {"thread_id": session_id}}
     st = await workflow.aget_state(config)
     
-    if not st or not st.values:
-        db = get_db_session()
-        try:
-            sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+    db = get_db_session()
+    try:
+        sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+        db_meta = dict(sess.meta_data or {}) if sess else {}
+        if not st or not st.values:
             if sess and sess.current_draft:
                 return {
                     "session_id": session_id,
@@ -743,16 +772,23 @@ async def get_protocol_state(
                         "user_intent": sess.user_intent,
                         "status": sess.status,
                         "current_draft": sess.current_draft,
-                        "current_version": 1
+                        "current_version": 1,
+                        "recheck_required": bool(db_meta.get("recheck_required", False)),
+                        "recheck_message": db_meta.get("recheck_message")
                     }
                 }
-        finally:
-            db.close()
-        raise HTTPException(status_code=404, detail="Session state not found")
+            raise HTTPException(status_code=404, detail="Session state not found")
+    finally:
+        db.close()
         
+    resp_state = serialize_state_for_json(st.values)
+    if db_meta.get("recheck_required"):
+        resp_state["recheck_required"] = True
+        resp_state["recheck_message"] = db_meta.get("recheck_message")
+
     return {
         "session_id": session_id,
-        "state": serialize_state_for_json(st.values)
+        "state": resp_state
     }
 
 @app.get("/api/protocols")
