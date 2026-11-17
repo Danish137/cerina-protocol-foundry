@@ -764,15 +764,15 @@ async def get_protocol_state(
         sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
         db_meta = dict(sess.meta_data or {}) if sess else {}
         if not st or not st.values:
-            if sess and sess.current_draft:
+            if sess:
                 return {
                     "session_id": session_id,
                     "state": {
                         "session_id": session_id,
                         "user_intent": sess.user_intent,
                         "status": sess.status,
-                        "current_draft": sess.current_draft,
-                        "current_version": 1,
+                        "current_draft": sess.current_draft or "",
+                        "current_version": 1 if sess.current_draft else 0,
                         "recheck_required": bool(db_meta.get("recheck_required", False)),
                         "recheck_message": db_meta.get("recheck_message")
                     }
