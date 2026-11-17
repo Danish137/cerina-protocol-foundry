@@ -702,16 +702,23 @@ Consistent small steps create lasting behavioral change. If symptoms worsen, ple
             plan = self.resolve_judge_plan(role=role, drafter_model=drafter_model, drafter_provider=drafter_provider)
 
         last_error = None
-        writer_per_call_timeout = float(os.environ.get("WRITER_CALL_TIMEOUT_SECONDS", "35.0"))
         judge_per_call_timeout = float(os.environ.get("JUDGE_CALL_TIMEOUT_SECONDS", "15.0"))
-        per_call_timeout = writer_per_call_timeout if role == "writer" else judge_per_call_timeout
 
         for idx, (provider, model) in enumerate(plan):
             is_fallback = (idx > 0)
             family = MODEL_FAMILY.get(model, "unknown")
+            if role == "writer":
+                is_last_writer = (idx == len(plan) - 1)
+                if is_last_writer:
+                    per_call_timeout = float(os.environ.get("LAST_WRITER_CALL_TIMEOUT_SECONDS", "90.0"))
+                else:
+                    per_call_timeout = float(os.environ.get("WRITER_CALL_TIMEOUT_SECONDS", "35.0"))
+            else:
+                per_call_timeout = judge_per_call_timeout
+
             try:
                 adapter = self._get_adapter(provider)
-                logger.info(f"[LLM ROUTER] Role={role} model={model} family={family} (attempt {idx+1}/{len(plan)})")
+                logger.info(f"[LLM ROUTER] Role={role} model={model} family={family} timeout={per_call_timeout}s (attempt {idx+1}/{len(plan)})")
                 res = await asyncio.wait_for(
                     adapter.generate(
                         model=model,
