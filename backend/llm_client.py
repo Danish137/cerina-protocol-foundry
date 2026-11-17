@@ -702,28 +702,45 @@ Consistent small steps create lasting behavioral change. If symptoms worsen, ple
             plan = self.resolve_judge_plan(role=role, drafter_model=drafter_model, drafter_provider=drafter_provider)
 
         last_error = None
+        writer_per_call_timeout = float(os.environ.get("WRITER_CALL_TIMEOUT_SECONDS", "35.0"))
+        judge_per_call_timeout = float(os.environ.get("JUDGE_CALL_TIMEOUT_SECONDS", "15.0"))
+        per_call_timeout = writer_per_call_timeout if role == "writer" else judge_per_call_timeout
+
         for idx, (provider, model) in enumerate(plan):
             is_fallback = (idx > 0)
             family = MODEL_FAMILY.get(model, "unknown")
             try:
                 adapter = self._get_adapter(provider)
                 logger.info(f"[LLM ROUTER] Role={role} model={model} family={family} (attempt {idx+1}/{len(plan)})")
-                res = await adapter.generate(
-                    model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    json_mode=json_mode,
-                    stream_callback=stream_callback
+                res = await asyncio.wait_for(
+                    adapter.generate(
+                        model=model,
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        json_mode=json_mode,
+                        stream_callback=stream_callback
+                    ),
+                    timeout=per_call_timeout
                 )
                 res.fallback_used = is_fallback
                 return res
+            except asyncio.TimeoutError:
+                last_error = TimeoutError(f"Call to {provider}:{model} timed out after {per_call_timeout}s")
+                logger.warning(
+                    f"[LLM ROUTER] Call to {provider}:{model} ({family}) for role={role} timed out after {per_call_timeout}s. "
+                    f"Proceeding to next fallback."
+                )
             except Exception as e:
                 last_error = e
                 logger.warning(
                     f"[LLM ROUTER] Call to {provider}:{model} ({family}) for role={role} failed: {e}. "
                     f"Proceeding to next fallback."
                 )
+
+        # All providers exhausted - if writer timed out across all candidates, raise TimeoutError
+        if role == "writer" and isinstance(last_error, TimeoutError):
+            raise last_error
 
         # All providers exhausted - fail closed
         err_msg = str(last_error) if last_error else "All configured LLM providers failed."
