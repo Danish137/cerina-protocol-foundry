@@ -275,7 +275,10 @@ def test_second_revise_after_timeout_accepted():
 
 
 def test_interrupted_run_startup_reconciliation():
-    """Verify reconcile_interrupted_sessions cleans up stranded sessions on server boot."""
+    """Verify reconcile_interrupted_sessions cleans up stranded sessions on server boot for both cases:
+    (a) Interrupted with draft -> status=awaiting_approval, draft preserved, warning message
+    (b) Interrupted without draft -> status=failed, error message with start again action
+    """
     sid1 = f"test_interrupted_gen_{secrets.token_hex(4)}"
     sid2 = f"test_interrupted_rev_{secrets.token_hex(4)}"
     sid3 = f"test_interrupted_nodraft_{secrets.token_hex(4)}"
@@ -318,6 +321,7 @@ def test_interrupted_run_startup_reconciliation():
 
     db = get_db_session()
     try:
+        # Case (a): Interrupted with an existing draft -> awaiting_approval, draft preserved
         check1 = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid1).first()
         assert check1.status == "awaiting_approval"
         assert check1.current_draft == draft_content
@@ -326,58 +330,87 @@ def test_interrupted_run_startup_reconciliation():
         assert check2.status == "awaiting_approval"
         assert check2.current_draft == draft_content
 
-        check3 = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid3).first()
-        assert check3.status == "error"
-
-        # Check events recorded
+        # Events for Case (a)
         evts1 = db.query(Event).filter(Event.session_id == sid1).all()
-        err_evt = next((e for e in evts1 if e.type == "error"), None)
-        assert err_evt is not None
-        assert err_evt.text == "That was interrupted. Your draft is unchanged — try again."
-        assert err_evt.data.get("code") == "interrupted"
+        err_evt1 = next((e for e in evts1 if e.type == "error"), None)
+        assert err_evt1 is not None
+        assert err_evt1.severity == "warning"
+        assert err_evt1.text == "That was interrupted. Your draft is unchanged — try again."
+        assert err_evt1.data.get("code") == "interrupted"
+        assert err_evt1.data.get("retryable") is True
 
-        run_end_evt = next((e for e in evts1 if e.type == "run_end"), None)
-        assert run_end_evt is not None
+        run_end_evt1 = next((e for e in evts1 if e.type == "run_end"), None)
+        assert run_end_evt1 is not None
+        assert run_end_evt1.data.get("status") == "awaiting_approval"
+
+        # Case (b): Interrupted during first draft with no draft -> failed, no empty review
+        check3 = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid3).first()
+        assert check3.status == "failed"
+        assert check3.current_draft is None
+
+        # Events for Case (b)
+        evts3 = db.query(Event).filter(Event.session_id == sid3).all()
+        err_evt3 = next((e for e in evts3 if e.type == "error"), None)
+        assert err_evt3 is not None
+        assert err_evt3.severity == "error"
+        assert err_evt3.text == "That was interrupted before a draft could be created. Please start again."
+        assert err_evt3.data.get("code") == "interrupted_no_draft"
+        assert err_evt3.data.get("retryable") is False
+
+        run_end_evt3 = next((e for e in evts3 if e.type == "run_end"), None)
+        assert run_end_evt3 is not None
+        assert run_end_evt3.data.get("status") == "failed"
     finally:
         db.close()
 
 
 def test_writer_timeout_and_failover():
-    """Verify execute_with_failover times out slow writers and falls over to the next candidate."""
+    """Verify execute_with_failover times out slow writers (35s) and grants last writer extended timeout (90s)."""
     async def _run():
         client = UnifiedLLMClient()
         call_log = []
 
-        class SlowAdapter:
+        class SlowEarlierAdapter:
             async def generate(self, *args, **kwargs):
-                call_log.append("slow")
-                await asyncio.sleep(0.5)
-                return LLMResult(content="slow success", provider="groq", model="qwen/qwen3.8-27b", latency_ms=500.0)
+                call_log.append("earlier_slow")
+                await asyncio.sleep(0.3)
+                return LLMResult(content="earlier success", provider="groq", model="openai/gpt-oss-120b", latency_ms=300.0)
 
-        class FastAdapter:
+        class FastLastAdapter:
             async def generate(self, *args, **kwargs):
-                call_log.append("fast")
-                return LLMResult(content="fast success", provider="gemini", model="gemini-2.5-flash", latency_ms=50.0)
+                call_log.append("last_writer")
+                # Last writer takes 0.2s, which exceeds earlier 0.1s timeout but is within last writer's 0.5s timeout
+                await asyncio.sleep(0.2)
+                return LLMResult(content="last writer success", provider="gemini", model="gemini-2.5-flash", latency_ms=200.0)
 
-        adapters = {"groq": SlowAdapter(), "gemini": FastAdapter()}
+        adapters = {"groq": SlowEarlierAdapter(), "gemini": FastLastAdapter()}
         client._get_adapter = lambda prov: adapters[prov]
-        client.resolve_writer_plan = lambda: [("groq", "qwen/qwen3.8-27b"), ("gemini", "gemini-2.5-flash")]
+        client.resolve_writer_plan = lambda: [("groq", "openai/gpt-oss-120b"), ("gemini", "gemini-2.5-flash")]
 
-        with patch.dict(os.environ, {"WRITER_CALL_TIMEOUT_SECONDS": "0.1", "MOCK_LLM": ""}):
+        # Configure earlier writer timeout=0.1s, last writer timeout=0.5s
+        with patch.dict(os.environ, {
+            "WRITER_CALL_TIMEOUT_SECONDS": "0.1",
+            "LAST_WRITER_CALL_TIMEOUT_SECONDS": "0.5",
+            "MOCK_LLM": ""
+        }):
             result = await client.execute_with_failover(
                 role="writer",
                 messages=[{"role": "user", "content": "hi"}]
             )
-            assert result.content == "fast success"
+            assert result.content == "last writer success"
             assert result.provider == "gemini"
             assert result.fallback_used is True
-            assert "slow" in call_log
-            assert "fast" in call_log
+            assert "earlier_slow" in call_log
+            assert "last_writer" in call_log
 
         # Test all writers timing out raises TimeoutError
-        adapters_slow = {"groq": SlowAdapter(), "gemini": SlowAdapter()}
+        adapters_slow = {"groq": SlowEarlierAdapter(), "gemini": SlowEarlierAdapter()}
         client._get_adapter = lambda prov: adapters_slow[prov]
-        with patch.dict(os.environ, {"WRITER_CALL_TIMEOUT_SECONDS": "0.05", "MOCK_LLM": ""}):
+        with patch.dict(os.environ, {
+            "WRITER_CALL_TIMEOUT_SECONDS": "0.05",
+            "LAST_WRITER_CALL_TIMEOUT_SECONDS": "0.05",
+            "MOCK_LLM": ""
+        }):
             with pytest.raises(TimeoutError) as exc_info:
                 await client.execute_with_failover(
                     role="writer",
@@ -386,29 +419,4 @@ def test_writer_timeout_and_failover():
             assert "timed out after 0.05s" in str(exc_info.value)
 
     asyncio.run(_run())
-
-
-def test_relative_time_formatting():
-    """Verify relative time formatting avoids '772m ago' and properly groups hours/days."""
-    def format_relative_time_py(diff_seconds: int) -> str:
-        if diff_seconds < 5:
-            return "just now"
-        if diff_seconds < 60:
-            return f"{diff_seconds}s ago"
-        minutes = diff_seconds // 60
-        if minutes < 60:
-            return f"{minutes}m ago"
-        hours = diff_seconds // 3600
-        if hours < 24:
-            return f"{hours}h ago"
-        days = diff_seconds // 86400
-        return f"{days}d ago"
-
-    assert format_relative_time_py(3) == "just now"
-    assert format_relative_time_py(42) == "42s ago"
-    assert format_relative_time_py(300) == "5m ago"
-    assert format_relative_time_py(3540) == "59m ago"
-    # 772 minutes = 46320 seconds -> MUST show "12h ago", NOT "772m ago"
-    assert format_relative_time_py(46320) == "12h ago"
-    assert format_relative_time_py(86400 * 2) == "2d ago"
 
