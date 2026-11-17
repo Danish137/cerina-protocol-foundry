@@ -282,7 +282,7 @@ export function protocolReducer(state: ReducerState, action: ProtocolAction): Re
       let nextPhase = state.phase
       if (snap.status === 'approved') {
         nextPhase = 'approved'
-      } else if (snap.status === 'awaiting_approval' || snap.status === 'review') {
+      } else if (snap.status === 'awaiting_approval' || snap.status === 'review' || snap.status === 'failed' || snap.status === 'error') {
         if (state.phase === 'generating' || state.phase === 'idle') {
           nextPhase = 'review'
         }
