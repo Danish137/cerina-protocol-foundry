@@ -209,6 +209,19 @@ async def run_protocol_workflow(
     current_state_tuple = await workflow.aget_state(config)
     state = current_state_tuple.values.copy() if current_state_tuple else {}
 
+    if not state.get("user_intent"):
+        db = get_db_session()
+        try:
+            db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+            if db_sess:
+                state["user_intent"] = db_sess.user_intent
+                state["session_id"] = session_id
+                state["review_depth"] = db_sess.review_depth or review_depth
+                if not state.get("current_draft") and db_sess.current_draft:
+                    state["current_draft"] = db_sess.current_draft
+        finally:
+            db.close()
+
     draft_version = state.get("current_version", 1)
     if run_kind in ["revision", "human_revision"]:
         draft_version += 1
