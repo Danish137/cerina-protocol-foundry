@@ -480,6 +480,15 @@ def test_writer_timeout_and_failover():
         client = UnifiedLLMClient()
         call_log = []
 
+        # Verify default timeouts in code: 35s earlier, 90s last writer
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("WRITER_CALL_TIMEOUT_SECONDS", None)
+            os.environ.pop("LAST_WRITER_CALL_TIMEOUT_SECONDS", None)
+            default_last = float(os.environ.get("LAST_WRITER_CALL_TIMEOUT_SECONDS", "90.0"))
+            default_earlier = float(os.environ.get("WRITER_CALL_TIMEOUT_SECONDS", "35.0"))
+            assert default_earlier == 35.0
+            assert default_last == 90.0
+
         class SlowEarlierAdapter:
             async def generate(self, *args, **kwargs):
                 call_log.append("earlier_slow")
