@@ -60,3 +60,40 @@ export function formatLocalTimeOnly(isoString?: string | null): string {
     return ''
   }
 }
+
+/**
+ * Relative time formatter (Item B7)
+ * Rules:
+ * - "just now" for < 5 seconds
+ * - "Xs ago" for < 60 seconds
+ * - "Xm ago" for < 60 minutes
+ * - "Xh ago" for < 24 hours
+ * - Formatted date (e.g. "Nov 16") for >= 24 hours
+ * The output "772m ago" must never appear.
+ */
+export function formatRelativeTime(isoString?: string | null, nowMs?: number): string {
+  if (!isoString) return ''
+
+  try {
+    let normalized = isoString.trim()
+    if (!normalized.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(normalized)) {
+      normalized += 'Z'
+    }
+    const date = new Date(normalized)
+    const timeMs = date.getTime()
+    if (isNaN(timeMs)) return ''
+
+    const now = nowMs !== undefined ? nowMs : Date.now()
+    const diffSec = Math.max(0, Math.floor((now - timeMs) / 1000))
+
+    if (diffSec < 5) return 'just now'
+    if (diffSec < 60) return `${diffSec}s ago`
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`
+
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date)
+  } catch {
+    return ''
+  }
+}
+

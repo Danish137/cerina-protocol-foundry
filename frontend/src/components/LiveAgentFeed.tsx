@@ -15,6 +15,8 @@ import {
 import { ProtocolEvent } from '../types'
 import { getAgentDisplayName } from '../constants/agents'
 
+import { formatRelativeTime } from '../utils/dateFormatter'
+
 interface LiveAgentFeedProps {
   events: ProtocolEvent[]
   onOpenTimeline?: () => void
@@ -46,14 +48,7 @@ export default function LiveAgentFeed({ events = [], onOpenTimeline }: LiveAgent
   }, [displayEvents.length])
 
   const formatRelTime = (ts: string) => {
-    if (!ts) return 'Just now'
-    const raw = ts.endsWith('Z') || ts.includes('+') ? ts : `${ts}Z`
-    const eventTime = new Date(raw).getTime()
-    if (isNaN(eventTime)) return 'Just now'
-    const diffSec = Math.max(0, Math.floor((now - eventTime) / 1000))
-    if (diffSec < 4) return 'Just now'
-    if (diffSec < 60) return `${diffSec}s ago`
-    return `${Math.floor(diffSec / 60)}m ago`
+    return formatRelativeTime(ts, now) || 'just now'
   }
 
   const renderEventIcon = (event: ProtocolEvent) => {
