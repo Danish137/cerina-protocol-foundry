@@ -110,6 +110,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Startup retention purge error: {e}")
 
+    # Reconcile interrupted sessions on startup (B5)
+    try:
+        from runner import reconcile_interrupted_sessions
+        reconciled = reconcile_interrupted_sessions()
+        if reconciled > 0:
+            logger.info(f"Startup reconciliation cleared {reconciled} interrupted sessions.")
+    except Exception as e:
+        logger.warning(f"Startup reconciliation error: {e}")
+
     yield
 
     logger.info("Shutting down Cerina Protocol Foundry...")

@@ -415,6 +415,7 @@ async def run_protocol_workflow(
         finally:
             db.close()
 
+
 # --- Recheck Run (/revalidate) ---
 
 async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
@@ -689,3 +690,67 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
             db.rollback()
         finally:
             db.close()
+
+
+def reconcile_interrupted_sessions() -> int:
+    """
+    On backend startup, reconcile sessions left in 'generating' or 'revising' state
+    due to a previous process crash or restart (Item B5).
+    Marks them as awaiting_approval (if last good draft exists) or error,
+    keeps the last good draft untouched, and emits warning and run_end events:
+    'That was interrupted. Your draft is unchanged — try again.'
+    """
+    db = get_db_session()
+    count = 0
+    try:
+        hung_sessions = (
+            db.query(ProtocolSession)
+            .filter(ProtocolSession.status.in_(["generating", "revising", "drafting"]))
+            .all()
+        )
+        for s in hung_sessions:
+            count += 1
+            if s.current_draft:
+                s.status = "awaiting_approval"
+            else:
+                s.status = "error"
+
+            interrupted_msg = "That was interrupted. Your draft is unchanged — try again."
+            last_draft_evt = (
+                db.query(Event)
+                .filter(Event.session_id == s.session_id, Event.type == "draft")
+                .order_by(Event.seq.desc())
+                .first()
+            )
+            v = last_draft_evt.draft_version if last_draft_evt else 1
+
+            emit_event(
+                session_id=s.session_id,
+                run_id="interrupted_startup",
+                run_kind="reconciliation",
+                draft_version=v,
+                agent="System",
+                event_type="error",
+                text_content=interrupted_msg,
+                severity="warning",
+                data={"code": "interrupted", "message": interrupted_msg, "retryable": True}
+            )
+            emit_event(
+                session_id=s.session_id,
+                run_id="interrupted_startup",
+                run_kind="reconciliation",
+                draft_version=v,
+                agent="System",
+                event_type="run_end",
+                text_content=interrupted_msg,
+                severity="warning",
+                data={"status": s.status, "interrupted": True}
+            )
+        db.commit()
+    except Exception as e:
+        logger.error(f"[STARTUP] Reconcile interrupted sessions error: {e}", exc_info=True)
+        db.rollback()
+    finally:
+        db.close()
+    return count
+
