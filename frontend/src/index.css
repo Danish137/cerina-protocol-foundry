@@ -164,3 +164,69 @@
   }
 }
 
+/* Height-aware responsive rules for single-viewport fit (>= 1280x600) */
+@media (max-height: 800px) {
+  .hero-leaf-icon {
+    display: none !important;
+  }
+}
+
+@media (max-height: 750px) {
+  .idle-hero-heading {
+    font-size: clamp(1.1rem, 2vh, 1.45rem) !important;
+    line-height: 1.25 !important;
+  }
+  .idle-hero-subtitle {
+    font-size: 0.75rem !important;
+    line-height: 1.2 !important;
+  }
+  .pipeline-card-idle-role {
+    display: none !important;
+  }
+  .idle-card-container {
+    padding: 0.75rem !important;
+  }
+  .idle-textarea {
+    height: clamp(3.75rem, 8.5vh, 5.5rem) !important;
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+  .idle-chip {
+    padding-top: 0.2rem !important;
+    padding-bottom: 0.2rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    font-size: 0.7rem !important;
+  }
+  .pipeline-idle-card {
+    padding: 0.375rem 0.5rem !important;
+  }
+  .pipeline-idle-connector {
+    height: 0.25rem !important;
+    margin-top: 0.125rem !important;
+    margin-bottom: 0.125rem !important;
+  }
+}
+
+@media (max-height: 640px) {
+  .idle-hero-heading {
+    font-size: clamp(1rem, 1.8vh, 1.25rem) !important;
+    line-height: 1.2 !important;
+  }
+  .idle-card-container {
+    padding: 0.5rem 0.625rem !important;
+  }
+  .idle-textarea {
+    height: 3.5rem !important;
+    font-size: 0.75rem !important;
+  }
+  .pipeline-idle-card {
+    padding: 0.25rem 0.5rem !important;
+  }
+  .pipeline-idle-connector {
+    height: 0.125rem !important;
+    margin: 0 !important;
+  }
+}
+
+

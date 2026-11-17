@@ -349,7 +349,7 @@ export default function AgentPipeline({
             return (
               <div key={node.id} className="relative">
                 <div
-                  className={`p-2.5 rounded-xl border transition-all ${
+                  className={`${isIdle ? 'p-2 sm:p-2.5 idle-card-container pipeline-idle-card' : 'p-2.5'} rounded-xl border transition-all ${
                     isWorking
                       ? `border-[#244F3B] bg-[#EBF3EE]/60 shadow-xs ring-1 ring-[#244F3B]/30 ${isStalled ? '' : 'motion-safe:shadow-[0_0_10px_rgba(36,79,59,0.25)]'} motion-reduce:shadow-none`
                       : isConcern
@@ -392,7 +392,7 @@ export default function AgentPipeline({
                       </div>
                       <div className="min-w-0">
                         <p className="font-semibold text-[#18221E] text-xs leading-tight truncate">{node.name}</p>
-                        <p className="text-[10px] text-[#3D4943] leading-tight truncate">{node.role}</p>
+                        <p className={`text-[10px] text-[#3D4943] leading-tight truncate ${isIdle ? 'pipeline-card-idle-role' : ''}`}>{node.role}</p>
                       </div>
                     </div>
 
@@ -412,12 +412,12 @@ export default function AgentPipeline({
                   )}
 
                   {/* Status line */}
-                  <p className="mt-1.5 text-[11px] text-[#3D4943] leading-snug break-words pl-7">{node.statusLine}</p>
+                  <p className={`${isIdle ? 'mt-1' : 'mt-1.5'} text-[11px] text-[#3D4943] leading-snug break-words pl-7`}>{node.statusLine}</p>
                 </div>
 
                 {/* Connecting line / handoff dot */}
                 {index < nodes.length - 1 && (
-                  <div className="h-1.5 ml-5 w-0.5 bg-[#E8E4DA] my-0.5 relative">
+                  <div className={`${isIdle ? 'h-1 my-0.5 pipeline-idle-connector' : 'h-1.5 my-0.5'} ml-5 w-0.5 bg-[#E8E4DA] relative`}>
                     {isWorking && !shouldReduceMotion && (
                       <motion.div
                         className="absolute w-1.5 h-1.5 -left-[2px] rounded-full bg-[#244F3B]"
