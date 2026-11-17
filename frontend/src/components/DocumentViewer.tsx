@@ -649,6 +649,27 @@ export default function DocumentViewer({
   // =========================================================================
   const displayContent = draft || editedDraft || ''
 
+  if (!displayContent.trim()) {
+    return (
+      <div className="h-full bg-white border border-[#E8E4DA] rounded-2xl p-8 flex flex-col items-center justify-center text-center space-y-3">
+        <h3 className="font-serif text-lg font-bold text-[#18221E]">No exercise draft available</h3>
+        <p className="text-xs text-[#55635C] max-w-sm">
+          That was interrupted before a draft could be created. Please start again to create your exercise.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            window.history.replaceState(null, '', window.location.pathname)
+            window.location.reload()
+          }}
+          className="px-4 py-2 rounded-lg bg-[#244F3B] text-white text-xs font-semibold hover:bg-[#1B3D2E] transition-colors cursor-pointer"
+        >
+          Start again
+        </button>
+      </div>
+    )
+  }
+
   // Is this exercise edited by user? ONLY if a human_edit exists or approved with edits
   const isUserEdited = Boolean(
     audit?.edited ||

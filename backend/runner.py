@@ -712,10 +712,17 @@ def reconcile_interrupted_sessions() -> int:
             count += 1
             if s.current_draft:
                 s.status = "awaiting_approval"
+                interrupted_msg = "That was interrupted. Your draft is unchanged — try again."
+                severity = "warning"
+                code = "interrupted"
+                retryable = True
             else:
-                s.status = "error"
+                s.status = "failed"
+                interrupted_msg = "That was interrupted before a draft could be created. Please start again."
+                severity = "error"
+                code = "interrupted_no_draft"
+                retryable = False
 
-            interrupted_msg = "That was interrupted. Your draft is unchanged — try again."
             last_draft_evt = (
                 db.query(Event)
                 .filter(Event.session_id == s.session_id, Event.type == "draft")
@@ -732,8 +739,8 @@ def reconcile_interrupted_sessions() -> int:
                 agent="System",
                 event_type="error",
                 text_content=interrupted_msg,
-                severity="warning",
-                data={"code": "interrupted", "message": interrupted_msg, "retryable": True}
+                severity=severity,
+                data={"code": code, "message": interrupted_msg, "retryable": retryable}
             )
             emit_event(
                 session_id=s.session_id,
@@ -743,7 +750,7 @@ def reconcile_interrupted_sessions() -> int:
                 agent="System",
                 event_type="run_end",
                 text_content=interrupted_msg,
-                severity="warning",
+                severity=severity,
                 data={"status": s.status, "interrupted": True}
             )
         db.commit()
