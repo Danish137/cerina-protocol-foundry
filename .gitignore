@@ -46,6 +46,7 @@ Thumbs.db
 dist/
 build/
 *.tsbuildinfo
+.vite/
 
 
 # Temporary test scripts 
