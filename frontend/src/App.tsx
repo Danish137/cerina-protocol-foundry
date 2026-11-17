@@ -771,34 +771,99 @@ function AppContent() {
     }
   }
 
-  // Stale-run retry handler (Item 4b)
-  const handleRetryStalledRun = async () => {
+  // Synchronize state and latest events from backend (Source of truth, Issue B3)
+  const syncStateFromBackend = useCallback(async (silent: boolean = false) => {
     if (!state.sessionId || !state.sessionToken) return
-    setIsStalled(false)
-    setLastActivityAt(Date.now())
-    showToast('Refreshing exercise status…', 'info')
+    if (!silent) {
+      setIsStalled(false)
+      setLastActivityAt(Date.now())
+      showToast('Refreshing exercise status…', 'info')
+    }
     try {
+      const currentMaxSeq = state.events.reduce((max, e) => Math.max(max, e.seq || 0), 0)
       const [stateRes, evtRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/api/protocols/${state.sessionId}/state`, {
           headers: { 'X-Session-Token': state.sessionToken }
         }),
-        axios.get(`${API_BASE_URL}/api/protocols/${state.sessionId}/events?after=0`, {
+        axios.get(`${API_BASE_URL}/api/protocols/${state.sessionId}/events?after=${currentMaxSeq}`, {
           headers: { 'X-Session-Token': state.sessionToken }
         })
       ])
-      if (evtRes.data?.events && evtRes.data.events.length > 0) {
-        dispatch({ type: 'BATCH_EVENTS', events: evtRes.data.events })
+
+      const s = stateRes.data?.state
+      const newEvts = evtRes.data?.events || []
+
+      if (newEvts.length > 0) {
+        dispatch({ type: 'BATCH_EVENTS', events: newEvts })
       }
-      if (stateRes.data?.state) {
-        dispatch({ type: 'SET_SNAPSHOT', snapshot: stateRes.data.state })
-        if (stateRes.data.state.current_draft) {
-          setEditedDraft(stateRes.data.state.current_draft)
+
+      if (s) {
+        dispatch({ type: 'SET_SNAPSHOT', snapshot: s })
+        if (s.current_draft) {
+          setEditedDraft(s.current_draft)
+        }
+        const terminalStatuses = ['awaiting_approval', 'review', 'approved', 'error', 'failed', 'interrupted']
+        if (terminalStatuses.includes(s.status)) {
+          setIsRevisionRequested(false)
+          setIsStalled(false)
+          setElapsedSeconds(0)
+          updateSessionStatus(state.sessionId, s.status)
         }
       }
-      showToast('Exercise status refreshed', 'success')
+      if (!silent) {
+        showToast('Exercise status refreshed', 'success')
+      }
     } catch (err: any) {
-      showToast('Could not refresh status', 'error')
+      if (!silent) {
+        showToast('Could not refresh status', 'error')
+      }
     }
+  }, [state.sessionId, state.sessionToken, state.events, showToast])
+
+  // Background polling during active generation/revision (Issue B3)
+  useEffect(() => {
+    const isActive = phase === 'generating' || isRevisionRequested
+    if (!isActive || !state.sessionId || !state.sessionToken) return
+
+    let pollCount = 0
+    let timeoutId: number | null = null
+    let isCancelled = false
+
+    const poll = async () => {
+      await syncStateFromBackend(true)
+      if (isCancelled) return
+      pollCount++
+      const delay = pollCount > 12 ? 10000 : 5000 // 5s up to 60s, then 10s backoff
+      timeoutId = window.setTimeout(poll, delay)
+    }
+
+    timeoutId = window.setTimeout(poll, 5000)
+
+    const handleImmediateSync = () => {
+      if (document.visibilityState === 'visible') {
+        syncStateFromBackend(true)
+      }
+    }
+    const handleFocusOrOnline = () => {
+      syncStateFromBackend(true)
+    }
+
+    document.addEventListener('visibilitychange', handleImmediateSync)
+    window.addEventListener('focus', handleFocusOrOnline)
+    window.addEventListener('online', handleFocusOrOnline)
+
+    return () => {
+      isCancelled = true
+      if (timeoutId) clearTimeout(timeoutId)
+      document.removeEventListener('visibilitychange', handleImmediateSync)
+      window.removeEventListener('focus', handleFocusOrOnline)
+      window.removeEventListener('online', handleFocusOrOnline)
+    }
+  }, [phase, isRevisionRequested, state.sessionId, state.sessionToken, syncStateFromBackend])
+
+  // Stale-run retry handler (Item 4b)
+  const handleRetryStalledRun = async () => {
+    await syncStateFromBackend(false)
   }
 
   // Export PDF
@@ -898,7 +963,7 @@ function AppContent() {
 
   return (
     <LayoutGroup>
-      <div className="h-screen max-h-screen overflow-hidden grid grid-rows-[auto_auto_minmax(0,1fr)] bg-[#FAF8F5] text-[#18221E] select-none">
+      <div className="h-[100dvh] min-h-[100dvh] flex flex-col bg-[#FAF8F5] text-[#18221E] select-none">
         {/* Row 1: Header Bar */}
         <Header
           phase={phase}
@@ -990,7 +1055,7 @@ function AppContent() {
         </div>
 
         {/* Row 3: Main Workspace Shell */}
-        <main className={`min-h-0 ${phase === 'idle' ? 'overflow-y-auto' : 'overflow-hidden'} max-w-[1600px] w-full mx-auto px-3 sm:px-4 lg:px-6 py-2.5 sm:py-3 flex flex-col`}>
+        <main className={`flex-1 min-h-0 ${phase === 'idle' ? 'overflow-y-auto' : 'overflow-hidden'} max-w-[1600px] w-full mx-auto px-3 sm:px-4 lg:px-6 py-1.5 sm:py-2 flex flex-col`}>
           {/* =========================================================================
               PHASE: CARE_PANEL (Crisis Pre-Screen)
              ========================================================================= */}
@@ -1031,25 +1096,25 @@ function AppContent() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-                className="min-h-full flex flex-col justify-start max-w-5xl mx-auto space-y-4 sm:space-y-6 pt-6 sm:pt-8 pb-12 scroll-pt-20"
+                className="flex-1 flex flex-col justify-start max-w-5xl mx-auto space-y-1.5 sm:space-y-2.5 pt-3 pb-1 w-full"
               >
                 {/* Hero Header */}
-                <div className="text-center space-y-2.5 pt-2">
-                  <div className="flex items-center justify-center">
+                <div className="text-center space-y-1.5 sm:space-y-2">
+                  <div className="hero-leaf-icon flex items-center justify-center">
                     <svg className="w-5 h-5 text-[#244F3B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                       <path d="M12 2C8 6 4 12 12 22M12 7c-2 1-4 3-4 5m4-7c2 1 4 3 4 5" strokeLinecap="round" />
                     </svg>
                   </div>
 
-                  <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-[#18221E] font-medium tracking-tight max-w-2xl mx-auto leading-snug">
+                  <h1 className="idle-hero-heading font-serif text-xl sm:text-2xl lg:text-3xl text-[#18221E] font-medium tracking-tight max-w-2xl mx-auto leading-snug">
                     Tell Cerina what's weighing on you and get a step-by-step exercise to work through it — checked for safety, yours to edit and keep.
                   </h1>
 
-                  <p className="text-xs sm:text-sm text-[#55635C] max-w-xl mx-auto leading-relaxed">
+                  <p className="idle-hero-subtitle text-xs sm:text-sm text-[#55635C] max-w-xl mx-auto leading-relaxed">
                     Exercises are based on CBT (cognitive behavioural therapy), a well-studied way of working with unhelpful thoughts and habits.
                   </p>
 
-                  <div className="flex items-center justify-center gap-3 text-xs text-[#55635C] pt-0.5">
+                  <div className="flex items-center justify-center gap-3 text-xs text-[#55635C]">
                     <button
                       type="button"
                       onClick={() => setShowCbtExplainer(true)}
@@ -1064,7 +1129,7 @@ function AppContent() {
                 </div>
 
                 {/* 2-Column Split: Form + Pipeline Explainer (C1) */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 sm:gap-4 items-start">
                   <div className="md:col-span-7">
                     <ProtocolCreator
                       onSessionStart={handleSessionStart}
@@ -1079,7 +1144,7 @@ function AppContent() {
                 </div>
 
                 {/* Plain language footer */}
-                <footer className="text-center pt-2 pb-1 text-xs text-[#5C6A62]">
+                <footer className="text-center pt-1 pb-0.5 text-[11px] sm:text-xs text-[#5C6A62]">
                   <p>
                     Cerina creates self-help exercises. It isn't therapy or medical advice. If you're in crisis,{' '}
                     <button
@@ -1248,7 +1313,6 @@ function AppContent() {
                       majorConcerns={majorConcerns}
                       isRevisionRequested={isRevisionRequested}
                       isStalled={isStalled}
-                      onRetry={handleRetryStalledRun}
                       onApprove={handleApprove}
                       onStartEditing={handleStartEditing}
                       onSaveEditsAndApprove={handleSaveEditsAndApprove}
@@ -1276,7 +1340,6 @@ function AppContent() {
                   majorConcerns={majorConcerns}
                   isRevisionRequested={isRevisionRequested}
                   isStalled={isStalled}
-                  onRetry={handleRetryStalledRun}
                   onApprove={handleApprove}
                   onStartEditing={handleStartEditing}
                   onSaveEditsAndApprove={handleSaveEditsAndApprove}

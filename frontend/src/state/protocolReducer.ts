@@ -279,8 +279,17 @@ export function protocolReducer(state: ReducerState, action: ProtocolAction): Re
 
     case 'SET_SNAPSHOT': {
       const snap = action.snapshot || {}
+      let nextPhase = state.phase
+      if (snap.status === 'approved') {
+        nextPhase = 'approved'
+      } else if (snap.status === 'awaiting_approval' || snap.status === 'review') {
+        if (state.phase === 'generating' || state.phase === 'idle') {
+          nextPhase = 'review'
+        }
+      }
       return {
         ...state,
+        phase: nextPhase,
         draft: snap.current_draft || state.draft,
         draftVersion: snap.current_version || state.draftVersion,
         userIntent: snap.user_intent || state.userIntent,

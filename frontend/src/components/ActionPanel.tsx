@@ -41,7 +41,6 @@ interface ActionPanelProps {
   onOpenDiffPopover?: () => void
   onOpenReviewDetails?: () => void
   isStalled?: boolean
-  onRetry?: () => void
 }
 
 export default function ActionPanel({
@@ -55,7 +54,6 @@ export default function ActionPanel({
   majorConcerns = [],
   isRevisionRequested = false,
   isStalled = false,
-  onRetry,
   onApprove,
   onStartEditing,
   onSaveEditsAndApprove,
@@ -317,25 +315,14 @@ export default function ActionPanel({
             </div>
           </div>
 
-          {isStalled ? (
-            <button
-              type="button"
-              onClick={onRetry}
-              className="w-full py-2.5 px-4 rounded-xl bg-[#244F3B] hover:bg-[#1D3E2F] text-white text-xs font-semibold cursor-pointer flex items-center justify-center gap-2 shadow-2xs transition-colors"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Retry check</span>
-            </button>
-          ) : (
-            <button
-              disabled
-              type="button"
-              className="w-full py-2.5 px-4 rounded-xl bg-[#FAF8F5] border border-[#E8E4DA] text-[#88978F] text-xs font-semibold cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <Clock className="w-3.5 h-3.5 text-[#88978F]" />
-              <span>Review controls unlock when ready</span>
-            </button>
-          )}
+          <button
+            disabled
+            type="button"
+            className="w-full py-2.5 px-4 rounded-xl bg-[#FAF8F5] border border-[#E8E4DA] text-[#88978F] text-xs font-semibold cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <Clock className="w-3.5 h-3.5 text-[#88978F]" />
+            <span>Review controls unlock when ready</span>
+          </button>
         </div>
       )}
 

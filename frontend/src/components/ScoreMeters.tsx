@@ -31,12 +31,15 @@ function MeterRow({
   unavailable
 }: MeterRowProps) {
   const shouldReduceMotion = useReducedMotion()
-  const isPending = currentScore === undefined && !unavailable
-  const pct = currentScore !== undefined ? Math.min(100, Math.max(0, (currentScore / maxScore) * 100)) : 0
+  const numScore = currentScore !== undefined && !isNaN(Number(currentScore)) ? Number(currentScore) : undefined
+  const isPending = numScore === undefined && !unavailable
+  const pct = numScore !== undefined ? Math.min(100, Math.max(0, (numScore / maxScore) * 100)) : 0
   const thresholdPct = (threshold / maxScore) * 100
 
-  const isAtThreshold = currentScore !== undefined && Math.abs(currentScore - threshold) < 0.05
-  const isBelow = currentScore !== undefined && currentScore < threshold
+  const isAtThreshold = numScore !== undefined && Math.abs(numScore - threshold) < 0.05
+  const isBelow = numScore !== undefined && numScore < threshold
+
+  const numDelta = delta !== undefined && !isNaN(Number(delta)) ? Number(delta) : undefined
 
   return (
     <div className="space-y-0.5 px-2 py-1 rounded-lg bg-[#FAF8F5] border border-[#F0ECE3]">
@@ -60,18 +63,18 @@ function MeterRow({
           ) : isPending ? (
             <span className="text-[#A0ACA5]">—</span>
           ) : (
-            <span className="font-bold text-[#18221E]">{formatValue(currentScore)}</span>
+            <span className="font-bold text-[#18221E]">{formatValue(numScore)}</span>
           )}
 
-          {delta !== undefined && delta !== 0 && !unavailable && (
+          {numDelta !== undefined && numDelta !== 0 && !unavailable && (
             <span
               className={`text-[10px] font-bold px-1 rounded flex items-center gap-0.5 ${
-                delta > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                numDelta > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
               }`}
-              aria-label={`Score changed by ${delta > 0 ? '+' : ''}${delta.toFixed(1)}`}
+              aria-label={`Score changed by ${numDelta > 0 ? '+' : ''}${numDelta.toFixed(1)}`}
             >
-              {delta > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-              <span>{delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1)}</span>
+              {numDelta > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+              <span>{numDelta > 0 ? `+${numDelta.toFixed(1)}` : numDelta.toFixed(1)}</span>
             </span>
           )}
         </div>
@@ -188,7 +191,10 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
           currentScore={scores.empathy_score}
           maxScore={5}
           threshold={3.5}
-          formatValue={(val) => (val !== undefined ? `${val.toFixed(1)} / 5` : '—')}
+          formatValue={(val) => {
+            const n = val !== undefined ? Number(val) : NaN
+            return !isNaN(n) ? `${n.toFixed(1)} / 5` : '—'
+          }}
           delta={scores.delta_empathy}
           rationale={
             scores.dimensions?.warmth?.rationale ||
@@ -204,7 +210,10 @@ export default function ScoreMeters({ scores = {}, previousScores: _previousScor
           currentScore={scores.clinical_score}
           maxScore={5}
           threshold={3.5}
-          formatValue={(val) => (val !== undefined ? `${val.toFixed(1)} / 5` : '—')}
+          formatValue={(val) => {
+            const n = val !== undefined ? Number(val) : NaN
+            return !isNaN(n) ? `${n.toFixed(1)} / 5` : '—'
+          }}
           delta={scores.delta_clinical}
           rationale={
             scores.dimensions?.structure?.rationale ||
