@@ -19,7 +19,8 @@ if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
 from database import get_db_session, ProtocolSession, Event
-from runner import registry, run_protocol_workflow, run_recheck_workflow, RunnerAlreadyActiveError
+from runner import registry, run_protocol_workflow, run_recheck_workflow, RunnerAlreadyActiveError, reconcile_interrupted_sessions
+from llm_client import UnifiedLLMClient, LLMResult
 
 
 def test_status_mapping():
@@ -158,8 +159,11 @@ def test_revision_timeout_releases_runner():
                     review_depth="standard",
                     human_instruction="Please simplify this.",
                 )
-                # Wait for timeout to fire
-                await asyncio.sleep(0.4)
+                # Wait for timeout to fire and runner to release
+                for _ in range(30):
+                    if not await registry.is_active(sid):
+                        break
+                    await asyncio.sleep(0.1)
 
         # 1. Runner must be cleanly released
         assert await registry.is_active(sid) is False
@@ -238,7 +242,11 @@ def test_second_revise_after_timeout_accepted():
                     review_depth="standard",
                     human_instruction="First attempt that stalls.",
                 )
-                await asyncio.sleep(0.4)
+                # Wait for timeout to fire and runner to release
+                for _ in range(30):
+                    if not await registry.is_active(sid):
+                        break
+                    await asyncio.sleep(0.1)
 
         # Confirm runner is released after timeout
         assert await registry.is_active(sid) is False
@@ -264,3 +272,143 @@ def test_second_revise_after_timeout_accepted():
             assert await registry.is_active(sid) is False
 
     asyncio.run(_run())
+
+
+def test_interrupted_run_startup_reconciliation():
+    """Verify reconcile_interrupted_sessions cleans up stranded sessions on server boot."""
+    sid1 = f"test_interrupted_gen_{secrets.token_hex(4)}"
+    sid2 = f"test_interrupted_rev_{secrets.token_hex(4)}"
+    sid3 = f"test_interrupted_nodraft_{secrets.token_hex(4)}"
+    draft_content = "# Preserved Draft\n\nContent remains intact."
+
+    db = get_db_session()
+    try:
+        s1 = ProtocolSession(
+            session_id=sid1,
+            token_hash="tok1",
+            user_intent="Intent 1",
+            status="generating",
+            current_draft=draft_content,
+            review_depth="standard",
+        )
+        s2 = ProtocolSession(
+            session_id=sid2,
+            token_hash="tok2",
+            user_intent="Intent 2",
+            status="revising",
+            current_draft=draft_content,
+            review_depth="standard",
+        )
+        s3 = ProtocolSession(
+            session_id=sid3,
+            token_hash="tok3",
+            user_intent="Intent 3",
+            status="generating",
+            current_draft=None,
+            review_depth="standard",
+        )
+        db.add_all([s1, s2, s3])
+        db.commit()
+    finally:
+        db.close()
+
+    # Run startup reconciliation
+    reconciled_count = reconcile_interrupted_sessions()
+    assert reconciled_count >= 3
+
+    db = get_db_session()
+    try:
+        check1 = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid1).first()
+        assert check1.status == "awaiting_approval"
+        assert check1.current_draft == draft_content
+
+        check2 = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid2).first()
+        assert check2.status == "awaiting_approval"
+        assert check2.current_draft == draft_content
+
+        check3 = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid3).first()
+        assert check3.status == "error"
+
+        # Check events recorded
+        evts1 = db.query(Event).filter(Event.session_id == sid1).all()
+        err_evt = next((e for e in evts1 if e.type == "error"), None)
+        assert err_evt is not None
+        assert err_evt.text == "That was interrupted. Your draft is unchanged — try again."
+        assert err_evt.data.get("code") == "interrupted"
+
+        run_end_evt = next((e for e in evts1 if e.type == "run_end"), None)
+        assert run_end_evt is not None
+    finally:
+        db.close()
+
+
+def test_writer_timeout_and_failover():
+    """Verify execute_with_failover times out slow writers and falls over to the next candidate."""
+    async def _run():
+        client = UnifiedLLMClient()
+        call_log = []
+
+        class SlowAdapter:
+            async def generate(self, *args, **kwargs):
+                call_log.append("slow")
+                await asyncio.sleep(0.5)
+                return LLMResult(content="slow success", provider="groq", model="qwen/qwen3.8-27b", latency_ms=500.0)
+
+        class FastAdapter:
+            async def generate(self, *args, **kwargs):
+                call_log.append("fast")
+                return LLMResult(content="fast success", provider="gemini", model="gemini-2.5-flash", latency_ms=50.0)
+
+        adapters = {"groq": SlowAdapter(), "gemini": FastAdapter()}
+        client._get_adapter = lambda prov: adapters[prov]
+        client.resolve_writer_plan = lambda: [("groq", "qwen/qwen3.8-27b"), ("gemini", "gemini-2.5-flash")]
+
+        with patch.dict(os.environ, {"WRITER_CALL_TIMEOUT_SECONDS": "0.1", "MOCK_LLM": ""}):
+            result = await client.execute_with_failover(
+                role="writer",
+                messages=[{"role": "user", "content": "hi"}]
+            )
+            assert result.content == "fast success"
+            assert result.provider == "gemini"
+            assert result.fallback_used is True
+            assert "slow" in call_log
+            assert "fast" in call_log
+
+        # Test all writers timing out raises TimeoutError
+        adapters_slow = {"groq": SlowAdapter(), "gemini": SlowAdapter()}
+        client._get_adapter = lambda prov: adapters_slow[prov]
+        with patch.dict(os.environ, {"WRITER_CALL_TIMEOUT_SECONDS": "0.05", "MOCK_LLM": ""}):
+            with pytest.raises(TimeoutError) as exc_info:
+                await client.execute_with_failover(
+                    role="writer",
+                    messages=[{"role": "user", "content": "hi"}]
+                )
+            assert "timed out after 0.05s" in str(exc_info.value)
+
+    asyncio.run(_run())
+
+
+def test_relative_time_formatting():
+    """Verify relative time formatting avoids '772m ago' and properly groups hours/days."""
+    def format_relative_time_py(diff_seconds: int) -> str:
+        if diff_seconds < 5:
+            return "just now"
+        if diff_seconds < 60:
+            return f"{diff_seconds}s ago"
+        minutes = diff_seconds // 60
+        if minutes < 60:
+            return f"{minutes}m ago"
+        hours = diff_seconds // 3600
+        if hours < 24:
+            return f"{hours}h ago"
+        days = diff_seconds // 86400
+        return f"{days}d ago"
+
+    assert format_relative_time_py(3) == "just now"
+    assert format_relative_time_py(42) == "42s ago"
+    assert format_relative_time_py(300) == "5m ago"
+    assert format_relative_time_py(3540) == "59m ago"
+    # 772 minutes = 46320 seconds -> MUST show "12h ago", NOT "772m ago"
+    assert format_relative_time_py(46320) == "12h ago"
+    assert format_relative_time_py(86400 * 2) == "2d ago"
+
