@@ -522,6 +522,21 @@ async def revise_protocol(
     run_id = f"run_{secrets.token_urlsafe(8)}"
 
     instruction = body.instruction or "Please refine the draft based on user feedback."
+    # Clear prior recheck flags on new revision
+    db = get_db_session()
+    try:
+        db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+        if db_sess:
+            db_sess.status = "revising"
+            meta = dict(db_sess.meta_data or {})
+            if "recheck_required" in meta or "recheck_message" in meta:
+                meta.pop("recheck_required", None)
+                meta.pop("recheck_message", None)
+                db_sess.meta_data = meta
+            db.commit()
+    finally:
+        db.close()
+
     try:
         await registry.acquire_or_raise(
             session_id,
@@ -567,8 +582,11 @@ async def revalidate_protocol(
     from agents.workflow import create_workflow
     workflow = create_workflow()
     config = {"configurable": {"thread_id": session_id}}
-    st = await workflow.aget_state(config)
-    vals = st.values if st else {}
+    try:
+        st = await workflow.aget_state(config)
+        vals = st.values if st else {}
+    except Exception:
+        vals = {}
     
     clean_draft = normalize_protocol_markdown(body.draft)
     v_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
@@ -577,10 +595,14 @@ async def revalidate_protocol(
     try:
         db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
         meta = dict(db_sess.meta_data or {}) if db_sess else {}
+        val_passed = bool(meta.get("validation_passed", True))
+        if val_passed and db_sess:
+            meta.pop("recheck_required", None)
+            meta.pop("recheck_message", None)
+            db_sess.meta_data = meta
+            db.commit()
     finally:
         db.close()
-
-    val_passed = bool(meta.get("validation_passed", True))
     val_scores = meta.get("validated_scores", {})
     safety_score = val_scores.get("safety", vals.get("safety_score", 0.9))
     empathy_score = val_scores.get("empathy", vals.get("empathy_score", 4.0))

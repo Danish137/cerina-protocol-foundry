@@ -226,6 +226,20 @@ async def run_protocol_workflow(
     if run_kind in ["revision", "human_revision"]:
         draft_version += 1
         state["current_version"] = draft_version
+        # Any new revision clears prior recheck flags on the session
+        db = get_db_session()
+        try:
+            db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+            if db_sess:
+                db_sess.status = "revising"
+                meta = dict(db_sess.meta_data or {})
+                if "recheck_required" in meta or "recheck_message" in meta:
+                    meta.pop("recheck_required", None)
+                    meta.pop("recheck_message", None)
+                    db_sess.meta_data = meta
+                db.commit()
+        finally:
+            db.close()
 
     # Handle human instruction injection
     if human_instruction:
@@ -443,8 +457,25 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
     workflow = create_workflow()
     config = {"configurable": {"thread_id": session_id}}
     
-    st_tuple = await workflow.aget_state(config)
-    state = st_tuple.values.copy() if st_tuple else {}
+    try:
+        st_tuple = await workflow.aget_state(config)
+        state = st_tuple.values.copy() if st_tuple else {}
+    except Exception:
+        state = {}
+
+    if not state:
+        db = get_db_session()
+        try:
+            db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+            if db_sess:
+                state["user_intent"] = db_sess.user_intent
+                state["session_id"] = session_id
+                state["current_draft"] = db_sess.current_draft
+                state["review_depth"] = db_sess.review_depth or "standard"
+                state["current_version"] = 1
+        finally:
+            db.close()
+
     draft_version = state.get("current_version", 1)
 
     emit_event(
@@ -582,7 +613,10 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
         state_updated["current_draft"] = clean_draft
         state_updated["validated_hash"] = v_hash
         state_updated["validation_passed"] = val_passed
-        await workflow.aupdate_state(config, state_updated, as_node="supervisor")
+        try:
+            await workflow.aupdate_state(config, state_updated, as_node="supervisor")
+        except Exception:
+            pass
 
         # Persist validated metadata in DB session
         db = get_db_session()
@@ -738,28 +772,50 @@ def reconcile_interrupted_sessions() -> int:
                 s.status = "awaiting_approval"
 
                 # Check whether current draft version has completed BOTH safety and quality reviews
-                safety_done = (
+                # Fail closed: must count only a COMPLETED, non-unverified score result (not merely a node_end,
+                # and not an "unverified"/unavailable evaluation).
+                safety_events = (
                     db.query(Event)
                     .filter(
                         Event.session_id == s.session_id,
                         Event.draft_version == v,
                         Event.agent == "SafetyGuardian",
-                        Event.type.in_(["score", "node_end"])
+                        Event.type == "score",
                     )
-                    .first()
-                    is not None
+                    .all()
                 )
-                quality_done = (
+                safety_done = False
+                for e in safety_events:
+                    edata = e.data or {}
+                    if (
+                        edata.get("unverified") is not True
+                        and edata.get("score_source") != "unavailable"
+                        and edata.get("score") is not None
+                    ):
+                        safety_done = True
+                        break
+
+                quality_events = (
                     db.query(Event)
                     .filter(
                         Event.session_id == s.session_id,
                         Event.draft_version == v,
                         Event.agent == "ClinicalCritic",
-                        Event.type.in_(["score", "node_end"])
+                        Event.type == "score",
                     )
-                    .first()
-                    is not None
+                    .all()
                 )
+                quality_done = False
+                for e in quality_events:
+                    edata = e.data or {}
+                    if (
+                        edata.get("unverified") is not True
+                        and edata.get("score_source") != "unavailable"
+                        and edata.get("empathy_score") is not None
+                        and edata.get("clinical_score") is not None
+                    ):
+                        quality_done = True
+                        break
 
                 fully_checked = bool(safety_done and quality_done)
                 meta = dict(s.meta_data or {})
