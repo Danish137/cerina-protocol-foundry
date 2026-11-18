@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { HeartHandshake, Phone, Globe, ExternalLink, ShieldAlert, ArrowRight } from 'lucide-react'
 import { CareResources } from '../types'
+import { detectUserRegion, getOrderedRegionKeys, SUPPORTED_REGION_KEYS } from '../utils/regionDetection'
 
 interface CarePanelProps {
   resources?: CareResources
@@ -72,7 +73,14 @@ export default function CarePanel({
         : DEFAULT_RESOURCES.all_regions
   }
 
-  const [selectedRegionKey, setSelectedRegionKey] = useState<string>('US')
+  const detectedKey = detectUserRegion()
+  const availableKeys = effectiveResources.all_regions
+    ? Object.keys(effectiveResources.all_regions)
+    : SUPPORTED_REGION_KEYS
+  const orderedKeys = getOrderedRegionKeys(detectedKey, availableKeys)
+  const initialKey = orderedKeys.includes(detectedKey) ? detectedKey : (orderedKeys[0] || 'US')
+
+  const [selectedRegionKey, setSelectedRegionKey] = useState<string>(initialKey)
   const currentRegion =
     (effectiveResources.all_regions && effectiveResources.all_regions[selectedRegionKey]) ||
     effectiveResources.region ||
@@ -95,25 +103,29 @@ export default function CarePanel({
       </div>
 
       <div className="space-y-4">
-        {/* Region selector if multiple regions available */}
-        {effectiveResources.all_regions && Object.keys(effectiveResources.all_regions).length > 1 && (
+        {/* Region selector if multiple regions available (ordered by visitor locale) */}
+        {effectiveResources.all_regions && orderedKeys.length > 1 && (
           <div className="flex items-center gap-2 text-xs">
             <span className="text-[#7A6A5E] font-medium">Select Region:</span>
             <div className="inline-flex rounded-lg border border-[#E8DFC8] p-0.5 bg-[#FAF8F5]">
-              {Object.entries(effectiveResources.all_regions).map(([code, reg]) => (
-                <button
-                  key={code}
-                  type="button"
-                  onClick={() => setSelectedRegionKey(code)}
-                  className={`px-2.5 py-1 text-xs rounded-md font-medium transition-all cursor-pointer ${
-                    selectedRegionKey === code
-                      ? 'bg-white shadow-xs text-[#8C4A26] font-semibold'
-                      : 'text-[#7A6A5E] hover:text-[#2C211A]'
-                  }`}
-                >
-                  {reg.country}
-                </button>
-              ))}
+              {orderedKeys.map((code) => {
+                const reg = effectiveResources.all_regions?.[code]
+                if (!reg) return null
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => setSelectedRegionKey(code)}
+                    className={`px-2.5 py-1 text-xs rounded-md font-medium transition-all cursor-pointer ${
+                      selectedRegionKey === code
+                        ? 'bg-white shadow-xs text-[#8C4A26] font-semibold'
+                        : 'text-[#7A6A5E] hover:text-[#2C211A]'
+                    }`}
+                  >
+                    {reg.country}
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}
