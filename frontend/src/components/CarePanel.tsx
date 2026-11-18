@@ -4,7 +4,8 @@ import { CareResources } from '../types'
 
 interface CarePanelProps {
   resources?: CareResources
-  onAcknowledgeContinue: () => void
+  hasUserIntent?: boolean
+  onAcknowledgeContinue?: () => void
   onStartNew: () => void
 }
 
@@ -57,40 +58,54 @@ const DEFAULT_RESOURCES: CareResources = {
 }
 
 export default function CarePanel({
-  resources = DEFAULT_RESOURCES,
+  resources,
+  hasUserIntent = false,
   onAcknowledgeContinue,
   onStartNew
 }: CarePanelProps) {
+  const effectiveResources: CareResources = {
+    region: resources?.region || DEFAULT_RESOURCES.region,
+    fallback: resources?.fallback || DEFAULT_RESOURCES.fallback,
+    all_regions:
+      resources?.all_regions && Object.keys(resources.all_regions).length > 0
+        ? resources.all_regions
+        : DEFAULT_RESOURCES.all_regions
+  }
+
   const [selectedRegionKey, setSelectedRegionKey] = useState<string>('US')
   const currentRegion =
-    (resources.all_regions && resources.all_regions[selectedRegionKey]) || resources.region
+    (effectiveResources.all_regions && effectiveResources.all_regions[selectedRegionKey]) ||
+    effectiveResources.region ||
+    DEFAULT_RESOURCES.region
 
   return (
-    <div className="max-w-2xl mx-auto my-8 p-8 rounded-2xl bg-[#FFFDF9] border border-[#E8DFC8] shadow-md space-y-6">
+    <div className="max-w-2xl mx-auto my-4 sm:my-8 p-5 sm:p-8 rounded-2xl bg-[#FFFDF9] border border-[#E8DFC8] shadow-md space-y-6">
       <div className="flex items-center gap-3 pb-4 border-b border-[#E8DFC8]">
-        <div className="p-2.5 rounded-xl bg-[#F5EDE0] text-[#8C4A26]">
+        <div className="p-2.5 rounded-xl bg-[#F5EDE0] text-[#8C4A26] shrink-0">
           <HeartHandshake className="w-6 h-6" />
         </div>
         <div>
           <h2 className="font-serif text-xl font-medium text-[#2C211A]">Support Resources & Crisis Help</h2>
           <p className="text-xs text-[#7A6A5E]">
-            We detected themes related to severe distress or self-harm. Confidential care is always available.
+            {hasUserIntent
+              ? 'We detected themes related to severe distress or self-harm. Confidential care is always available.'
+              : 'Free, confidential support is available 24/7 if you or someone you know is going through a difficult time.'}
           </p>
         </div>
       </div>
 
       <div className="space-y-4">
         {/* Region selector if multiple regions available */}
-        {resources.all_regions && Object.keys(resources.all_regions).length > 1 && (
+        {effectiveResources.all_regions && Object.keys(effectiveResources.all_regions).length > 1 && (
           <div className="flex items-center gap-2 text-xs">
             <span className="text-[#7A6A5E] font-medium">Select Region:</span>
             <div className="inline-flex rounded-lg border border-[#E8DFC8] p-0.5 bg-[#FAF8F5]">
-              {Object.entries(resources.all_regions).map(([code, reg]) => (
+              {Object.entries(effectiveResources.all_regions).map(([code, reg]) => (
                 <button
                   key={code}
                   type="button"
                   onClick={() => setSelectedRegionKey(code)}
-                  className={`px-2.5 py-1 text-xs rounded-md font-medium transition-all ${
+                  className={`px-2.5 py-1 text-xs rounded-md font-medium transition-all cursor-pointer ${
                     selectedRegionKey === code
                       ? 'bg-white shadow-xs text-[#8C4A26] font-semibold'
                       : 'text-[#7A6A5E] hover:text-[#2C211A]'
@@ -105,7 +120,7 @@ export default function CarePanel({
 
         {/* Primary regional hotline card */}
         <div className="p-5 rounded-xl bg-white border border-[#E8DFC8] space-y-3">
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div>
               <span className="text-[11px] font-semibold tracking-wider uppercase text-[#8C4A26]">
                 {currentRegion.country} Hotline
@@ -115,7 +130,7 @@ export default function CarePanel({
             </div>
             <a
               href={`tel:${currentRegion.phone}`}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#8C4A26] text-white text-sm font-semibold hover:bg-[#733B1E] transition-colors shadow-xs"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#8C4A26] text-white text-sm font-semibold hover:bg-[#733B1E] transition-colors shadow-xs shrink-0"
             >
               <Phone className="w-4 h-4" />
               <span>Call {currentRegion.phone}</span>
@@ -137,7 +152,7 @@ export default function CarePanel({
               href={currentRegion.website}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[#8C4A26] hover:underline ml-auto"
+              className="inline-flex items-center gap-1 text-[#8C4A26] hover:underline sm:ml-auto"
             >
               <Globe className="w-3.5 h-3.5" />
               <span>Official Website</span>
@@ -147,14 +162,14 @@ export default function CarePanel({
         </div>
 
         {/* Fallback global helpline */}
-        {resources.fallback && (
-          <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#E8DFC8] flex items-center justify-between text-xs">
+        {effectiveResources.fallback && (
+          <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#E8DFC8] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
             <div>
-              <p className="font-semibold text-[#2C211A]">{resources.fallback.name}</p>
-              <p className="text-[#7A6A5E]">{resources.fallback.description}</p>
+              <p className="font-semibold text-[#2C211A]">{effectiveResources.fallback.name}</p>
+              <p className="text-[#7A6A5E]">{effectiveResources.fallback.description}</p>
             </div>
             <a
-              href={resources.fallback.website}
+              href={effectiveResources.fallback.website}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-[#8C4A26] font-semibold hover:underline shrink-0"
@@ -175,20 +190,22 @@ export default function CarePanel({
         <button
           type="button"
           onClick={onStartNew}
-          className="w-full sm:w-auto px-4 py-2 rounded-lg border border-[#D5C9B5] text-xs font-medium text-[#55635C] hover:bg-[#F5EDE0] transition-colors"
+          className="w-full sm:w-auto px-4 py-2 rounded-lg border border-[#D5C9B5] text-xs font-medium text-[#55635C] hover:bg-[#F5EDE0] transition-colors cursor-pointer"
         >
-          Start New Exercise
+          {hasUserIntent ? 'Start New Exercise' : 'Back to Home'}
         </button>
 
-        <button
-          type="button"
-          onClick={onAcknowledgeContinue}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#FAF8F5] border border-[#8C4A26] text-xs font-semibold text-[#8C4A26] hover:bg-[#F5EDE0] transition-colors shadow-2xs"
-        >
-          <ShieldAlert className="w-3.5 h-3.5" />
-          <span>I understand and wish to explore an educational exercise on this topic</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+        {hasUserIntent && onAcknowledgeContinue && (
+          <button
+            type="button"
+            onClick={onAcknowledgeContinue}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#FAF8F5] border border-[#8C4A26] text-xs font-semibold text-[#8C4A26] hover:bg-[#F5EDE0] transition-colors shadow-2xs cursor-pointer"
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span>I understand and wish to explore an educational exercise on this topic</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     </div>
   )
