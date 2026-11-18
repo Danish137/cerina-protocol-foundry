@@ -1061,13 +1061,14 @@ function AppContent() {
         </div>
 
         {/* Row 3: Main Workspace Shell */}
-        <main className={`flex-1 min-h-0 ${phase === 'idle' ? 'overflow-y-auto' : 'overflow-hidden'} max-w-[1600px] w-full mx-auto px-3 sm:px-4 lg:px-6 py-1.5 sm:py-2 flex flex-col`}>
+        <main className={`flex-1 min-h-0 ${phase === 'idle' || phase === 'care_panel' ? 'overflow-y-auto' : 'overflow-hidden'} max-w-[1600px] w-full mx-auto px-3 sm:px-4 lg:px-6 py-1.5 sm:py-2 flex flex-col`}>
           {/* =========================================================================
               PHASE: CARE_PANEL (Crisis Pre-Screen)
              ========================================================================= */}
           {phase === 'care_panel' ? (
             <CarePanel
               resources={state.careResources}
+              hasUserIntent={Boolean(state.userIntent && state.userIntent.trim())}
               onAcknowledgeContinue={() => {
                 if (state.userIntent) {
                   // Acknowledge educational scope and continue
@@ -1155,7 +1156,7 @@ function AppContent() {
                     Cerina creates self-help exercises. It isn't therapy or medical advice. If you're in crisis,{' '}
                     <button
                       type="button"
-                      onClick={() => dispatch({ type: 'SET_CARE_PANEL', careResources: state.careResources || {} })}
+                      onClick={() => dispatch({ type: 'SET_CARE_PANEL', careResources: state.careResources })}
                       className="text-[#8C4A26] font-semibold underline hover:text-[#6E3619] cursor-pointer"
                     >
                       get help now
