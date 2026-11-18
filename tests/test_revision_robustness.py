@@ -11,7 +11,8 @@ import sys
 import asyncio
 import secrets
 import pytest
-from unittest.mock import patch
+from unittest import mock
+from unittest.mock import patch, AsyncMock, MagicMock
 
 # Ensure backend directory is in python path
 backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend"))
@@ -453,6 +454,147 @@ def test_interrupted_run_startup_reconciliation():
         assert detail_b.get("code") == "recheck_required"
         assert detail_b.get("message") == "This draft wasn't fully checked. Run the checks again."
 
+        # Re-check flow end to end: run revalidate with fake judges -> recheck_required is CLEARED -> approve succeeds
+        fake_safety_res = {
+            "safety_score": 1.0,
+            "safety_checks": {
+                "self_harm": True,
+                "no_medication": True,
+                "no_diagnosis": True,
+                "no_contraindicated_exposure": True,
+                "referral_language": True,
+            },
+            "unverified": False,
+        }
+        fake_critic_res = {
+            "empathy_score": 4.5,
+            "clinical_score": 4.5,
+            "unverified": False,
+        }
+        with patch("agents.workflow.safety_guardian.review", new_callable=mock.AsyncMock, return_value=fake_safety_res), \
+             patch("agents.workflow.clinical_critic.critique", new_callable=mock.AsyncMock, return_value=fake_critic_res):
+            reval_resp = test_client.post(
+                f"/api/protocols/{sid_unchecked}/revalidate",
+                headers={"X-Session-Token": tok_unchecked},
+                json={"draft": draft_content}
+            )
+            assert reval_resp.status_code == 200, f"Revalidation failed: {reval_resp.text}"
+            reval_data = reval_resp.json()
+            assert reval_data.get("passed") is True
+            v_hash = reval_data.get("validated_hash")
+            assert v_hash is not None
+
+        # Confirm recheck_required is now cleared in DB session
+        db.expire_all()
+        check_b_reval = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid_unchecked).first()
+        meta_b_reval = dict(check_b_reval.meta_data or {})
+        assert meta_b_reval.get("recheck_required") is not True
+
+        # Now approve succeeds (200 OK)
+        resp_b_approved = test_client.post(
+            f"/api/protocols/{sid_unchecked}/approve",
+            headers={"X-Session-Token": tok_unchecked},
+            json={"approved_by": "You", "edited": False, "validated_hash": v_hash}
+        )
+        assert resp_b_approved.status_code == 200, f"Approve failed after revalidate: {resp_b_approved.text}"
+        assert resp_b_approved.json().get("status") == "approved"
+
+        # Verify recheck_required is also cleared on any new revision
+        sid_rev_clear = f"test_rev_clear_{secrets.token_hex(4)}"
+        tok_rev_clear = "tok_rev_clear_999"
+        hash_rev_clear = hashlib.sha256(tok_rev_clear.encode()).hexdigest()
+        s_rev_clear = ProtocolSession(
+            session_id=sid_rev_clear,
+            token_hash=hash_rev_clear,
+            user_intent="Intent Revision Clear",
+            status="awaiting_approval",
+            current_draft=draft_content,
+            meta_data={"recheck_required": True, "recheck_message": "Needs recheck."}
+        )
+        db.add(s_rev_clear)
+        db.commit()
+
+        # Calling revise clears recheck_required
+        with patch("agents.workflow.create_workflow") as mock_wf:
+            mock_app = mock.AsyncMock()
+            mock_app.aget_state.return_value = mock.MagicMock(values={"user_intent": "Intent", "current_draft": draft_content})
+            mock_app.astream = mock.MagicMock()
+            mock_wf.return_value = mock_app
+            resp_rev = test_client.post(
+                f"/api/protocols/{sid_rev_clear}/revise",
+                headers={"X-Session-Token": tok_rev_clear},
+                json={"instruction": "Make warmer"}
+            )
+            assert resp_rev.status_code == 200
+            db.expire_all()
+            check_rev_cleared = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid_rev_clear).first()
+            assert dict(check_rev_cleared.meta_data or {}).get("recheck_required") is not True
+
+        # -------------------------------------------------------------
+        # (c) Fail closed on unverified/unavailable evaluation
+        # -------------------------------------------------------------
+        sid_unverified = f"test_unverified_{secrets.token_hex(4)}"
+        tok_unverified = "tok_unverified_111"
+        hash_unverified = hashlib.sha256(tok_unverified.encode()).hexdigest()
+        s_unverified = ProtocolSession(
+            session_id=sid_unverified,
+            token_hash=hash_unverified,
+            user_intent="Intent Unverified",
+            status="generating",
+            current_draft=draft_content,
+            review_depth="standard",
+        )
+        evt_draft_u = Event(
+            session_id=sid_unverified,
+            seq=1,
+            run_id="run_u",
+            run_kind="initial",
+            draft_version=1,
+            agent="Drafter",
+            type="draft",
+            text="Draft v1",
+            data={"draft": draft_content}
+        )
+        # Merely node_end event (no score)
+        evt_node_end = Event(
+            session_id=sid_unverified,
+            seq=2,
+            run_id="run_u",
+            run_kind="initial",
+            draft_version=1,
+            agent="SafetyGuardian",
+            type="node_end",
+            text="Node end",
+            data={}
+        )
+        # Score event with unverified=True
+        evt_unverified_score = Event(
+            session_id=sid_unverified,
+            seq=3,
+            run_id="run_u",
+            run_kind="initial",
+            draft_version=1,
+            agent="ClinicalCritic",
+            type="score",
+            text="Quality unavailable",
+            data={"score_source": "unavailable", "unverified": True, "empathy_score": 0.0, "clinical_score": 0.0}
+        )
+        db.add_all([s_unverified, evt_draft_u, evt_node_end, evt_unverified_score])
+        db.commit()
+
+        reconcile_interrupted_sessions()
+        check_u = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid_unverified).first()
+        assert check_u.status == "awaiting_approval"
+        assert dict(check_u.meta_data or {}).get("recheck_required") is True
+
+        resp_u_approve = test_client.post(
+            f"/api/protocols/{sid_unverified}/approve",
+            headers={"X-Session-Token": tok_unverified},
+            json={"approved_by": "You", "edited": False, "validated_hash": "BASELINE"}
+        )
+        assert resp_u_approve.status_code == 409
+        assert resp_u_approve.json().get("detail", {}).get("code") == "recheck_required"
+
         # -------------------------------------------------------------
         # (c) No draft: status=failed, user-facing error event emitted
         # -------------------------------------------------------------
@@ -480,14 +622,51 @@ def test_writer_timeout_and_failover():
         client = UnifiedLLMClient()
         call_log = []
 
-        # Verify default timeouts in code: 35s earlier, 90s last writer
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("WRITER_CALL_TIMEOUT_SECONDS", None)
-            os.environ.pop("LAST_WRITER_CALL_TIMEOUT_SECONDS", None)
-            default_last = float(os.environ.get("LAST_WRITER_CALL_TIMEOUT_SECONDS", "90.0"))
-            default_earlier = float(os.environ.get("WRITER_CALL_TIMEOUT_SECONDS", "35.0"))
-            assert default_earlier == 35.0
-            assert default_last == 90.0
+        # Test real timeout behaviour: capture per_call_timeout passed to asyncio.wait_for for each candidate
+        recorded_timeouts = []
+        orig_wait_for = asyncio.wait_for
+
+        async def capture_wait_for(fut, timeout):
+            recorded_timeouts.append(timeout)
+            return await fut
+
+        with patch("asyncio.wait_for", side_effect=capture_wait_for):
+            # 1. Defaults: 35s for non-last writers, 90s for last writer
+            with patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("WRITER_CALL_TIMEOUT_SECONDS", None)
+                os.environ.pop("LAST_WRITER_CALL_TIMEOUT_SECONDS", None)
+
+                class DummyFailingAdapter:
+                    async def generate(self, *args, **kwargs):
+                        raise RuntimeError("simulated failover")
+
+                class DummyLastAdapter:
+                    async def generate(self, *args, **kwargs):
+                        return LLMResult(content="ok", provider="gemini", model="gemini-2.5-flash", latency_ms=1.0)
+
+                probe_client = UnifiedLLMClient()
+                probe_client._get_adapter = lambda prov: DummyLastAdapter() if prov == "gemini" else DummyFailingAdapter()
+                probe_client.resolve_writer_plan = lambda: [
+                    ("groq", "openai/gpt-oss-120b"),
+                    ("groq", "llama-3.3-70b-versatile"),
+                    ("gemini", "gemini-2.5-flash")
+                ]
+
+                recorded_timeouts.clear()
+                await probe_client.execute_with_failover(role="writer", messages=[{"role": "user", "content": "hi"}])
+                assert len(recorded_timeouts) == 3
+                assert recorded_timeouts[0] == 35.0  # candidate 1 (non-last)
+                assert recorded_timeouts[1] == 35.0  # candidate 2 (non-last)
+                assert recorded_timeouts[2] == 90.0  # candidate 3 (last writer)
+
+            # 2. Env overrides: verify custom values dynamically change timeouts
+            with patch.dict(os.environ, {"WRITER_CALL_TIMEOUT_SECONDS": "20.0", "LAST_WRITER_CALL_TIMEOUT_SECONDS": "60.0"}):
+                recorded_timeouts.clear()
+                await probe_client.execute_with_failover(role="writer", messages=[{"role": "user", "content": "hi"}])
+                assert len(recorded_timeouts) == 3
+                assert recorded_timeouts[0] == 20.0
+                assert recorded_timeouts[1] == 20.0
+                assert recorded_timeouts[2] == 60.0
 
         class SlowEarlierAdapter:
             async def generate(self, *args, **kwargs):
