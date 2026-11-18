@@ -14,6 +14,7 @@ import Outline from './components/Outline'
 import DocumentViewer from './components/DocumentViewer'
 import ActionPanel from './components/ActionPanel'
 import CarePanel from './components/CarePanel'
+import ErrorBoundary from './components/ErrorBoundary'
 import { ToastProvider, useToast } from './components/Toast'
 import { protocolReducer, initialReducerState } from './state/protocolReducer'
 import { ProtocolStreamClient } from './services/sseClient'
@@ -256,6 +257,9 @@ function AppContent() {
           .then((res) => {
             if (res.data?.state) {
               dispatch({ type: 'SET_SNAPSHOT', snapshot: res.data.state })
+              if (res.data.state.recheck_required) {
+                setValidationStatus('stale')
+              }
               const baseline = res.data.state.draft_history?.[0]?.content || res.data.state.current_draft || ''
               if (baseline) {
                 setInitialDraftBeforeEdit(baseline)
@@ -320,6 +324,9 @@ function AppContent() {
           .then((res) => {
             if (res.data?.state) {
               dispatch({ type: 'SET_SNAPSHOT', snapshot: res.data.state })
+              if (res.data.state.recheck_required) {
+                setValidationStatus('stale')
+              }
               const baseline = res.data.state.draft_history?.[0]?.content || res.data.state.current_draft || ''
               if (baseline) {
                 setInitialDraftBeforeEdit(baseline)
@@ -978,7 +985,9 @@ function AppContent() {
           onSelectSession={handleSelectRecentSession}
         />
 
-        {/* Row 2: In-Grid Notification Banners (never pushes shell taller than viewport) */}
+        {/* Top-Level ErrorBoundary around app workspace and content (header remains visible) */}
+        <ErrorBoundary onReset={handleNewProtocol}>
+          {/* Row 2: In-Grid Notification Banners (never pushes shell taller than viewport) */}
         <div className="shrink-0 flex flex-col">
           {/* Persistent Replay Badge (D8) */}
           {state.uiState.isReplay && (
@@ -1066,32 +1075,38 @@ function AppContent() {
               PHASE: CARE_PANEL (Crisis Pre-Screen)
              ========================================================================= */}
           {phase === 'care_panel' ? (
-            <CarePanel
-              resources={state.careResources}
-              hasUserIntent={Boolean(state.userIntent && state.userIntent.trim())}
-              onAcknowledgeContinue={() => {
-                if (state.userIntent) {
-                  // Acknowledge educational scope and continue
-                  axios
-                    .post(`${API_BASE_URL}/api/protocols/create`, {
-                      intent: state.userIntent,
-                      review_depth: state.reviewDepth,
-                      crisis_bypass: true
-                    })
-                    .then((res) => {
-                      handleSessionStart({
-                        sessionId: res.data.session_id,
-                        sessionToken: res.data.session_token,
-                        status: res.data.status,
+            <ErrorBoundary
+              onReset={handleNewProtocol}
+              fallbackTitle="Support Resources & Crisis Help"
+              fallbackDescription="We had trouble loading the interactive support panel. Below are direct, 24/7 crisis hotlines available immediately."
+            >
+              <CarePanel
+                resources={state.careResources}
+                hasUserIntent={Boolean(state.userIntent && state.userIntent.trim())}
+                onAcknowledgeContinue={() => {
+                  if (state.userIntent) {
+                    // Acknowledge educational scope and continue
+                    axios
+                      .post(`${API_BASE_URL}/api/protocols/create`, {
                         intent: state.userIntent,
-                        reviewDepth: state.reviewDepth
+                        review_depth: state.reviewDepth,
+                        crisis_bypass: true
                       })
-                    })
-                    .catch(() => showToast('Failed to continue run', 'error'))
-                }
-              }}
-              onStartNew={handleNewProtocol}
-            />
+                      .then((res) => {
+                        handleSessionStart({
+                          sessionId: res.data.session_id,
+                          sessionToken: res.data.session_token,
+                          status: res.data.status,
+                          intent: state.userIntent,
+                          reviewDepth: state.reviewDepth
+                        })
+                      })
+                      .catch(() => showToast('Failed to continue run', 'error'))
+                  }
+                }}
+                onStartNew={handleNewProtocol}
+              />
+            </ErrorBoundary>
           ) : phase === 'idle' ? (
             /* =========================================================================
                 PHASE: IDLE (Clean Hero + Form + Pipeline Explainer)
@@ -1438,6 +1453,7 @@ function AppContent() {
             handleExportPdf(includeDetails)
           }}
         />
+        </ErrorBoundary>
       </div>
     </LayoutGroup>
   )
