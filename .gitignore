@@ -46,6 +46,7 @@ Thumbs.db
 dist/
 build/
 *.tsbuildinfo
+.vite/
 
 
 # Temporary test scripts 
@@ -59,3 +60,6 @@ restore_chat_history.py
 
 # Local documentation & evaluation benchmarks (kept locally, excluded from remote)
 docs/
+screenshots/
+dev-notes/
+*.pdf

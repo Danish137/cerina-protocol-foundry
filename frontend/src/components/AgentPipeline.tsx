@@ -2,11 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Check, Clock, AlertTriangle, RotateCcw, Sparkles } from 'lucide-react'
 import { ProtocolEvent, NodeStatus } from '../types'
+import { AGENTS } from '../constants/agents'
 
 interface AgentPipelineProps {
   events: ProtocolEvent[]
   compact?: boolean
   isIdle?: boolean
+  isStalled?: boolean
 }
 
 interface NodeInfo {
@@ -24,6 +26,7 @@ export default function AgentPipeline({
   events = [],
   compact = false,
   isIdle = false,
+  isStalled = false,
 }: AgentPipelineProps) {
   const shouldReduceMotion = useReducedMotion()
   const [now, setNow] = useState<number>(Date.now())
@@ -42,6 +45,8 @@ export default function AgentPipeline({
     for (const e of events) {
       if (e.type === 'decision' && e.data?.route === 'revise') {
         revCount++
+      } else if (e.type === 'human_action' && e.data?.action === 'revise') {
+        revCount++
       }
     }
 
@@ -49,7 +54,7 @@ export default function AgentPipeline({
     const initialNodes: Record<string, NodeInfo> = {
       drafter: {
         id: 'drafter',
-        name: 'Drafter',
+        name: AGENTS.Drafter?.displayName || 'Exercise Drafter',
         role: 'Writes initial steps',
         status: isIdle ? 'idle' : 'idle',
         statusLine: 'Drafting structured step-by-step exercise',
@@ -91,8 +96,32 @@ export default function AgentPipeline({
       }
     }
 
-    // Scan events to determine node statuses
-    const lastRunEvents = events
+    // Partition events to the active pass (latest revision/recheck if present)
+    let activeRunStartIdx = 0
+    let isRecheck = false
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i]
+      if (e.type === 'human_action') {
+        if (e.data?.action === 'revise') {
+          activeRunStartIdx = i
+          break
+        } else if (e.data?.action === 'recheck') {
+          activeRunStartIdx = i
+          isRecheck = true
+          break
+        }
+      } else if (e.type === 'decision' && e.data?.route === 'revise') {
+        activeRunStartIdx = i
+        break
+      }
+    }
+
+    if (isRecheck) {
+      initialNodes.drafter.status = 'done'
+      initialNodes.drafter.statusLine = 'Saved with your edits'
+    }
+
+    const lastRunEvents = activeRunStartIdx > 0 ? events.slice(activeRunStartIdx) : events
 
     for (const e of lastRunEvents) {
       const agentKey =
@@ -166,11 +195,15 @@ export default function AgentPipeline({
       }
     }
 
-    // Update live elapsed duration for working node
+    // Update live elapsed duration for working node with 300s cap
     for (const node of Object.values(initialNodes)) {
       if (node.status === 'working' && node.startTime) {
         const elapsed = Math.max(0, Math.floor((now - node.startTime) / 1000))
-        node.durationText = `${elapsed}s`
+        if (elapsed > 300 || isStalled) {
+          node.durationText = 'Taking longer than usual'
+        } else {
+          node.durationText = `${elapsed}s`
+        }
       }
     }
 
@@ -178,7 +211,7 @@ export default function AgentPipeline({
       nodes: Object.values(initialNodes),
       revisionCount: revCount
     }
-  }, [events, isIdle, now])
+  }, [events, isIdle, now, isStalled])
 
   const containerRef = React.useRef<HTMLDivElement>(null)
   const [isScrollable, setIsScrollable] = useState(false)
@@ -316,9 +349,9 @@ export default function AgentPipeline({
             return (
               <div key={node.id} className="relative">
                 <div
-                  className={`p-2.5 rounded-xl border transition-all ${
+                  className={`${isIdle ? 'p-2 sm:p-2.5 idle-card-container pipeline-idle-card' : 'p-2.5'} rounded-xl border transition-all ${
                     isWorking
-                      ? 'border-[#244F3B] bg-[#EBF3EE]/60 shadow-xs ring-1 ring-[#244F3B]/30 motion-safe:shadow-[0_0_10px_rgba(36,79,59,0.25)] motion-reduce:shadow-none'
+                      ? `border-[#244F3B] bg-[#EBF3EE]/60 shadow-xs ring-1 ring-[#244F3B]/30 ${isStalled ? '' : 'motion-safe:shadow-[0_0_10px_rgba(36,79,59,0.25)]'} motion-reduce:shadow-none`
                       : isConcern
                       ? 'border-[#F59E0B] bg-[#FEF3C7]/40'
                       : isWaiting
@@ -337,7 +370,9 @@ export default function AgentPipeline({
                       <div
                         className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] shrink-0 ${
                           isWorking
-                            ? 'bg-[#244F3B] text-white motion-safe:animate-pulse motion-reduce:animate-none'
+                            ? isStalled
+                              ? 'bg-[#244F3B] text-white'
+                              : 'bg-[#244F3B] text-white motion-safe:animate-pulse motion-reduce:animate-none'
                             : isConcern
                             ? 'bg-[#F59E0B] text-white'
                             : isWaiting
@@ -357,7 +392,7 @@ export default function AgentPipeline({
                       </div>
                       <div className="min-w-0">
                         <p className="font-semibold text-[#18221E] text-xs leading-tight truncate">{node.name}</p>
-                        <p className="text-[10px] text-[#3D4943] leading-tight truncate">{node.role}</p>
+                        <p className={`text-[10px] text-[#3D4943] leading-tight truncate ${isIdle ? 'pipeline-card-idle-role' : ''}`}>{node.role}</p>
                       </div>
                     </div>
 
@@ -377,12 +412,12 @@ export default function AgentPipeline({
                   )}
 
                   {/* Status line */}
-                  <p className="mt-1.5 text-[11px] text-[#3D4943] leading-snug break-words pl-7">{node.statusLine}</p>
+                  <p className={`${isIdle ? 'mt-1' : 'mt-1.5'} text-[11px] text-[#3D4943] leading-snug break-words pl-7`}>{node.statusLine}</p>
                 </div>
 
                 {/* Connecting line / handoff dot */}
                 {index < nodes.length - 1 && (
-                  <div className="h-1.5 ml-5 w-0.5 bg-[#E8E4DA] my-0.5 relative">
+                  <div className={`${isIdle ? 'h-1 my-0.5 pipeline-idle-connector' : 'h-1.5 my-0.5'} ml-5 w-0.5 bg-[#E8E4DA] relative`}>
                     {isWorking && !shouldReduceMotion && (
                       <motion.div
                         className="absolute w-1.5 h-1.5 -left-[2px] rounded-full bg-[#244F3B]"

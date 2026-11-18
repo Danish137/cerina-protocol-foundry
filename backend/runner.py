@@ -67,6 +67,9 @@ class RunnerRegistry:
     def get_task(self, session_id: str) -> Optional[asyncio.Task]:
         return self._active_tasks.get(session_id)
 
+    def release(self, session_id: str):
+        self._active_tasks.pop(session_id, None)
+
     def subscribe(self, session_id: str) -> asyncio.Queue:
         q = asyncio.Queue(maxsize=100)
         self._subscribers.setdefault(session_id, []).append(q)
@@ -206,10 +209,37 @@ async def run_protocol_workflow(
     current_state_tuple = await workflow.aget_state(config)
     state = current_state_tuple.values.copy() if current_state_tuple else {}
 
+    if not state.get("user_intent"):
+        db = get_db_session()
+        try:
+            db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+            if db_sess:
+                state["user_intent"] = db_sess.user_intent
+                state["session_id"] = session_id
+                state["review_depth"] = db_sess.review_depth or review_depth
+                if not state.get("current_draft") and db_sess.current_draft:
+                    state["current_draft"] = db_sess.current_draft
+        finally:
+            db.close()
+
     draft_version = state.get("current_version", 1)
     if run_kind in ["revision", "human_revision"]:
         draft_version += 1
         state["current_version"] = draft_version
+        # Any new revision clears prior recheck flags on the session
+        db = get_db_session()
+        try:
+            db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+            if db_sess:
+                db_sess.status = "revising"
+                meta = dict(db_sess.meta_data or {})
+                if "recheck_required" in meta or "recheck_message" in meta:
+                    meta.pop("recheck_required", None)
+                    meta.pop("recheck_message", None)
+                    db_sess.meta_data = meta
+                db.commit()
+        finally:
+            db.close()
 
     # Handle human instruction injection
     if human_instruction:
@@ -247,7 +277,10 @@ async def run_protocol_workflow(
             pass
 
     run_end_emitted = False
-    try:
+    revision_timeout = float(os.environ.get("REVISION_TIMEOUT_SECONDS", "120"))
+
+    async def _execute_astream():
+        nonlocal run_end_emitted
         async for _ in workflow.astream(None, config, stream_mode="updates"):
             # Check state after each graph node update
             st = await workflow.aget_state(config)
@@ -315,6 +348,37 @@ async def run_protocol_workflow(
         )
         run_end_emitted = True
 
+    try:
+        if run_kind in ["revision", "human_revision"]:
+            await asyncio.wait_for(_execute_astream(), timeout=revision_timeout)
+        else:
+            await _execute_astream()
+    except asyncio.TimeoutError:
+        logger.warning(f"[RUNNER] Revision run {run_id} timed out after {revision_timeout}s for session {session_id}")
+        timeout_msg = "That took too long. Your draft is unchanged — try again."
+        emit_event(
+            session_id=session_id,
+            run_id=run_id,
+            run_kind=run_kind,
+            draft_version=draft_version,
+            agent="System",
+            event_type="error",
+            text_content=timeout_msg,
+            severity="warning",
+            data={"code": "timeout", "message": timeout_msg, "retryable": True}
+        )
+        emit_event(
+            session_id=session_id,
+            run_id=run_id,
+            run_kind=run_kind,
+            draft_version=draft_version,
+            agent="System",
+            event_type="run_end",
+            text_content=timeout_msg,
+            severity="warning",
+            data={"status": "awaiting_approval", "timeout": True}
+        )
+        run_end_emitted = True
     except Exception as e:
         logger.error(f"[RUNNER] Exception during workflow for {session_id}: {e}", exc_info=True)
         is_capacity = "429" in str(e) or "quota" in str(e).lower() or "capacity" in str(e).lower()
@@ -345,6 +409,7 @@ async def run_protocol_workflow(
         )
         run_end_emitted = True
     finally:
+        registry.release(session_id)
         if not run_end_emitted:
             try:
                 st = await workflow.aget_state(config)
@@ -377,6 +442,7 @@ async def run_protocol_workflow(
         finally:
             db.close()
 
+
 # --- Recheck Run (/revalidate) ---
 
 async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
@@ -391,8 +457,25 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
     workflow = create_workflow()
     config = {"configurable": {"thread_id": session_id}}
     
-    st_tuple = await workflow.aget_state(config)
-    state = st_tuple.values.copy() if st_tuple else {}
+    try:
+        st_tuple = await workflow.aget_state(config)
+        state = st_tuple.values.copy() if st_tuple else {}
+    except Exception:
+        state = {}
+
+    if not state:
+        db = get_db_session()
+        try:
+            db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+            if db_sess:
+                state["user_intent"] = db_sess.user_intent
+                state["session_id"] = session_id
+                state["current_draft"] = db_sess.current_draft
+                state["review_depth"] = db_sess.review_depth or "standard"
+                state["current_version"] = 1
+        finally:
+            db.close()
+
     draft_version = state.get("current_version", 1)
 
     emit_event(
@@ -407,175 +490,386 @@ async def run_recheck_workflow(session_id: str, run_id: str, edited_draft: str):
     )
 
     state["current_draft"] = clean_draft
-    
-    # Run Safety Check and Quality Reviewer concurrently on edited draft (Amendment 6)
-    emit_event(
-        session_id=session_id,
-        run_id=run_id,
-        run_kind="recheck",
-        draft_version=draft_version,
-        agent="SafetyGuardian",
-        event_type="node_start",
-        text_content="Safety check reviewing edited draft",
-        severity="info"
-    )
-    emit_event(
-        session_id=session_id,
-        run_id=run_id,
-        run_kind="recheck",
-        draft_version=draft_version,
-        agent="ClinicalCritic",
-        event_type="node_start",
-        text_content="Quality reviewer evaluating edited draft",
-        severity="info"
-    )
+    revision_timeout = float(os.environ.get("REVISION_TIMEOUT_SECONDS", "120"))
+    run_end_emitted = False
 
-    async def recheck_safety():
-        s_res = await safety_guardian.review(state)
-        s_score = s_res.get("safety_score", 0.0)
-        s_checks = s_res.get("safety_checks", {})
-        passed_count = sum(1 for v in s_checks.values() if v) if s_checks else (5 if s_score >= 1.0 else int(round(s_score * 5)))
-        total_count = len(s_checks) if s_checks else 5
-        pct = int(round(s_score * 100))
+    async def _execute_recheck():
+        nonlocal run_end_emitted, draft_version
+        # Run Safety Check and Quality Reviewer concurrently on edited draft (Amendment 6)
         emit_event(
             session_id=session_id,
             run_id=run_id,
             run_kind="recheck",
             draft_version=draft_version,
             agent="SafetyGuardian",
-            event_type="score",
-            text_content=f"Safety checks passed: {passed_count}/{total_count} ({pct}%)",
-            severity="critical" if s_score < 0.8 else "info",
-            data={
-                "metric": "safety",
-                "score": s_score,
-                "passed_checks": passed_count,
-                "total_checks": total_count,
-                "checks": s_res.get("safety_checks", {}),
-                "reasons": s_res.get("safety_reasons", {})
-            }
-        )
-        emit_event(
-            session_id=session_id,
-            run_id=run_id,
-            run_kind="recheck",
-            draft_version=draft_version,
-            agent="SafetyGuardian",
-            event_type="node_end",
-            text_content="Safety check complete",
+            event_type="node_start",
+            text_content="Safety check reviewing edited draft",
             severity="info"
         )
-        return s_res
+        emit_event(
+            session_id=session_id,
+            run_id=run_id,
+            run_kind="recheck",
+            draft_version=draft_version,
+            agent="ClinicalCritic",
+            event_type="node_start",
+            text_content="Quality reviewer evaluating edited draft",
+            severity="info"
+        )
 
-    async def recheck_critic():
-        c_res = await clinical_critic.critique(state)
+        async def recheck_safety():
+            s_res = await safety_guardian.review(state)
+            s_score = s_res.get("safety_score", 0.0)
+            s_checks = s_res.get("safety_checks", {})
+            passed_count = sum(1 for v in s_checks.values() if v) if s_checks else (5 if s_score >= 1.0 else int(round(s_score * 5)))
+            total_count = len(s_checks) if s_checks else 5
+            pct = int(round(s_score * 100))
+            emit_event(
+                session_id=session_id,
+                run_id=run_id,
+                run_kind="recheck",
+                draft_version=draft_version,
+                agent="SafetyGuardian",
+                event_type="score",
+                text_content=f"Safety checks passed: {passed_count}/{total_count} ({pct}%)",
+                severity="critical" if s_score < 0.8 else "info",
+                data={
+                    "metric": "safety",
+                    "score": s_score,
+                    "passed_checks": passed_count,
+                    "total_checks": total_count,
+                    "checks": s_res.get("safety_checks", {}),
+                    "reasons": s_res.get("safety_reasons", {})
+                }
+            )
+            emit_event(
+                session_id=session_id,
+                run_id=run_id,
+                run_kind="recheck",
+                draft_version=draft_version,
+                agent="SafetyGuardian",
+                event_type="node_end",
+                text_content="Safety check complete",
+                severity="info"
+            )
+            return s_res
+
+        async def recheck_critic():
+            c_res = await clinical_critic.critique(state)
+            emp = c_res.get("empathy_score", 0.0)
+            fid = c_res.get("clinical_score", 0.0)
+            emit_event(
+                session_id=session_id,
+                run_id=run_id,
+                run_kind="recheck",
+                draft_version=draft_version,
+                agent="ClinicalCritic",
+                event_type="score",
+                text_content=f"Empathy: {emp:.1f}/5, Exercise quality: {fid:.1f}/5",
+                severity="info",
+                data={
+                    "metric": "clinical",
+                    "empathy_score": emp,
+                    "clinical_score": fid,
+                    "dimensions": c_res.get("dimensions", {})
+                }
+            )
+            emit_event(
+                session_id=session_id,
+                run_id=run_id,
+                run_kind="recheck",
+                draft_version=draft_version,
+                agent="ClinicalCritic",
+                event_type="node_end",
+                text_content="Quality review complete",
+                severity="info"
+            )
+            return c_res
+
+        s_res, c_res = await asyncio.gather(recheck_safety(), recheck_critic())
+        s_score = s_res.get("safety_score", 0.0)
         emp = c_res.get("empathy_score", 0.0)
         fid = c_res.get("clinical_score", 0.0)
+
+        # Add human edited draft to history with provenance="human_edit"
+        from agents.state import add_draft_version
+        state_updated = add_draft_version(
+            state,
+            clean_draft,
+            created_by="Human",
+            provenance="human_edit",
+            safety_score=s_score,
+            empathy_score=emp,
+            clinical_score=fid
+        )
+        draft_version = state_updated["current_version"]
+
+        # Update state
+        v_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
+        val_passed = bool(s_score >= 0.8 and emp >= 3.5 and fid >= 3.5)
+        state_updated["safety_score"] = s_score
+        state_updated["empathy_score"] = emp
+        state_updated["clinical_score"] = fid
+        state_updated["current_draft"] = clean_draft
+        state_updated["validated_hash"] = v_hash
+        state_updated["validation_passed"] = val_passed
+        try:
+            await workflow.aupdate_state(config, state_updated, as_node="supervisor")
+        except Exception:
+            pass
+
+        # Persist validated metadata in DB session
+        db = get_db_session()
+        try:
+            db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+            if db_sess:
+                meta = dict(db_sess.meta_data or {})
+                meta["last_validated_hash"] = v_hash
+                meta["validation_passed"] = val_passed
+                meta["validated_scores"] = {"safety": s_score, "empathy": emp, "clinical": fid}
+                if val_passed:
+                    meta.pop("recheck_required", None)
+                    meta.pop("recheck_message", None)
+                db_sess.meta_data = meta
+                db_sess.current_draft = clean_draft
+                db.commit()
+        except Exception as e:
+            logger.warning(f"Failed to persist validation metadata in DB: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
         emit_event(
             session_id=session_id,
             run_id=run_id,
             run_kind="recheck",
             draft_version=draft_version,
-            agent="ClinicalCritic",
-            event_type="score",
-            text_content=f"Empathy: {emp:.1f}/5, Exercise quality: {fid:.1f}/5",
+            agent="Human",
+            event_type="draft",
+            text_content=f"Draft version {draft_version} updated with your edits",
             severity="info",
             data={
-                "metric": "clinical",
-                "empathy_score": emp,
-                "clinical_score": fid,
-                "dimensions": c_res.get("dimensions", {})
+                "draft": clean_draft,
+                "version": draft_version,
+                "provenance": "human_edit"
             }
+        )
+
+        emit_event(
+            session_id=session_id,
+            run_id=run_id,
+            run_kind="recheck",
+            draft_version=draft_version,
+            agent="System",
+            event_type="run_end",
+            text_content="Re-check completed. Ready for approval.",
+            severity="info",
+            data={
+                "status": "awaiting_approval",
+                "draft": clean_draft,
+                "version": draft_version,
+                "validated_hash": v_hash,
+                "passed": val_passed
+            }
+        )
+        run_end_emitted = True
+
+    try:
+        await asyncio.wait_for(_execute_recheck(), timeout=revision_timeout)
+    except asyncio.TimeoutError:
+        logger.warning(f"[RUNNER] Recheck run {run_id} timed out after {revision_timeout}s for session {session_id}")
+        timeout_msg = "That took too long. Your draft is unchanged — try again."
+        emit_event(
+            session_id=session_id,
+            run_id=run_id,
+            run_kind="recheck",
+            draft_version=draft_version,
+            agent="System",
+            event_type="error",
+            text_content=timeout_msg,
+            severity="warning",
+            data={"code": "timeout", "message": timeout_msg, "retryable": True}
         )
         emit_event(
             session_id=session_id,
             run_id=run_id,
             run_kind="recheck",
             draft_version=draft_version,
-            agent="ClinicalCritic",
-            event_type="node_end",
-            text_content="Quality review complete",
-            severity="info"
+            agent="System",
+            event_type="run_end",
+            text_content=timeout_msg,
+            severity="warning",
+            data={"status": "awaiting_approval", "timeout": True}
         )
-        return c_res
-
-    s_res, c_res = await asyncio.gather(recheck_safety(), recheck_critic())
-    s_score = s_res.get("safety_score", 0.0)
-    emp = c_res.get("empathy_score", 0.0)
-    fid = c_res.get("clinical_score", 0.0)
-
-    # Add human edited draft to history with provenance="human_edit"
-    from agents.state import add_draft_version
-    state = add_draft_version(
-        state,
-        clean_draft,
-        created_by="Human",
-        provenance="human_edit",
-        safety_score=s_score,
-        empathy_score=emp,
-        clinical_score=fid
-    )
-    draft_version = state["current_version"]
-
-    # Update state
-    v_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
-    val_passed = bool(s_score >= 0.8 and emp >= 3.5 and fid >= 3.5)
-    state["safety_score"] = s_score
-    state["empathy_score"] = emp
-    state["clinical_score"] = fid
-    state["current_draft"] = clean_draft
-    state["validated_hash"] = v_hash
-    state["validation_passed"] = val_passed
-    await workflow.aupdate_state(config, state, as_node="supervisor")
-
-    # Persist validated metadata in DB session
-    db = get_db_session()
-    try:
-        db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
-        if db_sess:
-            meta = dict(db_sess.meta_data or {})
-            meta["last_validated_hash"] = v_hash
-            meta["validation_passed"] = val_passed
-            meta["validated_scores"] = {"safety": s_score, "empathy": emp, "clinical": fid}
-            db_sess.meta_data = meta
-            db_sess.current_draft = clean_draft
-            db.commit()
+        run_end_emitted = True
     except Exception as e:
-        logger.warning(f"Failed to persist validation metadata in DB: {e}")
+        logger.error(f"[RUNNER] Exception during recheck for {session_id}: {e}", exc_info=True)
+        plain_msg = "An unexpected issue occurred during re-check. Please retry shortly."
+        emit_event(
+            session_id=session_id,
+            run_id=run_id,
+            run_kind="recheck",
+            draft_version=draft_version,
+            agent="System",
+            event_type="error",
+            text_content=plain_msg,
+            severity="critical",
+            data={"code": "recheck_error", "message": plain_msg, "retryable": True}
+        )
+        emit_event(
+            session_id=session_id,
+            run_id=run_id,
+            run_kind="recheck",
+            draft_version=draft_version,
+            agent="System",
+            event_type="run_end",
+            text_content="Recheck terminated due to error.",
+            severity="critical",
+            data={"status": "error"}
+        )
+        run_end_emitted = True
+    finally:
+        registry.release(session_id)
+        db = get_db_session()
+        try:
+            db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+            if db_sess and db_sess.status in ["generating", "revising"]:
+                db_sess.status = "awaiting_approval"
+                db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
+
+
+def reconcile_interrupted_sessions() -> int:
+    """
+    On backend startup, reconcile sessions left in 'generating' or 'revising' state
+    due to a previous process crash or restart (Item B5).
+    Marks them as awaiting_approval (if last good draft exists) or error,
+    keeps the last good draft untouched, and emits warning and run_end events:
+    'That was interrupted. Your draft is unchanged — try again.'
+    """
+    db = get_db_session()
+    count = 0
+    try:
+        hung_sessions = (
+            db.query(ProtocolSession)
+            .filter(ProtocolSession.status.in_(["generating", "revising", "drafting"]))
+            .all()
+        )
+        for s in hung_sessions:
+            count += 1
+            last_draft_evt = (
+                db.query(Event)
+                .filter(Event.session_id == s.session_id, Event.type == "draft")
+                .order_by(Event.seq.desc())
+                .first()
+            )
+            v = last_draft_evt.draft_version if last_draft_evt else 1
+
+            if s.current_draft:
+                s.status = "awaiting_approval"
+
+                # Check whether current draft version has completed BOTH safety and quality reviews
+                # Fail closed: must count only a COMPLETED, non-unverified score result (not merely a node_end,
+                # and not an "unverified"/unavailable evaluation).
+                safety_events = (
+                    db.query(Event)
+                    .filter(
+                        Event.session_id == s.session_id,
+                        Event.draft_version == v,
+                        Event.agent == "SafetyGuardian",
+                        Event.type == "score",
+                    )
+                    .all()
+                )
+                safety_done = False
+                for e in safety_events:
+                    edata = e.data or {}
+                    if (
+                        edata.get("unverified") is not True
+                        and edata.get("score_source") != "unavailable"
+                        and edata.get("score") is not None
+                    ):
+                        safety_done = True
+                        break
+
+                quality_events = (
+                    db.query(Event)
+                    .filter(
+                        Event.session_id == s.session_id,
+                        Event.draft_version == v,
+                        Event.agent == "ClinicalCritic",
+                        Event.type == "score",
+                    )
+                    .all()
+                )
+                quality_done = False
+                for e in quality_events:
+                    edata = e.data or {}
+                    if (
+                        edata.get("unverified") is not True
+                        and edata.get("score_source") != "unavailable"
+                        and edata.get("empathy_score") is not None
+                        and edata.get("clinical_score") is not None
+                    ):
+                        quality_done = True
+                        break
+
+                fully_checked = bool(safety_done and quality_done)
+                meta = dict(s.meta_data or {})
+
+                if fully_checked:
+                    meta.pop("recheck_required", None)
+                    meta.pop("recheck_message", None)
+                    s.meta_data = meta
+                    interrupted_msg = "That was interrupted. Your draft is unchanged — try again."
+                    severity = "warning"
+                    code = "interrupted"
+                    retryable = True
+                else:
+                    meta["recheck_required"] = True
+                    meta["recheck_message"] = "This draft wasn't fully checked. Run the checks again."
+                    s.meta_data = meta
+                    interrupted_msg = "This draft wasn't fully checked. Run the checks again."
+                    severity = "warning"
+                    code = "recheck_required"
+                    retryable = True
+            else:
+                s.status = "failed"
+                interrupted_msg = "That was interrupted before a draft could be created. Please start again."
+                severity = "error"
+                code = "interrupted_no_draft"
+                retryable = False
+
+            emit_event(
+                session_id=s.session_id,
+                run_id="interrupted_startup",
+                run_kind="reconciliation",
+                draft_version=v,
+                agent="System",
+                event_type="error",
+                text_content=interrupted_msg,
+                severity=severity,
+                data={"code": code, "message": interrupted_msg, "retryable": retryable}
+            )
+            emit_event(
+                session_id=s.session_id,
+                run_id="interrupted_startup",
+                run_kind="reconciliation",
+                draft_version=v,
+                agent="System",
+                event_type="run_end",
+                text_content=interrupted_msg,
+                severity=severity,
+                data={"status": s.status, "interrupted": True}
+            )
+        db.commit()
+    except Exception as e:
+        logger.error(f"[STARTUP] Reconcile interrupted sessions error: {e}", exc_info=True)
         db.rollback()
     finally:
         db.close()
+    return count
 
-    emit_event(
-        session_id=session_id,
-        run_id=run_id,
-        run_kind="recheck",
-        draft_version=draft_version,
-        agent="Human",
-        event_type="draft",
-        text_content=f"Draft version {draft_version} updated with your edits",
-        severity="info",
-        data={
-            "draft": clean_draft,
-            "version": draft_version,
-            "provenance": "human_edit"
-        }
-    )
-
-    emit_event(
-        session_id=session_id,
-        run_id=run_id,
-        run_kind="recheck",
-        draft_version=draft_version,
-        agent="System",
-        event_type="run_end",
-        text_content="Re-check completed. Ready for approval.",
-        severity="info",
-        data={
-            "status": "awaiting_approval",
-            "draft": clean_draft,
-            "version": draft_version,
-            "validated_hash": v_hash,
-            "passed": val_passed
-        }
-    )

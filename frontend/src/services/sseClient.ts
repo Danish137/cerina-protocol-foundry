@@ -8,6 +8,7 @@ export interface SSEClientOptions {
   lastEventId?: number
   onEvent: (event: ProtocolEvent) => void
   onToken?: (tokenText: string) => void
+  onActivity?: () => void
   onError?: (err: { code: string; message: string; retryable: boolean }) => void
   onRunEnd?: () => void
 }
@@ -48,6 +49,13 @@ export class ProtocolStreamClient {
       },
       onmessage: (msg) => {
         if (!msg.data) return
+
+        this.options.onActivity?.()
+
+        // Handle heartbeat ping
+        if (msg.event === 'ping') {
+          return
+        }
 
         // Handle token event
         if (msg.event === 'token') {

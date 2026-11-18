@@ -5,6 +5,7 @@ import API_BASE_URL from '../config'
 import { useToast } from './Toast'
 import { CapacityStatus, StoredSession } from '../types'
 import { getRecentSessions } from '../services/sessionStorage'
+import { formatStatusLabel } from '../constants/agents'
 
 interface ProtocolCreatorProps {
   onSessionStart: (session: {
@@ -74,7 +75,7 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
     setSelectedTemplate(label)
     setIntent(prompt)
     if (textareaRef.current) {
-      textareaRef.current.focus()
+      textareaRef.current.focus({ preventScroll: true })
     }
   }
 
@@ -155,50 +156,50 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
 
   return (
     <div
-      className="bg-white border border-[#E8E4DA] rounded-2xl p-5 sm:p-6 shadow-sm space-y-4"
+      className="bg-white border border-[#E8E4DA] rounded-2xl p-3.5 sm:p-5 idle-card-container shadow-sm space-y-2.5 sm:space-y-3"
     >
       {/* Card Header & Capacity Chip */}
-      <div className="flex items-center justify-between pb-3 border-b border-[#F0ECE3]">
+      <div className="flex items-center justify-between pb-2 border-b border-[#F0ECE3]">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-[#EBF3EE] text-[#244F3B]">
-            <Bookmark className="w-4 h-4" />
+          <div className="p-1 rounded-lg bg-[#EBF3EE] text-[#244F3B]">
+            <Bookmark className="w-3.5 h-3.5" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-[#1F2923]">What's on your mind?</h2>
-            <p className="text-xs text-[#5C6A62]">Describe the situation or thought pattern you want to work through</p>
+            <h2 className="text-xs sm:text-sm font-semibold text-[#1F2923]">What's on your mind?</h2>
+            <p className="text-[11px] sm:text-xs text-[#5C6A62]">Describe the situation or thought pattern you want to work through</p>
           </div>
         </div>
 
         {/* Capacity Chip: show only when <= 5 */}
         {capacity && capacity.remaining_runs_estimate <= 5 && (
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF8F5] border border-[#E8E4DA] text-xs font-medium text-[#55635C]">
-            <span className="w-2 h-2 rounded-full bg-[#B45309]"></span>
+          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#FAF8F5] border border-[#E8E4DA] text-[11px] font-medium text-[#55635C]">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#B45309]"></span>
             <span>Approx. {capacity.remaining_runs_estimate} live runs left today</span>
           </div>
         )}
       </div>
 
-      {/* Continue Recent Session Banner (B2) */}
+      {/* Continue Recent Session Banner - slim single-line row */}
       {recentSessions.length > 0 && onResumeSession && (
-        <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#E8E4DA] flex items-center justify-between gap-3 text-xs">
-          <div className="min-w-0">
-            <span className="text-[#5C6A62] font-medium">Continue: </span>
-            <span className="font-semibold text-[#1F2923] truncate inline-block max-w-[260px] sm:max-w-[340px] align-bottom">
+        <div className="py-1 px-2.5 rounded-lg bg-[#FAF8F5] border border-[#E8E4DA] flex items-center justify-between gap-2 text-xs">
+          <div className="min-w-0 flex items-center gap-1.5 truncate">
+            <span className="text-[#5C6A62] font-medium shrink-0">Continue:</span>
+            <span className="font-semibold text-[#1F2923] truncate inline-block max-w-[180px] sm:max-w-[280px]">
               {recentSessions[0].intent}
             </span>
-            <span className="text-[#5C6A62] ml-1.5 capitalize">· {recentSessions[0].status}</span>
+            <span className="text-[#5C6A62] shrink-0 text-[11px]">· {formatStatusLabel(recentSessions[0].status)}</span>
           </div>
           <button
             type="button"
             onClick={() => onResumeSession(recentSessions[0])}
-            className="shrink-0 px-3 py-1 rounded-md bg-[#244F3B] text-white text-xs font-medium hover:bg-[#1B3B2B] transition-colors shadow-2xs"
+            className="shrink-0 px-2.5 py-0.5 rounded bg-[#244F3B] text-white text-[11px] font-medium hover:bg-[#1B3B2B] transition-colors shadow-2xs cursor-pointer"
           >
             Open
           </button>
         </div>
       )}
 
-      <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4">
+      <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-2.5 sm:space-y-3">
         {/* Intent Textarea */}
         <div className="relative">
           <textarea
@@ -206,27 +207,32 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
             name="intent"
             ref={textareaRef}
             value={intent}
-            onChange={(e) => setIntent(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value
+              setIntent(val)
+              const matchingChip = STARTER_CHIPS.find((c) => c.prompt === val)
+              setSelectedTemplate(matchingChip ? matchingChip.label : null)
+            }}
             placeholder="e.g., I have an important presentation on Friday and I keep thinking I'm going to freeze and embarrass myself..."
-            className="w-full h-32 px-4 py-3 rounded-xl border border-[#E8E4DA] bg-[#FAF8F5] text-sm text-[#1F2923] placeholder-[#A0ACA5] focus:outline-none focus:ring-2 focus:ring-[#244F3B] focus:border-transparent resize-none leading-relaxed transition-all"
+            className="w-full h-24 sm:h-28 idle-textarea px-3.5 py-2.5 rounded-xl border border-[#E8E4DA] bg-[#FAF8F5] text-xs sm:text-sm text-[#1F2923] placeholder-[#A0ACA5] focus:outline-none focus:ring-2 focus:ring-[#244F3B] focus:border-transparent resize-none leading-relaxed transition-all"
             disabled={loading}
           />
         </div>
 
         {/* Starter Chips */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-[#5C6A62]">
-            <Sparkles className="w-3.5 h-3.5 text-[#244F3B]" />
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 text-[11px] sm:text-xs font-medium text-[#5C6A62]">
+            <Sparkles className="w-3 h-3 text-[#244F3B]" />
             <span>Try an example:</span>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {STARTER_CHIPS.map((chip) => (
               <button
                 key={chip.label}
                 type="button"
                 onClick={() => handleSelectTemplate(chip.prompt, chip.label)}
                 disabled={loading}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`px-2.5 py-1 idle-chip rounded-lg text-[11px] sm:text-xs font-medium transition-all ${
                   selectedTemplate === chip.label
                     ? 'bg-[#244F3B] text-white shadow-sm'
                     : 'bg-[#F4F1EA] text-[#55635C] hover:bg-[#EAE5DA]'
@@ -239,11 +245,8 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
         </div>
 
         {/* Review Depth Toggle (B4) & Submit Button */}
-        <div className="pt-3 border-t border-[#F0ECE3] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-          </div>
-
-          <div className="flex items-center gap-3">
+        <div className="pt-2 border-t border-[#F0ECE3] flex items-center justify-between gap-3">
+          <div>
             {onWatchRecordedRun && (
               <button
                 type="button"
@@ -253,33 +256,34 @@ export default function ProtocolCreator({ onSessionStart, onResumeSession, onWat
                 Watch a recorded run
               </button>
             )}
-            <button
-              type="submit"
-              disabled={loading || intent.trim().length < 10}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#244F3B] text-white font-medium text-sm hover:bg-[#1B3B2B] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Creating exercise...</span>
-                </>
-              ) : (
-                <>
-                  <span>Create Exercise</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
           </div>
+
+          <button
+            type="submit"
+            disabled={loading || intent.trim().length < 10}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#244F3B] text-white font-medium text-xs sm:text-sm hover:bg-[#1B3B2B] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Creating exercise...</span>
+              </>
+            ) : (
+              <>
+                <span>Create Exercise</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </>
+            )}
+          </button>
         </div>
 
         {/* Demo Disclaimer (Decision A) */}
-        <p className="text-[11px] text-[#5C6A62] text-center pt-1">
+        <p className="text-[10px] sm:text-[11px] text-[#5C6A62] text-center pt-0.5">
           This is a demo. Describe the situation in general terms; don't include names, contact details or personal health information.
         </p>
 
         {error && (
-          <div className="p-3 rounded-lg bg-[#FDF2F2] border border-[#F8D7DA] text-xs text-[#991B1B]">
+          <div className="p-2.5 rounded-lg bg-[#FDF2F2] border border-[#F8D7DA] text-xs text-[#991B1B]">
             {error}
           </div>
         )}

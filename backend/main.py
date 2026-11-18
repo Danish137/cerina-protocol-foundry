@@ -110,6 +110,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Startup retention purge error: {e}")
 
+    # Reconcile interrupted sessions on startup (B5)
+    try:
+        from runner import reconcile_interrupted_sessions
+        reconciled = reconcile_interrupted_sessions()
+        if reconciled > 0:
+            logger.info(f"Startup reconciliation cleared {reconciled} interrupted sessions.")
+    except Exception as e:
+        logger.warning(f"Startup reconciliation error: {e}")
+
     yield
 
     logger.info("Shutting down Cerina Protocol Foundry...")
@@ -136,6 +145,8 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
     ],
     allow_origin_regex=r"^https://.*\.vercel\.app$",
     allow_credentials=True,
@@ -418,7 +429,7 @@ async def stream_protocol(
 
                     except asyncio.TimeoutError:
                         # 15s heartbeat ping
-                        yield ": ping\n\n"
+                        yield ": ping\n\nevent: ping\ndata: {}\n\n"
                         # Check if runner is still alive
                         is_active = await registry.is_active(session_id)
                         if not is_active:
@@ -511,6 +522,21 @@ async def revise_protocol(
     run_id = f"run_{secrets.token_urlsafe(8)}"
 
     instruction = body.instruction or "Please refine the draft based on user feedback."
+    # Clear prior recheck flags on new revision
+    db = get_db_session()
+    try:
+        db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+        if db_sess:
+            db_sess.status = "revising"
+            meta = dict(db_sess.meta_data or {})
+            if "recheck_required" in meta or "recheck_message" in meta:
+                meta.pop("recheck_required", None)
+                meta.pop("recheck_message", None)
+                db_sess.meta_data = meta
+            db.commit()
+    finally:
+        db.close()
+
     try:
         await registry.acquire_or_raise(
             session_id,
@@ -556,8 +582,11 @@ async def revalidate_protocol(
     from agents.workflow import create_workflow
     workflow = create_workflow()
     config = {"configurable": {"thread_id": session_id}}
-    st = await workflow.aget_state(config)
-    vals = st.values if st else {}
+    try:
+        st = await workflow.aget_state(config)
+        vals = st.values if st else {}
+    except Exception:
+        vals = {}
     
     clean_draft = normalize_protocol_markdown(body.draft)
     v_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
@@ -566,10 +595,14 @@ async def revalidate_protocol(
     try:
         db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
         meta = dict(db_sess.meta_data or {}) if db_sess else {}
+        val_passed = bool(meta.get("validation_passed", True))
+        if val_passed and db_sess:
+            meta.pop("recheck_required", None)
+            meta.pop("recheck_message", None)
+            db_sess.meta_data = meta
+            db.commit()
     finally:
         db.close()
-
-    val_passed = bool(meta.get("validation_passed", True))
     val_scores = meta.get("validated_scores", {})
     safety_score = val_scores.get("safety", vals.get("safety_score", 0.9))
     empathy_score = val_scores.get("empathy", vals.get("empathy_score", 4.0))
@@ -595,29 +628,54 @@ async def approve_protocol(
     """User sign-off and exercise finalization with strict re-check enforcement (Q1)"""
     sess = verify_session_access(session_id, x_session_token)
 
-    from agents.workflow import create_workflow
-    workflow = create_workflow()
-    config = {"configurable": {"thread_id": session_id}}
-    st = await workflow.aget_state(config)
-    
-    if not st.values:
-        raise HTTPException(status_code=404, detail="Session not found")
-        
-    updated_state = st.values.copy()
-    current_draft_raw = updated_state.get("current_draft", "")
-    clean_draft = normalize_protocol_markdown(request.approved_content or current_draft_raw)
-    approved_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
-    current_draft_hash = hashlib.sha256(normalize_protocol_markdown(current_draft_raw).encode("utf-8")).hexdigest()[:16]
-    
-    is_edited = bool(request.edited or (request.approved_content is not None and approved_hash != current_draft_hash))
-
-    # Read validation records from DB session
+    # Read validation records from DB session first
     db = get_db_session()
     try:
         db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
         db_meta = dict(db_sess.meta_data or {}) if db_sess else {}
     finally:
         db.close()
+
+    # Server-side enforcement: If marked needs-recheck (e.g. interrupted before checks finished), block approval
+    if db_meta.get("recheck_required"):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "recheck_required",
+                "message": db_meta.get("recheck_message") or "This draft wasn't fully checked. Run the checks again."
+            }
+        )
+
+    from agents.workflow import create_workflow
+    workflow = create_workflow()
+    config = {"configurable": {"thread_id": session_id}}
+    try:
+        st = await workflow.aget_state(config)
+        st_values = (st.values or {}).copy() if st else {}
+    except Exception:
+        st_values = {}
+    
+    if not st_values:
+        if db_sess and db_sess.current_draft:
+            st_values = {
+                "current_draft": db_sess.current_draft,
+                "current_version": 1,
+                "safety_score": db_sess.safety_score,
+                "empathy_score": db_sess.empathy_score,
+                "clinical_score": db_sess.clinical_score,
+                "validated_hash": db_meta.get("last_validated_hash"),
+                "validation_passed": db_meta.get("validation_passed", False)
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+    updated_state = st_values.copy()
+    current_draft_raw = updated_state.get("current_draft", "")
+    clean_draft = normalize_protocol_markdown(request.approved_content or current_draft_raw)
+    approved_hash = hashlib.sha256(clean_draft.encode("utf-8")).hexdigest()[:16]
+    current_draft_hash = hashlib.sha256(normalize_protocol_markdown(current_draft_raw).encode("utf-8")).hexdigest()[:16]
+    
+    is_edited = bool(request.edited or (request.approved_content is not None and approved_hash != current_draft_hash))
 
     last_val_hash = db_meta.get("last_validated_hash") or updated_state.get("validated_hash")
     val_passed = bool(db_meta.get("validation_passed") if "validation_passed" in db_meta else updated_state.get("validation_passed", False))
@@ -658,7 +716,10 @@ async def approve_protocol(
     updated_state["halted"] = False
     updated_state["status"] = "approved"
     updated_state["approval_audit"] = audit
-    await workflow.aupdate_state(config, updated_state, as_node="supervisor")
+    try:
+        await workflow.aupdate_state(config, updated_state, as_node="supervisor")
+    except Exception:
+        pass
 
     # Update database session
     db = get_db_session()
@@ -720,28 +781,36 @@ async def get_protocol_state(
     config = {"configurable": {"thread_id": session_id}}
     st = await workflow.aget_state(config)
     
-    if not st or not st.values:
-        db = get_db_session()
-        try:
-            sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
-            if sess and sess.current_draft:
+    db = get_db_session()
+    try:
+        sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+        db_meta = dict(sess.meta_data or {}) if sess else {}
+        if not st or not st.values:
+            if sess:
                 return {
                     "session_id": session_id,
                     "state": {
                         "session_id": session_id,
                         "user_intent": sess.user_intent,
                         "status": sess.status,
-                        "current_draft": sess.current_draft,
-                        "current_version": 1
+                        "current_draft": sess.current_draft or "",
+                        "current_version": 1 if sess.current_draft else 0,
+                        "recheck_required": bool(db_meta.get("recheck_required", False)),
+                        "recheck_message": db_meta.get("recheck_message")
                     }
                 }
-        finally:
-            db.close()
-        raise HTTPException(status_code=404, detail="Session state not found")
+            raise HTTPException(status_code=404, detail="Session state not found")
+    finally:
+        db.close()
         
+    resp_state = serialize_state_for_json(st.values)
+    if db_meta.get("recheck_required"):
+        resp_state["recheck_required"] = True
+        resp_state["recheck_message"] = db_meta.get("recheck_message")
+
     return {
         "session_id": session_id,
-        "state": serialize_state_for_json(st.values)
+        "state": resp_state
     }
 
 @app.get("/api/protocols")

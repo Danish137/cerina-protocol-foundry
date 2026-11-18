@@ -61,18 +61,23 @@ export function getAgentShortName(agentKey?: string): string {
 
 export const STATUS_LABELS: Record<string, string> = {
   idle: 'Ready',
-  generating: 'Creating exercise',
-  review: 'Ready for your review',
-  awaiting_approval: 'Ready for your review',
+  generating: 'In progress',
+  revising: 'In progress',
+  drafting: 'In progress',
+  reviewing: 'In progress',
+  review: 'Waiting for your review',
+  awaiting_approval: 'Waiting for your review',
   editing: "You're editing",
   approving: 'Finalizing approval',
-  approved: 'Approved & Saved',
-  care_panel: 'Support resources active',
+  approved: 'Approved',
+  care_panel: 'Support resources',
   quota_exhausted: 'Daily quota reached',
-  error: 'Review needed'
+  error: 'Something went wrong',
+  failed: 'Something went wrong'
 }
 
 export function formatStatusLabel(statusKey?: string): string {
-  if (!statusKey) return 'Ready'
-  return STATUS_LABELS[statusKey] || statusKey.replace(/_/g, ' ')
+  if (!statusKey) return 'Waiting for your review'
+  const key = statusKey.toLowerCase().trim()
+  return STATUS_LABELS[key] || 'Waiting for your review'
 }

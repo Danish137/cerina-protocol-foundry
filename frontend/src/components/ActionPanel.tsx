@@ -40,6 +40,7 @@ interface ActionPanelProps {
   onRequestRevision?: (instruction?: string, concernIds?: string[]) => void
   onOpenDiffPopover?: () => void
   onOpenReviewDetails?: () => void
+  isStalled?: boolean
 }
 
 export default function ActionPanel({
@@ -52,6 +53,7 @@ export default function ActionPanel({
   lastValidatedTime,
   majorConcerns = [],
   isRevisionRequested = false,
+  isStalled = false,
   onApprove,
   onStartEditing,
   onSaveEditsAndApprove,
@@ -292,15 +294,23 @@ export default function ActionPanel({
       {phase === 'generating' && (
         <div className="space-y-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[#EBF3EE] text-[#244F3B] flex items-center justify-center shrink-0 border border-[#CDE0D4]">
-              <Loader2 className="w-4 h-4 animate-spin text-[#244F3B]" />
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border ${
+              isStalled
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-[#EBF3EE] text-[#244F3B] border-[#CDE0D4]'
+            }`}>
+              {isStalled ? (
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+              ) : (
+                <Loader2 className="w-4 h-4 animate-spin text-[#244F3B]" />
+              )}
             </div>
             <div>
               <h3 className="text-xs sm:text-sm font-semibold text-[#18221E]">
-                AI Review Team Active
+                {isStalled ? 'Taking longer than usual' : 'AI Review Team Active'}
               </h3>
               <p className="text-[11px] text-[#55635C]">
-                Drafting exercise & checking safety…
+                {isStalled ? 'Your previous draft is safe' : 'Drafting exercise & checking safety…'}
               </p>
             </div>
           </div>
@@ -361,14 +371,14 @@ export default function ActionPanel({
               <div className="flex items-center justify-between gap-2 text-[#78350F]">
                 <div className="flex items-center gap-1.5 text-[11px]">
                   <AlertTriangle className="w-3.5 h-3.5 text-[#B45309] shrink-0" />
-                  <span>You've edited since the last safety check.</span>
+                  <span>{hasEdits ? "You've edited since the last safety check." : "This draft wasn't fully checked. Run the checks again."}</span>
                 </div>
                 <button
                   type="button"
                   onClick={onRevalidateOnly}
                   className="text-[11px] font-semibold text-[#244F3B] hover:underline shrink-0"
                 >
-                  Re-check only
+                  Re-check
                 </button>
               </div>
             ) : validationStatus === 'failed' ? (
@@ -507,6 +517,22 @@ export default function ActionPanel({
 
       {phase === 'review' && !isRevisionRequested && (
         <div className="space-y-2">
+          {validationStatus === 'stale' && !hasEdits && (
+            <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#FEF3C7] border border-[#F59E0B] text-[#92400E]">
+              <div className="flex items-center gap-1.5 text-[11px]">
+                <AlertTriangle className="w-3.5 h-3.5 text-[#B45309] shrink-0" />
+                <span>This draft wasn't fully checked. Run the checks again.</span>
+              </div>
+              <button
+                type="button"
+                onClick={onRevalidateOnly}
+                className="px-2.5 py-1 rounded-md bg-[#244F3B] hover:bg-[#1B3D2E] text-white text-[10px] font-semibold transition-colors cursor-pointer shrink-0"
+              >
+                Re-check
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center justify-between gap-1.5">
             <div className="min-w-0">
               <h3 className="text-xs sm:text-sm font-bold text-[#18221E]">
