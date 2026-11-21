@@ -148,7 +148,9 @@ export default function Header({
                 side="bottom"
                 align="end"
                 sideOffset={8}
-                className="z-50 w-96 sm:w-[480px] max-h-[85vh] overflow-y-auto rounded-2xl border border-[#E8E4DA] bg-white p-5 shadow-2xl text-xs space-y-4 animate-in fade-in-50 zoom-in-95"
+                tabIndex={0}
+                aria-label="Connect your AI app"
+                className="z-50 w-96 sm:w-[480px] max-h-[85vh] overflow-y-auto rounded-2xl border border-[#E8E4DA] bg-white p-5 shadow-2xl text-xs space-y-4 animate-in fade-in-50 zoom-in-95 focus:outline-none"
               >
                 {/* Header */}
                 <div className="flex items-start justify-between pb-3 border-b border-[#F0ECE3]">
@@ -191,7 +193,11 @@ export default function Header({
                       )}
                     </button>
                   </div>
-                  <pre className="p-2.5 bg-[#FAF8F5] rounded-lg border border-[#E8E4DA] font-mono text-[10.5px] text-[#244F3B] overflow-x-auto select-all">
+                  <pre
+                    tabIndex={0}
+                    aria-label="Cloud MCP Endpoint URL"
+                    className="p-2.5 bg-[#FAF8F5] rounded-lg border border-[#E8E4DA] font-mono text-[10.5px] text-[#244F3B] overflow-x-auto select-all focus:outline-none focus:ring-1 focus:ring-[#244F3B]"
+                  >
                     {HOSTED_MCP_URL}
                   </pre>
                 </div>
@@ -242,7 +248,7 @@ export default function Header({
                     <div className="flex items-center justify-between mb-1 text-[10.5px] text-[#55635C]">
                       <span>
                         {selectedSnippetTab === 'json' && 'Cursor, Claude Desktop (remote), or VS Code:'}
-                        {selectedSnippetTab === 'url' && 'Claude Web, ChatGPT, or apps accepting an MCP URL:'}
+                        {selectedSnippetTab === 'url' && 'Claude Web, Copilot, or apps accepting an MCP URL:'}
                         {selectedSnippetTab === 'bridge' && 'Local fallback bridge using npx mcp-remote:'}
                       </span>
                       <button
@@ -272,7 +278,11 @@ export default function Header({
                       </button>
                     </div>
 
-                    <pre className="p-2.5 bg-[#FAF8F5] rounded-lg border border-[#E8E4DA] font-mono text-[10px] text-[#18221E] overflow-x-auto leading-relaxed select-all">
+                    <pre
+                      tabIndex={0}
+                      aria-label="Configuration setup snippet"
+                      className="p-2.5 bg-[#FAF8F5] rounded-lg border border-[#E8E4DA] font-mono text-[10px] text-[#18221E] overflow-x-auto leading-relaxed select-all focus:outline-none focus:ring-1 focus:ring-[#244F3B]"
+                    >
                       {selectedSnippetTab === 'json' && SNIPPET_JSON_CONFIG}
                       {selectedSnippetTab === 'url' && HOSTED_MCP_URL}
                       {selectedSnippetTab === 'bridge' && SNIPPET_BRIDGE_CONFIG}

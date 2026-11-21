@@ -42,6 +42,16 @@ logger.addFilter(token_redaction_filter)
 for h in logger.handlers:
     h.addFilter(token_redaction_filter)
 logging.getLogger().addFilter(token_redaction_filter)
+for h in logging.getLogger().handlers:
+    h.addFilter(token_redaction_filter)
+
+server_log_file = os.getenv("SERVER_LOG_FILE")
+if server_log_file:
+    fh = logging.FileHandler(server_log_file, encoding="utf-8")
+    fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    fh.addFilter(token_redaction_filter)
+    logger.addHandler(fh)
+    logging.getLogger().addHandler(fh)
 
 from database import get_db_session, init_db, ProtocolSession, Event, LLMUsage
 from models import (

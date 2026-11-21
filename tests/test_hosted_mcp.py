@@ -255,3 +255,153 @@ async def test_approve_recheck_required_enforcement():
         assert sess.status == "approved"
     finally:
         db.close()
+
+# 9. Approve during revision refused and run state unchanged
+@pytest.mark.asyncio
+async def test_approve_during_revision_refused():
+    sid = generate_session_id()
+    token = generate_session_token()
+    create_test_session(sid, token, status="revising", draft="Draft undergoing revision")
+
+    # Attempt approve while revising
+    res = await approve_exercise(sid, token)
+    assert res["status"] == "rejected"
+    assert "Your exercise is still being updated. Check progress with get_status, then approve." in res["message"]
+
+    # Verify run state in database is completely unchanged
+    db = get_db_session()
+    try:
+        sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid).first()
+        assert sess.status == "revising"
+        assert sess.current_draft == "Draft undergoing revision"
+    finally:
+        db.close()
+
+    # Transition to awaiting_review -> approval succeeds
+    db = get_db_session()
+    try:
+        sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid).first()
+        sess.status = "awaiting_review"
+        db.commit()
+    finally:
+        db.close()
+
+    res_ok = await approve_exercise(sid, token)
+    assert res_ok["status"] == "Approved"
+    assert res_ok["message"] == "Exercise approved successfully."
+
+# 10. Web flow regression test (create -> state -> revise)
+@pytest.mark.asyncio
+async def test_web_flow_regression_create_state_revise():
+    from starlette.testclient import TestClient
+    from main import app
+
+    with patch("runner.run_protocol_workflow", new_callable=AsyncMock):
+        with TestClient(app, base_url="http://localhost") as client:
+            # 1. Create endpoint
+            create_res = client.post("/api/protocols/create", json={
+                "intent": "Practice 5-4-3-2-1 grounding exercise for stress",
+                "review_depth": "standard"
+            })
+            assert create_res.status_code == 200
+            create_data = create_res.json()
+            assert "session_id" in create_data
+            assert "session_token" in create_data
+            assert "status" in create_data
+            assert "message" in create_data
+            assert "run_id" in create_data
+            assert create_data["status"] == "generating"
+
+            sid = create_data["session_id"]
+            token = create_data["session_token"]
+
+            # Release runner to simulate completion
+            registry.release(sid)
+
+            # 2. State endpoint
+            state_res = client.get(f"/api/protocols/{sid}/state", headers={"X-Session-Token": token})
+            assert state_res.status_code == 200
+            state_data = state_res.json()
+            assert "session_id" in state_data
+            assert "state" in state_data
+
+            # 3. Revise endpoint
+            revise_res = client.post(
+                f"/api/protocols/{sid}/revise",
+                headers={"X-Session-Token": token},
+                json={"instruction": "Please make step 3 more detailed."}
+            )
+            assert revise_res.status_code == 200
+            revise_data = revise_res.json()
+            assert "session_id" in revise_data
+            assert "run_id" in revise_data
+            assert "status" in revise_data
+            assert "message" in revise_data
+            assert revise_data["status"] == "revising"
+
+            registry.release(sid)
+
+# 11. Per-IP burst rate limit on /mcp
+@pytest.mark.asyncio
+async def test_per_ip_mcp_burst_rate_limiting(monkeypatch):
+    from starlette.testclient import TestClient
+    from main import app
+    from hosted_mcp import _mcp_req_timestamps
+    _mcp_req_timestamps.clear()
+
+    monkeypatch.setenv("MCP_REQUESTS_PER_MINUTE", "2")
+    with TestClient(app, base_url="http://localhost") as client:
+        # 1st request -> OK
+        r1 = client.post(
+            "/mcp",
+            json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}},
+            headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+        )
+        assert r1.status_code == 200
+
+        # 2nd request -> OK
+        r2 = client.post(
+            "/mcp",
+            json={"jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}},
+            headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+        )
+        assert r2.status_code == 200
+
+        # 3rd request -> 429 Too Many Requests
+        r3 = client.post(
+            "/mcp",
+            json={"jsonrpc": "2.0", "id": 3, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}},
+            headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+        )
+        assert r3.status_code == 429
+        assert r3.json()["code"] == "rate_limit_exceeded"
+
+# 12. Wording sanitization: 0 forbidden terms in tool outputs
+@pytest.mark.asyncio
+async def test_wording_sanitization_zero_forbidden_terms():
+    import re
+    from hosted_mcp import sanitize_mcp_text
+    FORBIDDEN_REGEX = re.compile(
+        r'(Groq|Gemini|Google|OpenRouter|gpt|qwen|llama|fallback|degraded|Drafter|Guardian|Critic|clinic|protocol|treatment)',
+        re.IGNORECASE
+    )
+
+    sid = generate_session_id()
+    token = generate_session_token()
+    raw_draft = (
+        "This protocol provides an anxiety exercise. Important: not a substitute for clinical medical treatment. "
+        "Drafter notes: adhere to standard CBT treatment protocol."
+    )
+    create_test_session(sid, token, draft=raw_draft)
+
+    # get_exercise output sanitization
+    ex_res = await get_exercise(sid, token)
+    matches_draft = FORBIDDEN_REGEX.findall(ex_res["draft"])
+    matches_text = FORBIDDEN_REGEX.findall(ex_res["text"])
+    assert len(matches_draft) == 0, f"Found forbidden terms in draft: {matches_draft}"
+    assert len(matches_text) == 0, f"Found forbidden terms in formatted text: {matches_text}"
+
+    # approve_exercise output sanitization
+    app_res = await approve_exercise(sid, token)
+    matches_app = FORBIDDEN_REGEX.findall(app_res["approved_draft"])
+    assert len(matches_app) == 0, f"Found forbidden terms in approved draft: {matches_app}"

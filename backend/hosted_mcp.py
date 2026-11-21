@@ -40,7 +40,7 @@ class TokenRedactionFilter(logging.Filter):
         self._tokens: set[str] = set()
 
     def register_token(self, token: str):
-        if token and len(token) >= 8:
+        if token and len(token) >= 6:
             self._tokens.add(token)
 
     def filter(self, record: logging.LogRecord) -> bool:
@@ -80,6 +80,20 @@ token_redaction_filter = TokenRedactionFilter()
 # Per-IP tracking
 _mcp_daily_runs: Dict[str, Dict[str, Any]] = {}
 _mcp_active_runs: Dict[str, str] = {}
+_mcp_req_timestamps: Dict[str, list[float]] = {}
+
+def check_mcp_request_rate_limit(ip: str) -> bool:
+    """Sliding-window request rate limiter per IP for /mcp endpoint."""
+    limit = int(os.getenv("MCP_REQUESTS_PER_MINUTE", "60"))
+    now = time.time()
+    window = now - 60.0
+    ts_list = [t for t in _mcp_req_timestamps.get(ip, []) if t > window]
+    if len(ts_list) >= limit:
+        _mcp_req_timestamps[ip] = ts_list
+        return False
+    ts_list.append(now)
+    _mcp_req_timestamps[ip] = ts_list
+    return True
 
 def get_client_ip(ctx: Optional[Context] = None) -> str:
     """Extracts client IP from request headers (X-Forwarded-For or client.host)."""
@@ -99,14 +113,6 @@ def check_ip_rate_limits(client_ip: str) -> Optional[Dict[str, Any]]:
     if not record or record.get("date") != today:
         _mcp_daily_runs[client_ip] = {"date": today, "count": 0}
 
-    daily_limit = int(os.getenv("MCP_DAILY_RUNS_PER_IP", "5"))
-    if _mcp_daily_runs[client_ip]["count"] >= daily_limit:
-        return {
-            "status": "rejected",
-            "message": f"Daily limit of {daily_limit} exercise generations reached for this connection. Please try again tomorrow.",
-            "error": "Daily generation limit reached",
-        }
-
     active_sid = _mcp_active_runs.get(client_ip)
     if active_sid:
         task = registry.get_task(active_sid)
@@ -118,6 +124,14 @@ def check_ip_rate_limits(client_ip: str) -> Optional[Dict[str, Any]]:
             }
         else:
             _mcp_active_runs.pop(client_ip, None)
+
+    daily_limit = int(os.getenv("MCP_DAILY_RUNS_PER_IP", "5"))
+    if _mcp_daily_runs[client_ip]["count"] >= daily_limit:
+        return {
+            "status": "rejected",
+            "message": f"Daily limit of {daily_limit} exercise generations reached for this connection. Please try again tomorrow.",
+            "error": "Daily generation limit reached",
+        }
 
     return None
 
@@ -136,6 +150,10 @@ def verify_run_access(run_id: str, run_token: str) -> Tuple[Optional[ProtocolSes
     Validates token ownership against session record.
     Returns identical 'Run not found' error for missing session, invalid token, or hash mismatch.
     """
+    if run_token:
+        token_redaction_filter.register_token(run_token)
+    logger.info(f"Access verification for session run_id={run_id}, token={run_token}")
+
     if not run_id or not run_token:
         return None, {"status": "error", "message": NOT_FOUND_MESSAGE, "error": NOT_FOUND_MESSAGE}
 
@@ -154,11 +172,24 @@ def verify_run_access(run_id: str, run_token: str) -> Tuple[Optional[ProtocolSes
     finally:
         db.close()
 
+def sanitize_mcp_text(text: Optional[str]) -> Optional[str]:
+    """Sanitizes text returned over MCP to ensure plain language without clinical/treatment jargon."""
+    if not text:
+        return text
+    text = re.sub(r'\bmedical treatment\b', 'medical care', text, flags=re.IGNORECASE)
+    text = re.sub(r'\btreatments?\b', 'care', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bprotocols?\b', 'exercise', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bclinical\b', 'support', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(Safety\s+)?Guardians?\b', 'Safety check', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(Clinical\s+)?Critics?\b', 'Quality review', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bDrafters?\b', 'Writing system', text, flags=re.IGNORECASE)
+    return text
+
 def map_plain_status(status: str, node: Optional[str] = None) -> str:
     """Maps internal state and node names to plain-language user status stages."""
     if status == "approved":
         return "Approved"
-    if status == "awaiting_review":
+    if status in ("awaiting_review", "awaiting_approval"):
         return "Ready for your review"
     if status == "care_panel":
         return "Care resources displayed"
@@ -200,10 +231,12 @@ security_settings = TransportSecuritySettings(
 )
 
 hosted_mcp = FastMCP(
-    name="Cerina API",
+    name="Cerina",
     stateless_http=True,
     transport_security=security_settings,
 )
+hosted_mcp._mcp_server.name = "Cerina"
+hosted_mcp._mcp_server.version = "1.0.0"
 
 # --- 5 Hosted Tools ---
 
@@ -211,7 +244,7 @@ hosted_mcp = FastMCP(
 async def create_exercise(situation: str, style: str = "standard", ctx: Context = None) -> Dict[str, Any]:
     """Create a self-help exercise based on cognitive behavioral therapy (CBT) principles for your situation. Not therapy or medical advice.
 
-This tool uses a multi-agent system to design, evaluate against clinical safety checks, and refine exercises.
+This tool uses an automated system to design, evaluate against safety checks, and refine exercises.
 Parameters:
 - situation: Description of what you are experiencing or working through.
 - style: Review depth ("standard" or "deep").
@@ -291,27 +324,19 @@ Returns {run_id, run_token, status, message}.
     )
     record_ip_run_start(client_ip, session_id)
 
-    # 5. Wait up to ~25s for early progress
-    start_time = time.monotonic()
-    current_status = "generating"
-    while time.monotonic() - start_time < 25.0:
-        db = get_db_session()
-        try:
-            s = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
-            if s:
-                current_status = s.status
-        finally:
-            db.close()
-
-        is_active = await registry.is_active(session_id)
-        if not is_active or current_status in ("awaiting_review", "approved", "failed"):
-            break
-        await asyncio.sleep(0.5)
+    # 5. Brief wait (~1.0s) for background workflow start
+    await asyncio.sleep(1.0)
+    db = get_db_session()
+    try:
+        s = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+        current_status = s.status if s else "generating"
+    finally:
+        db.close()
 
     plain_stage = map_plain_status(current_status)
     stage_msg = (
         "Your exercise is ready for review."
-        if current_status == "awaiting_review"
+        if current_status in ("awaiting_review", "awaiting_approval")
         else "Exercise generation is in progress. Use get_status to follow along."
     )
 
@@ -343,7 +368,7 @@ Returns plain status stages ("Writing your exercise", "Safety check", "Quality r
         db = get_db_session()
         try:
             s = db.query(ProtocolSession).filter(ProtocolSession.session_id == run_id).first()
-            if s and s.status in ("awaiting_review", "approved", "failed"):
+            if s and s.status in ("awaiting_review", "awaiting_approval", "approved", "failed"):
                 break
         finally:
             db.close()
@@ -377,7 +402,7 @@ Returns plain status stages ("Writing your exercise", "Safety check", "Quality r
         plain_stage = "Needs recheck"
 
     messages = {
-        "Writing your exercise": "Drafter is writing your exercise based on clinical CBT principles.",
+        "Writing your exercise": "Writing your exercise based on self-help principles.",
         "Safety check": "Evaluating exercise against safety boundaries and risk criteria.",
         "Quality review": "Reviewing clarity, tone, and practical self-help guidance.",
         "Ready for your review": "Your exercise draft is complete and ready for your review.",
@@ -391,7 +416,7 @@ Returns plain status stages ("Writing your exercise", "Safety check", "Quality r
         "status": plain_stage,
         "message": messages.get(plain_stage, "Processing exercise."),
         "iteration": iteration,
-        "awaiting_review": (status == "awaiting_review"),
+        "awaiting_review": (status in ("awaiting_review", "awaiting_approval")),
     }
 
 @hosted_mcp.tool()
@@ -427,18 +452,19 @@ async def get_exercise(run_id: str, run_token: str, ctx: Context = None) -> Dict
         "quality_score": round(clinical_score, 1) if clinical_score is not None else None,
     }
 
-    formatted_md = f"# Exercise Draft\n\n{current_draft}\n\n---\n### Safety and Quality Summary\n"
+    sanitized_draft = sanitize_mcp_text(current_draft)
+    formatted_md = f"# Exercise Draft\n\n{sanitized_draft}\n\n---\n### Safety and Quality Summary\n"
     if summary["safety_score"] is not None:
         formatted_md += f"- Safety Check: {summary['safety_score']}%\n"
     if summary["empathy_score"] is not None:
         formatted_md += f"- Empathy & Clarity: {summary['empathy_score']}/5.0\n"
     if summary["quality_score"] is not None:
-        formatted_md += f"- Clinical Guidance Quality: {summary['quality_score']}/5.0\n"
+        formatted_md += f"- Guidance Quality: {summary['quality_score']}/5.0\n"
 
     return {
         "run_id": run_id,
         "status": map_plain_status(status),
-        "draft": current_draft,
+        "draft": sanitized_draft,
         "summary": summary,
         "text": formatted_md,
     }
@@ -520,22 +546,14 @@ Parameters:
         human_instruction=req_clean,
     )
 
-    # Wait up to ~20s for progress
-    start_time = time.monotonic()
-    current_status = "revising"
-    while time.monotonic() - start_time < 20.0:
-        db = get_db_session()
-        try:
-            s = db.query(ProtocolSession).filter(ProtocolSession.session_id == run_id).first()
-            if s:
-                current_status = s.status
-        finally:
-            db.close()
-
-        is_active = await registry.is_active(run_id)
-        if not is_active or current_status in ("awaiting_review", "approved", "failed"):
-            break
-        await asyncio.sleep(0.5)
+    # Brief wait (~1.0s) for background revision start
+    await asyncio.sleep(1.0)
+    db = get_db_session()
+    try:
+        s = db.query(ProtocolSession).filter(ProtocolSession.session_id == run_id).first()
+        current_status = s.status if s else "revising"
+    finally:
+        db.close()
 
     plain_stage = map_plain_status(current_status)
     return {
@@ -552,16 +570,27 @@ async def approve_exercise(run_id: str, run_token: str, ctx: Context = None) -> 
     if err:
         return err
 
+    # Check if a run is currently active or in-progress
+    is_active = await registry.is_active(run_id)
+
     db = get_db_session()
     try:
         s = db.query(ProtocolSession).filter(ProtocolSession.session_id == run_id).first()
         meta = dict(s.meta_data or {}) if s else {}
-        current_draft = s.current_draft if s else ""
+        current_draft = (s.current_draft or "") if s else ""
         current_status = s.status if s else sess.status
     finally:
         db.close()
 
-    # Enforce 409 recheck_required rule
+    # Refuse while a run is generating, revising, or revalidating, or active in runner
+    if is_active or current_status in ("generating", "revising", "revalidating"):
+        return {
+            "status": "rejected",
+            "message": "Your exercise is still being updated. Check progress with get_status, then approve.",
+            "error": "Your exercise is still being updated. Check progress with get_status, then approve.",
+        }
+
+    # Enforce recheck_required rule
     if meta.get("recheck_required"):
         return {
             "status": "rejected",
@@ -578,7 +607,15 @@ async def approve_exercise(run_id: str, run_token: str, ctx: Context = None) -> 
             "approved_draft": current_draft,
         }
 
-    clean_draft = normalize_protocol_markdown(current_draft or "")
+    # Check that draft exists and is not empty
+    if not current_draft or not current_draft.strip():
+        return {
+            "status": "rejected",
+            "message": "No exercise draft is available to approve yet. Check progress with get_status.",
+            "error": "No draft available",
+        }
+
+    clean_draft = sanitize_mcp_text(normalize_protocol_markdown(current_draft))
 
     db = get_db_session()
     try:
@@ -611,12 +648,33 @@ async def approve_exercise(run_id: str, run_token: str, ctx: Context = None) -> 
 
 # --- ASGI Integration Helpers ---
 
+class RateLimitedASGI:
+    """Wraps FastMCP ASGI app to enforce per-IP burst request rate limiting."""
+    def __init__(self, fmcp):
+        self.fmcp = fmcp
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            headers = dict(scope.get("headers", []))
+            fwd = headers.get(b"x-forwarded-for", b"").decode("latin1")
+            client_ip = fwd.split(",")[0].strip() if fwd else (scope.get("client") or ("127.0.0.1", 0))[0]
+            if not check_mcp_request_rate_limit(client_ip):
+                from starlette.responses import JSONResponse
+                res = JSONResponse(
+                    status_code=429,
+                    content={"code": "rate_limit_exceeded", "message": "Too many requests. Please wait a moment and try again."}
+                )
+                await res(scope, receive, send)
+                return
+        await self.fmcp.session_manager.handle_request(scope, receive, send)
+
 def get_mcp_asgi_handler():
-    """Initializes and returns the StreamableHTTPASGIApp handler."""
-    app = hosted_mcp.streamable_http_app()
-    return app.routes[0].endpoint
+    """Initializes and returns the RateLimitedASGI handler."""
+    hosted_mcp.streamable_http_app()
+    return RateLimitedASGI(hosted_mcp)
 
 def get_mcp_session_manager():
     """Returns the StreamableHTTPSessionManager for app lifespan."""
+    hosted_mcp._session_manager = None
     hosted_mcp.streamable_http_app()
     return hosted_mcp.session_manager
