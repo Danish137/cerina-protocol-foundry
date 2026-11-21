@@ -37,6 +37,12 @@ if not logger.handlers:
     handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logger.addHandler(handler)
 
+from hosted_mcp import get_mcp_session_manager, get_mcp_asgi_handler, token_redaction_filter
+logger.addFilter(token_redaction_filter)
+for h in logger.handlers:
+    h.addFilter(token_redaction_filter)
+logging.getLogger().addFilter(token_redaction_filter)
+
 from database import get_db_session, init_db, ProtocolSession, Event, LLMUsage
 from models import (
     ProtocolRequest,
@@ -81,6 +87,8 @@ async def lifespan(app: FastAPI):
         "CORS_ORIGINS",
         "SESSION_TTL_DAYS",
         "DAILY_LLM_CALL_BUDGET",
+        "MCP_DAILY_RUNS_PER_IP",
+        "MCP_MAX_REVISIONS_PER_RUN",
     ]
     logger.info("================ CONFIGURATION FLAGS ================")
     logger.info(f"{'FLAG':<26} | {'STATUS':<10}")
@@ -119,7 +127,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Startup reconciliation error: {e}")
 
-    yield
+    mcp_mgr = get_mcp_session_manager()
+    async with mcp_mgr.run():
+        yield
 
     logger.info("Shutting down Cerina Protocol Foundry...")
     try:
@@ -129,12 +139,18 @@ async def lifespan(app: FastAPI):
         pass
 
 app = FastAPI(
-    title="Cerina Protocol Foundry API",
+    title="Cerina API",
     version="3.0.0",
     lifespan=lifespan
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Mount hosted StreamableHTTP MCP endpoints
+from starlette.routing import Route
+mcp_asgi = get_mcp_asgi_handler()
+app.router.routes.append(Route("/mcp", endpoint=mcp_asgi))
+app.router.routes.append(Route("/mcp/", endpoint=mcp_asgi))
 
 # CORS configuration
 app.add_middleware(
