@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import * as Popover from '@radix-ui/react-popover'
-import { ExternalLink, Copy, Check, PlusCircle, HelpCircle, Code2, X, User, Terminal } from 'lucide-react'
+import { Copy, Check, PlusCircle, HelpCircle, Code2, X, User, Terminal } from 'lucide-react'
 import CompactStepper from './CompactStepper'
 import { Phase, StoredSession } from '../types'
 import { getRecentSessions } from '../services/sessionStorage'
@@ -16,16 +16,25 @@ interface HeaderProps {
   onFocusStep?: (stepNumber: number) => void
 }
 
-const MCP_CONFIG_SNIPPET = `{
+const HOSTED_MCP_URL = 'https://cerina-protocol-foundry-production.up.railway.app/mcp'
+
+const SNIPPET_JSON_CONFIG = `{
   "mcpServers": {
-    "cerina-foundry": {
-      "command": "python",
+    "cerina": {
+      "url": "https://cerina-protocol-foundry-production.up.railway.app/mcp"
+    }
+  }
+}`
+
+const SNIPPET_BRIDGE_CONFIG = `{
+  "mcpServers": {
+    "cerina": {
+      "command": "npx",
       "args": [
-        "/path/to/Cerina-Protocol-Foundary/mcp_server/server.py"
-      ],
-      "env": {
-        "BACKEND_URL": "http://localhost:8000"
-      }
+        "-y",
+        "mcp-remote",
+        "https://cerina-protocol-foundry-production.up.railway.app/mcp"
+      ]
     }
   }
 }`
@@ -40,7 +49,9 @@ export default function Header({
 }: HeaderProps) {
   const { showToast } = useToast()
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
-  const [copiedConfig, setCopiedConfig] = useState(false)
+  const [copiedUrl, setCopiedUrl] = useState(false)
+  const [selectedSnippetTab, setSelectedSnippetTab] = useState<'url' | 'json' | 'bridge'>('json')
+  const [copiedSnippet, setCopiedSnippet] = useState(false)
   const [recentSessions, setRecentSessions] = useState<StoredSession[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -60,11 +71,18 @@ export default function Header({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleCopyMcpConfig = () => {
-    navigator.clipboard.writeText(MCP_CONFIG_SNIPPET)
-    setCopiedConfig(true)
-    showToast('MCP configuration copied', 'success')
-    setTimeout(() => setCopiedConfig(false), 2000)
+  const handleCopyUrl = () => {
+    navigator.clipboard.writeText(HOSTED_MCP_URL)
+    setCopiedUrl(true)
+    showToast('Endpoint URL copied', 'success')
+    setTimeout(() => setCopiedUrl(false), 2000)
+  }
+
+  const handleCopySnippet = (text: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedSnippet(true)
+    showToast('Configuration snippet copied', 'success')
+    setTimeout(() => setCopiedSnippet(false), 2000)
   }
 
   return (
@@ -107,16 +125,21 @@ export default function Header({
         <div className="flex items-center gap-2 shrink-0">
 
 
-          {/* MCP Popover (Section 10) */}
+          {/* Hosted AI App (MCP) Popover */}
           <Popover.Root>
             <Popover.Trigger asChild>
               <button
                 type="button"
-                aria-label="Model Context Protocol configuration"
+                aria-label="Use Cerina in your AI app"
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border border-[#E8E4DA] bg-white hover:bg-[#F5F2EC] text-[#18221E] transition-colors shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244F3B] cursor-pointer"
               >
-                <Code2 className="w-3.5 h-3.5 text-[#244F3B]" />
-                <span className="font-mono text-[11px] font-semibold text-[#244F3B]">MCP</span>
+                <Code2 className="w-3.5 h-3.5 text-[#244F3B] shrink-0" />
+                <span className="hidden sm:inline font-sans text-[11px] font-semibold text-[#244F3B]">
+                  Use in your AI app
+                </span>
+                <span className="sm:hidden font-sans text-[11px] font-semibold text-[#244F3B]">
+                  AI app
+                </span>
               </button>
             </Popover.Trigger>
 
@@ -125,55 +148,39 @@ export default function Header({
                 side="bottom"
                 align="end"
                 sideOffset={8}
-                className="z-50 w-96 sm:w-[440px] rounded-2xl border border-[#E8E4DA] bg-white p-5 shadow-2xl text-xs space-y-3.5 animate-in fade-in-50 zoom-in-95"
+                tabIndex={0}
+                aria-label="Connect your AI app"
+                className="z-50 w-96 sm:w-[480px] max-h-[85vh] overflow-y-auto rounded-2xl border border-[#E8E4DA] bg-white p-5 shadow-2xl text-xs space-y-4 animate-in fade-in-50 zoom-in-95 focus:outline-none"
               >
-                <div className="flex items-start justify-between pb-2.5 border-b border-[#F0ECE3]">
+                {/* Header */}
+                <div className="flex items-start justify-between pb-3 border-b border-[#F0ECE3]">
                   <div>
                     <div className="flex items-center gap-1.5 font-bold text-[#18221E] text-sm">
                       <Terminal className="w-4 h-4 text-[#244F3B]" />
-                      <h4>Model Context Protocol (MCP)</h4>
+                      <h4>Connect your AI app</h4>
                     </div>
-                    <p className="text-[11px] text-[#55635C] mt-0.5">
-                      Connect AI apps directly to Cerina to create exercises
+                    <p className="text-[11px] text-[#55635C] mt-1 leading-relaxed">
+                      Connect Claude, Cursor or another AI app to Cerina so you can create exercises from your chat — uses MCP, an open standard.
                     </p>
                   </div>
                   <Popover.Close
-                    className="p-1 rounded-md text-[#88978F] hover:text-[#18221E] hover:bg-[#F0ECE3] transition-colors"
+                    className="p-1 rounded-md text-[#88978F] hover:text-[#18221E] hover:bg-[#F0ECE3] transition-colors shrink-0"
                     aria-label="Close"
                   >
                     <X className="w-4 h-4" />
                   </Popover.Close>
                 </div>
 
-                <div className="space-y-2 text-[11px] text-[#33423B] leading-relaxed">
-                  <p>
-                    Cerina provides tools to create and review exercises:
-                  </p>
-                  <ul className="space-y-1 pl-1 font-mono text-[10.5px]">
-                    <li className="flex items-baseline gap-1.5">
-                      <span className="font-bold text-[#244F3B]">• create_cbt_protocol:</span>
-                      <span className="font-sans text-[#55635C]">Starts drafting & safety checks</span>
-                    </li>
-                    <li className="flex items-baseline gap-1.5">
-                      <span className="font-bold text-[#244F3B]">• get_protocol_status:</span>
-                      <span className="font-sans text-[#55635C]">Inspects live draft & quality scores</span>
-                    </li>
-                    <li className="flex items-baseline gap-1.5">
-                      <span className="font-bold text-[#244F3B]">• approve_protocol:</span>
-                      <span className="font-sans text-[#55635C]">Your review and approval</span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1 text-[11px]">
-                    <span className="font-semibold text-[#18221E]">claude_desktop_config.json:</span>
+                {/* Hosted URL Section */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-semibold text-[#18221E]">Cloud MCP Endpoint:</span>
                     <button
                       type="button"
-                      onClick={handleCopyMcpConfig}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white hover:bg-[#F5F2EC] border border-[#E8E4DA] text-[10px] font-semibold text-[#244F3B] shadow-2xs transition-colors"
+                      onClick={handleCopyUrl}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white hover:bg-[#F5F2EC] border border-[#E8E4DA] text-[10px] font-semibold text-[#244F3B] shadow-2xs transition-colors cursor-pointer"
                     >
-                      {copiedConfig ? (
+                      {copiedUrl ? (
                         <>
                           <Check className="w-3 h-3 text-emerald-600" />
                           <span>Copied</span>
@@ -181,33 +188,116 @@ export default function Header({
                       ) : (
                         <>
                           <Copy className="w-3 h-3" />
-                          <span>Copy JSON</span>
+                          <span>Copy URL</span>
                         </>
                       )}
                     </button>
                   </div>
-                  <pre className="p-2.5 bg-[#FAF8F5] rounded-lg border border-[#E8E4DA] font-mono text-[10px] text-[#18221E] overflow-x-auto leading-relaxed select-all">
-                    {MCP_CONFIG_SNIPPET}
+                  <pre
+                    tabIndex={0}
+                    aria-label="Cloud MCP Endpoint URL"
+                    className="p-2.5 bg-[#FAF8F5] rounded-lg border border-[#E8E4DA] font-mono text-[10.5px] text-[#244F3B] overflow-x-auto select-all focus:outline-none focus:ring-1 focus:ring-[#244F3B]"
+                  >
+                    {HOSTED_MCP_URL}
                   </pre>
                 </div>
 
-                <div className="p-2.5 bg-[#EBF3EE] rounded-lg border border-[#CDE0D4] text-[11px] text-[#244F3B]">
-                  <span className="font-semibold">Example Claude prompt:</span>
-                  <p className="font-serif italic mt-0.5 text-[#18221E]">
-                    "Ask Cerina to create a sleep routine for bedtime worry"
-                  </p>
+                {/* Snippets Section */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-[#18221E] text-[11px]">Setup snippets:</span>
+                    <div className="flex items-center gap-1 bg-[#F0ECE3] p-0.5 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSnippetTab('json')}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${
+                          selectedSnippetTab === 'json'
+                            ? 'bg-white text-[#18221E] shadow-2xs font-semibold'
+                            : 'text-[#55635C] hover:text-[#18221E]'
+                        }`}
+                      >
+                        JSON Config
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSnippetTab('url')}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${
+                          selectedSnippetTab === 'url'
+                            ? 'bg-white text-[#18221E] shadow-2xs font-semibold'
+                            : 'text-[#55635C] hover:text-[#18221E]'
+                        }`}
+                      >
+                        Direct URL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSnippetTab('bridge')}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${
+                          selectedSnippetTab === 'bridge'
+                            ? 'bg-white text-[#18221E] shadow-2xs font-semibold'
+                            : 'text-[#55635C] hover:text-[#18221E]'
+                        }`}
+                      >
+                        Command Bridge
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Active Snippet Display */}
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-1 text-[10.5px] text-[#55635C]">
+                      <span>
+                        {selectedSnippetTab === 'json' && 'Cursor, Claude Desktop (remote), or VS Code:'}
+                        {selectedSnippetTab === 'url' && 'Claude Web, Copilot, or apps accepting an MCP URL:'}
+                        {selectedSnippetTab === 'bridge' && 'Local fallback bridge using npx mcp-remote:'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleCopySnippet(
+                            selectedSnippetTab === 'json'
+                              ? SNIPPET_JSON_CONFIG
+                              : selectedSnippetTab === 'url'
+                              ? HOSTED_MCP_URL
+                              : SNIPPET_BRIDGE_CONFIG
+                          )
+                        }
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white hover:bg-[#F5F2EC] border border-[#E8E4DA] text-[10px] font-semibold text-[#244F3B] shadow-2xs transition-colors cursor-pointer"
+                      >
+                        {copiedSnippet ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span>Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copy snippet</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <pre
+                      tabIndex={0}
+                      aria-label="Configuration setup snippet"
+                      className="p-2.5 bg-[#FAF8F5] rounded-lg border border-[#E8E4DA] font-mono text-[10px] text-[#18221E] overflow-x-auto leading-relaxed select-all focus:outline-none focus:ring-1 focus:ring-[#244F3B]"
+                    >
+                      {selectedSnippetTab === 'json' && SNIPPET_JSON_CONFIG}
+                      {selectedSnippetTab === 'url' && HOSTED_MCP_URL}
+                      {selectedSnippetTab === 'bridge' && SNIPPET_BRIDGE_CONFIG}
+                    </pre>
+                  </div>
                 </div>
-                <div className="pt-1 flex items-center justify-between text-[11px] border-t border-[#F0ECE3]">
-                  <span className="text-[#88978F]">Requires Python 3.10+ & local backend</span>
-                  <a
-                    href="https://github.com/Danish137/cerina-protocol-foundry#running-the-mcp-server"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[#244F3B] font-semibold hover:underline"
-                  >
-                    <span>Full setup guide</span>
-                    <ExternalLink className="w-3 h-3 text-[#7E8F87]" />
-                  </a>
+
+                {/* Abuse and limits notice */}
+                <div className="p-2.5 bg-[#F7F5F0] rounded-lg border border-[#E8E4DA] text-[11px] text-[#55635C] space-y-1">
+                  <div className="font-semibold text-[#18221E]">Usage and boundaries</div>
+                  <ul className="list-disc list-inside space-y-0.5 text-[10.5px]">
+                    <li>Daily allowance: 5 exercise creations per connection</li>
+                    <li>Up to 3 revisions per exercise</li>
+                    <li>Self-help based on CBT principles · Not therapy or medical advice</li>
+                  </ul>
                 </div>
               </Popover.Content>
             </Popover.Portal>
