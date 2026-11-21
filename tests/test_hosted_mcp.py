@@ -405,3 +405,35 @@ async def test_wording_sanitization_zero_forbidden_terms():
     app_res = await approve_exercise(sid, token)
     matches_app = FORBIDDEN_REGEX.findall(app_res["approved_draft"])
     assert len(matches_app) == 0, f"Found forbidden terms in approved draft: {matches_app}"
+
+# 13. Safety net test: RAW Drafter output sample has 0 characters changed, injected forbidden word is replaced
+def test_sanitize_mcp_text_safety_net():
+    from hosted_mcp import sanitize_mcp_text
+
+    raw_sample = (
+        "# Calm Your Voice: Box-Breathing Exercise for Presentation Jitters\n\n"
+        "## Introduction\n"
+        "Feeling a flutter of nerves before speaking in front of others is completely normal. "
+        "Physical tension, rapid breathing, and racing thoughts can amplify the anxiety, making it harder to focus on your message. "
+        "Box breathing is a practical self-help tool that engages your body's natural relaxation response.\n\n"
+        "## Steps\n"
+        "1. Inhale slowly through your nose for 4 seconds.\n"
+        "2. Hold your breath gently for 4 seconds.\n"
+        "3. Exhale smoothly through your mouth for 4 seconds.\n"
+        "4. Pause and hold empty for 4 seconds.\n\n"
+        "## Grounding Tip\n"
+        "Notice the solid ground supporting your feet while maintaining an upright posture."
+    )
+
+    # 1. Proves 0 characters changed on clean raw draft prose
+    sanitized = sanitize_mcp_text(raw_sample)
+    assert sanitized == raw_sample
+    assert len(sanitized) == len(raw_sample)
+
+    # 2. Injected forbidden word is replaced
+    injected_sample = raw_sample + "\nNote from Drafter: review clinical safety."
+    sanitized_injected = sanitize_mcp_text(injected_sample)
+    assert "Drafter" not in sanitized_injected
+    assert "clinical" not in sanitized_injected
+    assert "Writing system" in sanitized_injected
+    assert "support" in sanitized_injected
