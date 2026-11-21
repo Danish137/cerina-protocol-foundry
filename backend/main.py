@@ -805,7 +805,10 @@ async def get_protocol_state(
     from agents.workflow import create_workflow
     workflow = create_workflow()
     config = {"configurable": {"thread_id": session_id}}
-    st = await workflow.aget_state(config)
+    try:
+        st = await workflow.aget_state(config)
+    except Exception:
+        st = None
     
     db = get_db_session()
     try:

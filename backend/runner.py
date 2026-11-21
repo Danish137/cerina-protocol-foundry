@@ -185,6 +185,93 @@ def emit_event(
     finally:
         db.close()
 
+# --- Shared Evaluation Helper ---
+
+def is_valid_evaluation(db, session_id: str, draft_version: int) -> dict:
+    """
+    Checks whether the given draft version has completed, valid safety and quality review events.
+    Uses the real event names stored on score events ('SafetyGuardian' and 'ClinicalCritic').
+    Fail-closed: counts only COMPLETED, non-unverified score results (not merely a node_end,
+    and not an 'unverified' or 'unavailable' evaluation).
+    Returns dict:
+        {
+            'safety_done': bool,
+            'quality_done': bool,
+            'fully_checked': bool,
+            'safety_score': Optional[float],
+            'empathy_score': Optional[float],
+            'clinical_score': Optional[float],
+        }
+    """
+    safety_events = (
+        db.query(Event)
+        .filter(
+            Event.session_id == session_id,
+            Event.draft_version == draft_version,
+            Event.agent == "SafetyGuardian",
+            Event.type == "score",
+        )
+        .order_by(Event.seq.desc())
+        .all()
+    )
+    safety_done = False
+    safety_score = None
+    for e in safety_events:
+        edata = e.data or {}
+        s_val = edata.get("score")
+        if (
+            edata.get("unverified") is not True
+            and edata.get("score_source") != "unavailable"
+            and s_val is not None
+        ):
+            safety_done = True
+            try:
+                safety_score = float(s_val)
+            except (ValueError, TypeError):
+                pass
+            break
+
+    quality_events = (
+        db.query(Event)
+        .filter(
+            Event.session_id == session_id,
+            Event.draft_version == draft_version,
+            Event.agent == "ClinicalCritic",
+            Event.type == "score",
+        )
+        .order_by(Event.seq.desc())
+        .all()
+    )
+    quality_done = False
+    empathy_score = None
+    clinical_score = None
+    for e in quality_events:
+        edata = e.data or {}
+        emp = edata.get("empathy_score")
+        clin = edata.get("clinical_score")
+        if (
+            edata.get("unverified") is not True
+            and edata.get("score_source") != "unavailable"
+            and emp is not None
+            and clin is not None
+        ):
+            quality_done = True
+            try:
+                empathy_score = float(emp)
+                clinical_score = float(clin)
+            except (ValueError, TypeError):
+                pass
+            break
+
+    return {
+        "safety_done": safety_done,
+        "quality_done": quality_done,
+        "fully_checked": bool(safety_done and quality_done),
+        "safety_score": safety_score,
+        "empathy_score": empathy_score,
+        "clinical_score": clinical_score,
+    }
+
 # --- Single Runner Execution ---
 
 async def run_protocol_workflow(
@@ -430,12 +517,37 @@ async def run_protocol_workflow(
             except Exception:
                 pass
 
-        # Ensure DB session status is not stuck in generating/revising
+        # Ensure DB session status is not stuck in generating/revising:
+        # Use the exact same logic as startup reconciliation!
         db = get_db_session()
         try:
             db_sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
             if db_sess and db_sess.status in ["generating", "revising"]:
-                db_sess.status = "awaiting_approval"
+                last_draft_evt = (
+                    db.query(Event)
+                    .filter(
+                        Event.session_id == session_id,
+                        Event.type.in_(["draft", "checkpoint"])
+                    )
+                    .order_by(Event.seq.desc())
+                    .first()
+                )
+                v = last_draft_evt.draft_version if last_draft_evt else 1
+                has_draft = bool(db_sess.current_draft or (last_draft_evt and last_draft_evt.data))
+
+                if has_draft:
+                    eval_state = is_valid_evaluation(db, session_id, v)
+                    db_sess.status = "awaiting_approval"
+                    meta = dict(db_sess.meta_data or {})
+                    if eval_state["fully_checked"]:
+                        meta.pop("recheck_required", None)
+                        meta.pop("recheck_message", None)
+                    else:
+                        meta["recheck_required"] = True
+                        meta["recheck_message"] = "This draft wasn't fully checked. Run the checks again."
+                    db_sess.meta_data = meta
+                else:
+                    db_sess.status = "failed"
                 db.commit()
         except Exception:
             db.rollback()
@@ -770,54 +882,8 @@ def reconcile_interrupted_sessions() -> int:
 
             if s.current_draft:
                 s.status = "awaiting_approval"
-
-                # Check whether current draft version has completed BOTH safety and quality reviews
-                # Fail closed: must count only a COMPLETED, non-unverified score result (not merely a node_end,
-                # and not an "unverified"/unavailable evaluation).
-                safety_events = (
-                    db.query(Event)
-                    .filter(
-                        Event.session_id == s.session_id,
-                        Event.draft_version == v,
-                        Event.agent == "SafetyGuardian",
-                        Event.type == "score",
-                    )
-                    .all()
-                )
-                safety_done = False
-                for e in safety_events:
-                    edata = e.data or {}
-                    if (
-                        edata.get("unverified") is not True
-                        and edata.get("score_source") != "unavailable"
-                        and edata.get("score") is not None
-                    ):
-                        safety_done = True
-                        break
-
-                quality_events = (
-                    db.query(Event)
-                    .filter(
-                        Event.session_id == s.session_id,
-                        Event.draft_version == v,
-                        Event.agent == "ClinicalCritic",
-                        Event.type == "score",
-                    )
-                    .all()
-                )
-                quality_done = False
-                for e in quality_events:
-                    edata = e.data or {}
-                    if (
-                        edata.get("unverified") is not True
-                        and edata.get("score_source") != "unavailable"
-                        and edata.get("empathy_score") is not None
-                        and edata.get("clinical_score") is not None
-                    ):
-                        quality_done = True
-                        break
-
-                fully_checked = bool(safety_done and quality_done)
+                eval_state = is_valid_evaluation(db, s.session_id, v)
+                fully_checked = eval_state["fully_checked"]
                 meta = dict(s.meta_data or {})
 
                 if fully_checked:

@@ -18,7 +18,7 @@ from mcp.server.fastmcp import FastMCP, Context
 from mcp.server.transport_security import TransportSecuritySettings
 
 from database import get_db_session, ProtocolSession, Event
-from runner import registry, run_protocol_workflow, emit_event
+from runner import registry, run_protocol_workflow, emit_event, is_valid_evaluation
 from crisis import screen_crisis_intent, get_crisis_resources
 from security import (
     generate_session_id,
@@ -380,6 +380,18 @@ Returns plain status stages ("Writing your exercise", "Safety check", "Quality r
         latest = db.query(ProtocolSession).filter(ProtocolSession.session_id == run_id).first()
         status = latest.status if latest else sess.status
         meta = dict(latest.meta_data or {}) if latest else {}
+
+        last_draft_evt = (
+            db.query(Event)
+            .filter(
+                Event.session_id == run_id,
+                Event.type.in_(["draft", "checkpoint"])
+            )
+            .order_by(Event.seq.desc())
+            .first()
+        )
+        v = last_draft_evt.draft_version if last_draft_evt else 1
+        eval_state = is_valid_evaluation(db, run_id, v)
     finally:
         db.close()
 
@@ -397,26 +409,43 @@ Returns plain status stages ("Writing your exercise", "Safety check", "Quality r
     except Exception:
         pass
 
-    plain_stage = map_plain_status(status, active_node)
-    if meta.get("recheck_required"):
-        plain_stage = "Needs recheck"
+    recheck_needed = bool(
+        meta.get("recheck_required")
+        or (status in ("awaiting_review", "awaiting_approval") and not eval_state["fully_checked"])
+    )
 
-    messages = {
-        "Writing your exercise": "Writing your exercise based on self-help principles.",
-        "Safety check": "Evaluating exercise against safety boundaries and risk criteria.",
-        "Quality review": "Reviewing clarity, tone, and practical self-help guidance.",
-        "Ready for your review": "Your exercise draft is complete and ready for your review.",
-        "Approved": "Exercise has been approved.",
-        "Needs recheck": meta.get("recheck_message") or "This draft wasn't fully checked. Run the checks again.",
-        "Failed": "The generation encountered an issue and did not complete.",
-    }
+    if status == "failed":
+        plain_stage = "Failed"
+        stage_message = "Something went wrong. Please start a new exercise."
+        awaiting_review = False
+    elif recheck_needed:
+        plain_stage = "Needs recheck"
+        stage_message = "Your exercise needs another safety check. Ask for a small change with revise_exercise, or start a new exercise."
+        awaiting_review = False
+    elif status in ("awaiting_review", "awaiting_approval") and eval_state["fully_checked"]:
+        plain_stage = "Ready for your review"
+        stage_message = "Your exercise draft is complete and ready for your review."
+        awaiting_review = True
+    else:
+        plain_stage = map_plain_status(status, active_node)
+        messages = {
+            "Writing your exercise": "Writing your exercise based on self-help principles.",
+            "Safety check": "Evaluating exercise against safety boundaries and risk criteria.",
+            "Quality review": "Reviewing clarity, tone, and practical self-help guidance.",
+            "Ready for your review": "Your exercise draft is complete and ready for your review.",
+            "Approved": "Exercise has been approved.",
+            "Needs recheck": "Your exercise needs another safety check. Ask for a small change with revise_exercise, or start a new exercise.",
+            "Failed": "Something went wrong. Please start a new exercise.",
+        }
+        stage_message = messages.get(plain_stage, "Processing exercise.")
+        awaiting_review = False
 
     return {
         "run_id": run_id,
         "status": plain_stage,
-        "message": messages.get(plain_stage, "Processing exercise."),
+        "message": stage_message,
         "iteration": iteration,
-        "awaiting_review": (status in ("awaiting_review", "awaiting_approval")),
+        "awaiting_review": awaiting_review,
     }
 
 @hosted_mcp.tool()
@@ -430,21 +459,36 @@ async def get_exercise(run_id: str, run_token: str, ctx: Context = None) -> Dict
     try:
         s = db.query(ProtocolSession).filter(ProtocolSession.session_id == run_id).first()
         current_draft = s.current_draft if s else None
-        safety_score = s.safety_score if s else None
-        empathy_score = s.empathy_score if s else None
-        clinical_score = s.clinical_score if s else None
         status = s.status if s else sess.status
+        meta = dict(s.meta_data or {}) if s else {}
+
+        last_draft_evt = (
+            db.query(Event)
+            .filter(
+                Event.session_id == run_id,
+                Event.type.in_(["draft", "checkpoint"])
+            )
+            .order_by(Event.seq.desc())
+            .first()
+        )
+        v = last_draft_evt.draft_version if last_draft_evt else 1
+        eval_state = is_valid_evaluation(db, run_id, v)
     finally:
         db.close()
 
     if not current_draft:
         return {
             "run_id": run_id,
-            "status": map_plain_status(status),
+            "status": "Failed" if status == "failed" else map_plain_status(status),
             "message": "Exercise draft is still being prepared. Check get_status for progress.",
             "draft": None,
             "summary": None,
         }
+
+    # Scores read from the same source the web app uses: latest valid score events
+    safety_score = eval_state["safety_score"] if eval_state["safety_score"] is not None else (s.safety_score if s else None)
+    empathy_score = eval_state["empathy_score"] if eval_state["empathy_score"] is not None else (s.empathy_score if s else None)
+    clinical_score = eval_state["clinical_score"] if eval_state["clinical_score"] is not None else (s.clinical_score if s else None)
 
     summary = {
         "safety_score": round(safety_score * 100, 1) if safety_score is not None else None,
@@ -461,9 +505,24 @@ async def get_exercise(run_id: str, run_token: str, ctx: Context = None) -> Dict
     if summary["quality_score"] is not None:
         formatted_md += f"- Guidance Quality: {summary['quality_score']}/5.0\n"
 
+    recheck_needed = bool(
+        meta.get("recheck_required")
+        or (status in ("awaiting_review", "awaiting_approval") and not eval_state["fully_checked"])
+    )
+    if status == "approved":
+        mcp_status = "Approved"
+    elif status == "failed":
+        mcp_status = "Failed"
+    elif recheck_needed:
+        mcp_status = "Needs recheck"
+    elif eval_state["fully_checked"]:
+        mcp_status = "Ready for your review"
+    else:
+        mcp_status = map_plain_status(status)
+
     return {
         "run_id": run_id,
-        "status": map_plain_status(status),
+        "status": mcp_status,
         "draft": sanitized_draft,
         "summary": summary,
         "text": formatted_md,
@@ -579,6 +638,18 @@ async def approve_exercise(run_id: str, run_token: str, ctx: Context = None) -> 
         meta = dict(s.meta_data or {}) if s else {}
         current_draft = (s.current_draft or "") if s else ""
         current_status = s.status if s else sess.status
+
+        last_draft_evt = (
+            db.query(Event)
+            .filter(
+                Event.session_id == run_id,
+                Event.type.in_(["draft", "checkpoint"])
+            )
+            .order_by(Event.seq.desc())
+            .first()
+        )
+        v = last_draft_evt.draft_version if last_draft_evt else 1
+        eval_state = is_valid_evaluation(db, run_id, v)
     finally:
         db.close()
 
@@ -592,11 +663,12 @@ async def approve_exercise(run_id: str, run_token: str, ctx: Context = None) -> 
 
     # Enforce recheck_required rule
     if meta.get("recheck_required"):
+        recheck_msg = meta.get("recheck_message") or "Your exercise needs another safety check. Ask for a small change with revise_exercise, or start a new exercise."
         return {
             "status": "rejected",
             "code": "recheck_required",
-            "message": meta.get("recheck_message") or "This draft wasn't fully checked. Run the checks again.",
-            "error": "This draft wasn't fully checked. Run the checks again.",
+            "message": recheck_msg,
+            "error": recheck_msg,
         }
 
     if current_status == "approved":
