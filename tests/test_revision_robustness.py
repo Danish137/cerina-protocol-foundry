@@ -518,7 +518,10 @@ def test_interrupted_run_startup_reconciliation():
         with patch("agents.workflow.create_workflow") as mock_wf:
             mock_app = mock.AsyncMock()
             mock_app.aget_state.return_value = mock.MagicMock(values={"user_intent": "Intent", "current_draft": draft_content})
-            mock_app.astream = mock.MagicMock()
+            async def _active_revision_astream(*args, **kwargs):
+                await asyncio.sleep(1.0)
+                yield {"test": True}
+            mock_app.astream = _active_revision_astream
             mock_wf.return_value = mock_app
             resp_rev = test_client.post(
                 f"/api/protocols/{sid_rev_clear}/revise",
