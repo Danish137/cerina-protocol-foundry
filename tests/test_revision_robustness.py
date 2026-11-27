@@ -499,41 +499,6 @@ def test_interrupted_run_startup_reconciliation():
         assert resp_b_approved.status_code == 200, f"Approve failed after revalidate: {resp_b_approved.text}"
         assert resp_b_approved.json().get("status") == "approved"
 
-        # Verify recheck_required is also cleared on any new revision
-        sid_rev_clear = f"test_rev_clear_{secrets.token_hex(4)}"
-        tok_rev_clear = "tok_rev_clear_999"
-        hash_rev_clear = hashlib.sha256(tok_rev_clear.encode()).hexdigest()
-        s_rev_clear = ProtocolSession(
-            session_id=sid_rev_clear,
-            token_hash=hash_rev_clear,
-            user_intent="Intent Revision Clear",
-            status="awaiting_approval",
-            current_draft=draft_content,
-            meta_data={"recheck_required": True, "recheck_message": "Needs recheck."}
-        )
-        db.add(s_rev_clear)
-        db.commit()
-
-        # Calling revise clears recheck_required
-        with patch("agents.workflow.create_workflow") as mock_wf:
-            mock_app = mock.AsyncMock()
-            mock_app.aget_state.return_value = mock.MagicMock(values={"user_intent": "Intent", "current_draft": draft_content})
-            async def _active_revision_astream(*args, **kwargs):
-                await asyncio.sleep(1.0)
-                yield {"test": True}
-            mock_app.astream = _active_revision_astream
-            mock_wf.return_value = mock_app
-            resp_rev = test_client.post(
-                f"/api/protocols/{sid_rev_clear}/revise",
-                headers={"X-Session-Token": tok_rev_clear},
-                json={"instruction": "Make warmer"}
-            )
-            assert resp_rev.status_code == 200
-            db.expire_all()
-            check_rev_cleared = db.query(ProtocolSession).filter(ProtocolSession.session_id == sid_rev_clear).first()
-            assert dict(check_rev_cleared.meta_data or {}).get("recheck_required") is not True
-
-        # -------------------------------------------------------------
         # (c) Fail closed on unverified/unavailable evaluation
         # -------------------------------------------------------------
         sid_unverified = f"test_unverified_{secrets.token_hex(4)}"
@@ -615,6 +580,140 @@ def test_interrupted_run_startup_reconciliation():
         run_end_c = next((e for e in evts_c if e.type == "run_end" and e.run_id == "interrupted_startup"), None)
         assert run_end_c is not None
         assert run_end_c.data.get("status") == "failed"
+    finally:
+        db.close()
+
+
+def _wait_for_session_not_revising(db, session_id: str, timeout_s: float = 5.0):
+    """Poll DB until background runner exits 'revising' status (no fixed sleep)."""
+    import time
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        db.expire_all()
+        sess = db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+        if sess and sess.status != "revising":
+            return sess
+        time.sleep(0.02)
+    db.expire_all()
+    return db.query(ProtocolSession).filter(ProtocolSession.session_id == session_id).first()
+
+
+def test_revision_completes_clears_recheck():
+    """When a revision completes with valid SafetyGuardian & ClinicalCritic score events, recheck_required is cleared."""
+    import hashlib
+    from fastapi.testclient import TestClient
+    from main import app
+    from runner import emit_event
+
+    test_client = TestClient(app)
+    sid = f"test_rev_clear_{secrets.token_hex(4)}"
+    tok = "tok_rev_clear_999"
+    tok_hash = hashlib.sha256(tok.encode()).hexdigest()
+    draft_content = "# Revised Draft\n\nWarm and complete."
+
+    db = get_db_session()
+    try:
+        db.add(ProtocolSession(
+            session_id=sid,
+            token_hash=tok_hash,
+            user_intent="Intent Revision Clear",
+            status="awaiting_approval",
+            current_draft=draft_content,
+            meta_data={"recheck_required": True, "recheck_message": "Needs recheck."}
+        ))
+        db.commit()
+
+        with patch("agents.workflow.create_workflow") as mock_wf:
+            mock_app = mock.AsyncMock()
+            mock_app.aget_state.return_value = mock.MagicMock(values={
+                "user_intent": "Intent",
+                "current_draft": draft_content,
+                "current_version": 2,
+                "status": "awaiting_approval",
+                "halted": True,
+            })
+
+            async def _completed_revision_astream(*args, **kwargs):
+                emit_event(
+                    session_id=sid, run_id="r_rev_ok", run_kind="human_revision", draft_version=2,
+                    agent="Drafter", event_type="draft", text_content="Draft v2", data={"draft": draft_content}
+                )
+                emit_event(
+                    session_id=sid, run_id="r_rev_ok", run_kind="human_revision", draft_version=2,
+                    agent="SafetyGuardian", event_type="score", text_content="Safety checks passed: 5/5", data={"score": 1.0}
+                )
+                emit_event(
+                    session_id=sid, run_id="r_rev_ok", run_kind="human_revision", draft_version=2,
+                    agent="ClinicalCritic", event_type="score", text_content="Empathy: 4.5/5, Quality: 4.5/5",
+                    data={"empathy_score": 4.5, "clinical_score": 4.5}
+                )
+                yield {"supervisor": {"status": "awaiting_approval", "halted": True}}
+
+            mock_app.astream = _completed_revision_astream
+            mock_wf.return_value = mock_app
+
+            resp_rev = test_client.post(
+                f"/api/protocols/{sid}/revise",
+                headers={"X-Session-Token": tok},
+                json={"instruction": "Make warmer"}
+            )
+            assert resp_rev.status_code == 200
+            sess_done = _wait_for_session_not_revising(db, sid)
+            assert sess_done.status == "awaiting_approval"
+            assert dict(sess_done.meta_data or {}).get("recheck_required") is not True
+    finally:
+        db.close()
+
+
+def test_revision_ends_without_reviews_requires_recheck():
+    """Fail-closed: if a revision ends without completed SafetyGuardian & ClinicalCritic score events, recheck_required is True."""
+    import hashlib
+    from fastapi.testclient import TestClient
+    from main import app
+
+    test_client = TestClient(app)
+    sid = f"test_rev_norev_{secrets.token_hex(4)}"
+    tok = "tok_rev_norev_888"
+    tok_hash = hashlib.sha256(tok.encode()).hexdigest()
+    draft_content = "# Draft Without Reviews\n\nContent."
+
+    db = get_db_session()
+    try:
+        db.add(ProtocolSession(
+            session_id=sid,
+            token_hash=tok_hash,
+            user_intent="Intent Revision Unreviewed",
+            status="awaiting_approval",
+            current_draft=draft_content,
+            meta_data={"recheck_required": True, "recheck_message": "Needs recheck."}
+        ))
+        db.commit()
+
+        with patch("agents.workflow.create_workflow") as mock_wf:
+            mock_app = mock.AsyncMock()
+            mock_app.aget_state.return_value = mock.MagicMock(values={
+                "user_intent": "Intent",
+                "current_draft": draft_content,
+                "current_version": 2,
+                "status": "revising",
+                "halted": False,
+            })
+
+            async def _unreviewed_revision_astream(*args, **kwargs):
+                yield {"test": True}
+
+            mock_app.astream = _unreviewed_revision_astream
+            mock_wf.return_value = mock_app
+
+            resp_rev = test_client.post(
+                f"/api/protocols/{sid}/revise",
+                headers={"X-Session-Token": tok},
+                json={"instruction": "Make warmer"}
+            )
+            assert resp_rev.status_code == 200
+            sess_done = _wait_for_session_not_revising(db, sid)
+            assert sess_done.status == "awaiting_approval"
+            assert dict(sess_done.meta_data or {}).get("recheck_required") is True
     finally:
         db.close()
 
