@@ -59,7 +59,6 @@ restore_chat_history.bat
 restore_chat_history.py
 
 # Local documentation & evaluation benchmarks (kept locally, excluded from remote)
-docs/
-screenshots/
+/screenshots/
 dev-notes/
 *.pdf
